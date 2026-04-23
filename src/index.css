@@ -1,0 +1,12 @@
+/* Google Stitch Design System Base */
+/* Note: @stitches/react is a JS library, CSS is injected dynamically by the styled components. */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
