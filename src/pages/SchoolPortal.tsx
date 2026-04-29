@@ -1,136 +1,113 @@
 import React, { useState, useEffect } from 'react';
+import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
-import axios from 'axios';
 import { Student } from '../types';
-import Sidebar from '../layouts/Sidebar';
-import Table from '../components/Table';
-import Button from '../components/Button';
-import Modal from '../components/Modal';
-import { Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const SchoolPortal: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [formData, setFormData] = useState({ name: '', class: '', parent_contact: '' });
-  const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ username:'', password:'', email:'', roll_number:'', grade:'', gpa:'' });
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchStudents = async () => {
-    try { setIsLoading(true); const response = await api.get('/students'); setStudents(response.data); } 
-    catch (err) { console.error('Failed to fetch students', err); } 
-    finally { setIsLoading(false); }
+    try { setLoading(true); const r = await api.get('/api/auth/students'); setStudents(Array.isArray(r.data)?r.data:r.data?.results??r.data?.data??[]); }
+    catch { setStudents([]); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchStudents(); }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault(); setActionLoading(true); setError('');
+    e.preventDefault();
+    if (!form.username||!form.password||!form.email) { toast.error('Fill required fields.'); return; }
+    setSubmitting(true);
     try {
-      await api.post('/students', formData);
-      setIsCreateOpen(false); setFormData({ name: '', class: '', parent_contact: '' });
+      await api.post('/api/auth/students/create', {
+        username: form.username, password: form.password, email: form.email,
+        roll_number: form.roll_number, grade: form.grade, gpa: parseFloat(form.gpa)||0,
+      });
+      toast.success('Student created!');
+      setShowCreate(false);
+      setForm({ username:'',password:'',email:'',roll_number:'',grade:'',gpa:'' });
       fetchStudents();
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || 'Failed to register student');
-      } else {
-        setError('Failed to register student');
-      }
-    } finally { setActionLoading(false); }
+    } catch { /* interceptor */ }
+    finally { setSubmitting(false); }
   };
 
-  const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!selectedStudent) return;
-    setActionLoading(true); setError('');
-    try {
-      await api.put(`/students/${selectedStudent.id}`, formData);
-      setIsEditOpen(false); setSelectedStudent(null);
-      fetchStudents();
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || 'Failed to update student');
-      } else {
-        setError('Failed to update student');
-      }
-    } finally { setActionLoading(false); }
+  const handleDelete = async (id: string|number) => {
+    try { await api.delete(`/api/auth/students/${id}/delete`); toast.success('Student deleted.'); fetchStudents(); }
+    catch { /* interceptor */ }
   };
-
-  const handleDelete = async () => {
-    if (!selectedStudent) return;
-    setActionLoading(true);
-    try {
-      await api.delete(`/students/${selectedStudent.id}`);
-      setIsDeleteOpen(false); setSelectedStudent(null);
-      fetchStudents();
-    } catch (err) { console.error('Failed to delete student', err); } 
-    finally { setActionLoading(false); }
-  };
-
-  const openEditModal = (student: Student) => {
-    setSelectedStudent(student);
-    setFormData({ name: student.name, class: student.class, parent_contact: student.parent_contact });
-    setIsEditOpen(true);
-  };
-
-  const columns = [
-    { header: 'ID', accessor: 'id' as keyof Student },
-    { header: 'Name', accessor: 'name' as keyof Student },
-    { header: 'Class', accessor: 'class' as keyof Student },
-    { header: 'Parent Contact', accessor: 'parent_contact' as keyof Student },
-    {
-      header: 'Actions',
-      accessor: (student: Student) => (
-        <div className="flex gap-2">
-          <button onClick={() => openEditModal(student)} className="p-1 text-blue-600 hover:bg-blue-50 rounded"><Edit2 size={18} /></button>
-          <button onClick={() => { setSelectedStudent(student); setIsDeleteOpen(true); }} className="p-1 text-red-600 hover:bg-red-50 rounded"><Trash2 size={18} /></button>
-        </div>
-      )
-    }
-  ];
 
   return (
-    <div className="flex bg-gray-50 min-h-screen">
-      <Sidebar />
-      <div className="flex-1 ml-64 p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex justify-between items-center mb-8">
-            <div><h1 className="text-3xl font-bold text-gray-900">Students</h1><p className="text-gray-600 mt-1">Manage enrolled students</p></div>
-            <Button onClick={() => { setFormData({ name: '', class: '', parent_contact: '' }); setIsCreateOpen(true); }}>+ Register Student</Button>
-          </div>
-          {isLoading ? <div>Loading students...</div> : <Table data={students} columns={columns} keyExtractor={(student) => student.id} />}
-        </div>
+    <DashboardLayout activePage="dashboard">
+      <div className="flex items-center justify-between mb-6">
+        <div><h1 className="text-2xl font-bold text-gray-900">Students</h1><p className="text-sm text-gray-500 mt-1">Manage enrolled students</p></div>
+        <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition">
+          <Plus size={16}/> Register Student
+        </button>
       </div>
-      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Register New Student">
-        <form onSubmit={handleCreate} className="space-y-4">
-          {error && <div className="text-red-600 text-sm">{error}</div>}
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input type="text" required className="w-full px-4 py-2 border border-gray-300 rounded-md" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Class</label><input type="text" required className="w-full px-4 py-2 border border-gray-300 rounded-md" value={formData.class} onChange={(e) => setFormData({ ...formData, class: e.target.value })} /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Parent Contact</label><input type="text" required className="w-full px-4 py-2 border border-gray-300 rounded-md" value={formData.parent_contact} onChange={(e) => setFormData({ ...formData, parent_contact: e.target.value })} /></div>
-          <div className="pt-4 flex justify-end gap-3"><Button type="button" variant="secondary" onClick={() => setIsCreateOpen(false)}>Cancel</Button><Button type="submit" isLoading={actionLoading}>Register</Button></div>
-        </form>
-      </Modal>
-      <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Student">
-        <form onSubmit={handleEdit} className="space-y-4">
-          {error && <div className="text-red-600 text-sm">{error}</div>}
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input type="text" required className="w-full px-4 py-2 border border-gray-300 rounded-md" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Class</label><input type="text" required className="w-full px-4 py-2 border border-gray-300 rounded-md" value={formData.class} onChange={(e) => setFormData({ ...formData, class: e.target.value })} /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Parent Contact</label><input type="text" required className="w-full px-4 py-2 border border-gray-300 rounded-md" value={formData.parent_contact} onChange={(e) => setFormData({ ...formData, parent_contact: e.target.value })} /></div>
-          <div className="pt-4 flex justify-end gap-3"><Button type="button" variant="secondary" onClick={() => setIsEditOpen(false)}>Cancel</Button><Button type="submit" isLoading={actionLoading}>Save Changes</Button></div>
-        </form>
-      </Modal>
-      <Modal isOpen={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} title="Delete Student">
-        <div className="space-y-4">
-          <p className="text-gray-700">Are you sure you want to delete <strong>{selectedStudent?.name}</strong>? This action cannot be undone.</p>
-          <div className="pt-4 flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={() => setIsDeleteOpen(false)}>Cancel</Button>
-            <Button type="button" variant="danger" onClick={handleDelete} isLoading={actionLoading}>Delete</Button>
-          </div>
+
+      {/* Create form overlay */}
+      {showCreate && (
+        <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Register New Student</h2>
+          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[['Username','username'],['Password','password'],['Email','email'],['Roll Number','roll_number'],['Grade','grade'],['GPA','gpa']].map(([l,k]) => (
+              <div key={k}>
+                <label className="mb-1 block text-sm font-medium text-gray-700">{l}</label>
+                <input type={k==='password'?'password':'text'} value={(form as any)[k]} onChange={e => setForm(p=>({...p,[k]:e.target.value}))}
+                  className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"/>
+              </div>
+            ))}
+            <div className="col-span-full flex gap-3 pt-2">
+              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button type="submit" disabled={submitting} className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">{submitting?'Saving...':'Register'}</button>
+            </div>
+          </form>
         </div>
-      </Modal>
-    </div>
+      )}
+
+      {/* Students table */}
+      {loading ? (
+        <div className="flex justify-center py-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600"/></div>
+      ) : students.length === 0 ? (
+        <div className="rounded-2xl border bg-white p-12 text-center text-gray-500">No students found.</div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                {['ID','Username','Email','Roll No','Grade','GPA','Actions'].map(h => (
+                  <th key={h} className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {students.map(s => (
+                <tr key={s.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-3 text-sm text-gray-700">{s.id}</td>
+                  <td className="px-6 py-3 text-sm font-medium text-gray-900">{s.username||s.name||'—'}</td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{s.email||'—'}</td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{s.roll_number||'—'}</td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{s.grade||s.class||'—'}</td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{s.gpa??'—'}</td>
+                  <td className="px-6 py-3">
+                    <div className="flex gap-1">
+                      <button className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 size={15}/></button>
+                      <button onClick={() => handleDelete(s.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={15}/></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </DashboardLayout>
   );
 };
 export default SchoolPortal;

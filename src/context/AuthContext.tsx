@@ -4,6 +4,7 @@ import { User, AuthResponse, Role, ROLE_DASHBOARD_MAP } from '../types';
 interface AuthContextType {
   user: User | null;
   login: (data: AuthResponse, loggedInUsername?: string) => void;
+  mockLogin: () => void;
   logout: () => void;
   getDashboardPath: () => string;
   isLoading: boolean;
@@ -15,19 +16,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Hydrate auth state from localStorage on mount
   useEffect(() => {
     const storedToken = localStorage.getItem('access_token');
     const storedUser = localStorage.getItem('user');
     if (storedToken && storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('role');
-        localStorage.removeItem('user');
-      }
+      try { setUser(JSON.parse(storedUser)); }
+      catch { localStorage.removeItem('access_token'); localStorage.removeItem('user'); }
     }
     setIsLoading(false);
   }, []);
@@ -36,26 +30,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const accessToken = data.data?.tokens?.access || data.access_token || data.access || '';
     const refreshToken = data.data?.tokens?.refresh || data.refresh_token || data.refresh || '';
     const role = (data.data?.user?.role || data.role) as Role;
-
-    if (!role) {
-      throw new Error('Login response did not include a role.');
-    }
-
+    if (!role) throw new Error('Login response did not include a role.');
     if (accessToken) localStorage.setItem('access_token', accessToken);
     if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
     localStorage.setItem('role', role);
-
-    const loggedInUser: User = data.data?.user || data.user || {
-      id: '1',
-      email: loggedInUsername || 'user@example.com',
-      role,
-    };
-
-    // Ensure the role on the user object matches the top-level role
+    const loggedInUser: User = data.data?.user || data.user || { id: '1', email: loggedInUsername || 'user@example.com', role };
     loggedInUser.role = role;
-
     localStorage.setItem('user', JSON.stringify(loggedInUser));
     setUser(loggedInUser);
+  };
+
+  /** UI-First mode: bypass API, create a fake ADMIN session */
+  const mockLogin = () => {
+    const fakeUser: User = { id: '1', email: 'admin@eduadmin.com', username: 'SuperAdmin', role: 'ADMIN' };
+    localStorage.setItem('access_token', 'mock-token-ui-first-mode');
+    localStorage.setItem('refresh_token', 'mock-refresh');
+    localStorage.setItem('role', 'ADMIN');
+    localStorage.setItem('user', JSON.stringify(fakeUser));
+    setUser(fakeUser);
   };
 
   const logout = () => {
@@ -72,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, getDashboardPath, isLoading }}>
+    <AuthContext.Provider value={{ user, login, mockLogin, logout, getDashboardPath, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

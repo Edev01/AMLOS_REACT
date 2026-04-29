@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../api/services/api';
-import { AuthResponse, Role, ROLE_DASHBOARD_MAP } from '../types';
-import axios from 'axios';
+// import api from '../api/services/api';           // commented for UI-first mode
+// import { AuthResponse, Role } from '../types';   // commented for UI-first mode
+import { ROLE_DASHBOARD_MAP } from '../types';
+// import axios from 'axios';                       // commented for UI-first mode
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -14,7 +15,7 @@ const Login: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login, user } = useAuth();
+  const { mockLogin, user } = useAuth();
   const navigate = useNavigate();
   const hasInput = email.trim().length > 0;
 
@@ -59,45 +60,40 @@ const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
     setError('');
-    if (!validateFields()) return;
+    setFieldErrors({});
+    const nextErrors: { email?: string; password?: string } = {};
+    if (!email.trim()) nextErrors.email = 'Username or email is required.';
+    if (!password) nextErrors.password = 'Password is required.';
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setSubmitted(true);
+      return;
+    }
+    setSubmitted(true);
     setIsLoading(true);
 
-    // Payload normalization: backend expects `email` key
-    const username = email.trim();
-
-    try {
-      const response = await api.post<AuthResponse>('/api/auth/login', { username, password });
-      login(response.data, username);
-
-      // Role-based strategic routing
-      const receivedRole = (response.data.data?.user?.role || response.data.role) as Role;
-      const dashboardPath = ROLE_DASHBOARD_MAP[receivedRole];
-
-      if (dashboardPath) {
-        navigate(dashboardPath, { replace: true });
-      } else {
-        // Unknown role — send to unauthorized so the user sees a clear message
-        navigate('/unauthorized', { replace: true });
-      }
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        if (!err.response || err.code === 'ECONNABORTED' || err.message === 'Network Error') {
-          setError('Login service is temporarily unavailable. Please try again later.');
-        } else {
-          const msg =
-            err.response?.data?.detail ||
-            err.response?.data?.message ||
-            'Invalid credentials. Please try again.';
-          setError(msg);
-        }
-      } else {
-        setError('An unexpected error occurred.');
-      }
-    } finally {
+    // ── UI-FIRST MODE: bypass API, mock login ──
+    setTimeout(() => {
+      mockLogin();
+      navigate('/dashboard', { replace: true });
       setIsLoading(false);
-    }
+    }, 600);
+
+    // ── ORIGINAL API CALL (commented out for UI-first mode) ──
+    // const username = email.trim();
+    // try {
+    //   const response = await api.post<AuthResponse>('/api/auth/login', { username, password });
+    //   login(response.data, username);
+    //   const receivedRole = (response.data.data?.user?.role || response.data.role) as Role;
+    //   const dashboardPath = ROLE_DASHBOARD_MAP[receivedRole];
+    //   if (dashboardPath) navigate(dashboardPath, { replace: true });
+    //   else navigate('/unauthorized', { replace: true });
+    // } catch (err: unknown) {
+    //   if (axios.isAxiosError(err)) {
+    //     setError(err.response?.data?.detail || 'Invalid credentials.');
+    //   } else { setError('An unexpected error occurred.'); }
+    // } finally { setIsLoading(false); }
   };
 
   return (
@@ -191,7 +187,10 @@ const Login: React.FC = () => {
                     type="text"
                     autoComplete="username"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                    }}
                     placeholder="e.g. newadmin_99 or you@example.com"
                     className="ml-3 w-full bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400"
                   />
@@ -224,7 +223,10 @@ const Login: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                    }}
                     placeholder="Enter your password"
                     className="ml-3 w-full bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400"
                   />
@@ -279,9 +281,9 @@ const Login: React.FC = () => {
               </button>
             </form>
 
-            {/* Footer — no signup link. Admin-provisioned only. */}
-            <p className="mt-7 text-center text-sm text-slate-400">
-              Access is provisioned by your system administrator.
+            <p className="mt-7 text-center text-sm text-slate-500">
+              Don't have an account?{' '}
+              <Link to="/signup" className="font-semibold text-indigo-600 hover:text-indigo-700">Create an Account</Link>
             </p>
           </div>
         </div>

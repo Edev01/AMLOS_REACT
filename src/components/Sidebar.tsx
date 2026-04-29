@@ -1,109 +1,324 @@
-import React, { useState } from 'react';
-import { LogOut, School, ChevronDown, ChevronUp, List, PlusCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import {
+  LogOut,
+  LayoutDashboard,
+  School,
+  Users,
+  BookOpen,
+  FileText,
+  ClipboardList,
+  CalendarDays,
+  BarChart3,
+  Bell,
+  Settings,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  List,
+  Sparkles,
+} from 'lucide-react';
 
 interface SidebarProps {
-  mobileOpen: boolean;
-  onClose: () => void;
-  onAddSchoolClick?: () => void;
+  activePage?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose, onAddSchoolClick }) => {
+interface MenuItem {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  path?: string;
+  children?: { id: string; label: string; path: string }[];
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [isSchoolMenuOpen, setIsSchoolMenuOpen] = useState(true);
+  const location = useLocation();
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
+    school: true,
+    planner: false,
+  });
+  const [activeIndicator, setActiveIndicator] = useState({ top: 0, height: 0 });
+  const navRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  const toggleMenu = (key: string) => {
+    setExpandedMenus((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  const isActive = (path?: string, id?: string) => {
+    if (activePage && id) return activePage === id;
+    if (path) return location.pathname === path;
+    return false;
+  };
+
+  const isParentActive = (item: MenuItem) => {
+    if (item.children) {
+      return item.children.some((child) => location.pathname === child.path || activePage === child.id);
+    }
+    return false;
+  };
+
+  // Update sliding indicator position
+  useEffect(() => {
+    const updateIndicator = () => {
+      let activeItem: HTMLButtonElement | null = null;
+      
+      itemRefs.current.forEach((ref, key) => {
+        const item = menuItems.find(m => m.id === key);
+        if (item && (isActive(item.path, item.id) || isParentActive(item))) {
+          activeItem = ref;
+        }
+      });
+
+      if (activeItem && navRef.current) {
+        const navRect = navRef.current.getBoundingClientRect();
+        const itemRect = activeItem.getBoundingClientRect();
+        setActiveIndicator({
+          top: itemRect.top - navRect.top,
+          height: itemRect.height,
+        });
+      }
+    };
+
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [location.pathname, activePage, expandedMenus]);
+
+  const menuItems: MenuItem[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, path: '/dashboard' },
+    {
+      id: 'school',
+      label: 'School Management',
+      icon: <School size={18} />,
+      children: [
+        { id: 'all-schools', label: 'All Schools', path: '/schools' },
+        { id: 'add-school', label: 'Add School', path: '/schools/add' },
+      ],
+    },
+    { id: 'users', label: 'User Management', icon: <Users size={18} /> },
+    { id: 'academic', label: 'Academic Structure', icon: <BookOpen size={18} /> },
+    { id: 'content', label: 'Content Management', icon: <FileText size={18} /> },
+    { id: 'quiz', label: 'Quiz Management', icon: <ClipboardList size={18} /> },
+    {
+      id: 'planner',
+      label: 'Planner Management',
+      icon: <CalendarDays size={18} />,
+      children: [
+        { id: 'create-planner', label: 'Create Planner', path: '/planners/create' },
+        { id: 'all-planner', label: 'All Planner', path: '/planners' },
+      ],
+    },
+    { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
+    { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
+    { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+  ];
+
   return (
-    <>
-      {mobileOpen && <div className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden" onClick={onClose} />}
-
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 transform bg-slate-900 text-slate-100 shadow-2xl transition-transform duration-300 lg:translate-x-0 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+    <aside className="fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-navy-800 text-white overflow-hidden">
+      {/* Subtle gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-accent-blue/5 via-transparent to-transparent pointer-events-none" />
+      
+      {/* Brand Header with Glass Effect */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="relative flex items-center gap-3 px-6 py-5 border-b border-white/5"
       >
-        <div className="flex h-full flex-col">
-          <div className="border-b border-white/10 px-6 py-6">
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-content-center rounded-xl bg-indigo-500">
-                <School size={18} />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold">AMLOS</h1>
-                <p className="text-xs text-slate-300">Admin Portal</p>
-              </div>
-            </div>
-            <div className="mt-5 rounded-xl bg-white/5 px-3 py-2">
-              <p className="text-xs uppercase tracking-wide text-slate-300">Signed in as</p>
-              <p className="truncate text-sm font-medium">{user?.email ?? 'user@example.com'}</p>
-              <p className="mt-1 text-xs text-slate-400">{user?.role?.replace('_', ' ') ?? 'User'}</p>
-            </div>
-          </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo shadow-glow-blue">
+          <Sparkles size={20} className="text-white" />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold leading-tight text-white">EduAdmin</h1>
+          <p className="text-[11px] text-slate-400 font-medium tracking-wide">SUPER DASHBOARD</p>
+        </div>
+      </motion.div>
 
-          <nav className="flex-1 px-4 py-5 space-y-2">
-            <div>
+      {/* Navigation with Sliding Highlight */}
+      <nav ref={navRef} className="relative flex-1 overflow-y-auto px-3 py-3 space-y-1">
+        {/* Sliding Active Indicator */}
+        <motion.div
+          className="absolute left-3 right-3 rounded-lg bg-accent-blue/20 border border-accent-blue/20"
+          initial={false}
+          animate={{
+            top: activeIndicator.top,
+            height: activeIndicator.height,
+            opacity: activeIndicator.height > 0 ? 1 : 0,
+          }}
+          transition={{
+            type: "spring",
+            stiffness: 400,
+            damping: 30,
+            mass: 0.8,
+          }}
+          style={{ pointerEvents: 'none' }}
+        />
+        
+        {/* Active Pill Indicator */}
+        <motion.div
+          className="absolute left-0 w-1 rounded-r-full bg-gradient-to-b from-accent-blue to-accent-indigo"
+          initial={false}
+          animate={{
+            top: activeIndicator.top + 8,
+            height: activeIndicator.height - 16,
+            opacity: activeIndicator.height > 0 ? 1 : 0,
+          }}
+          transition={{
+            type: "spring",
+            stiffness: 400,
+            damping: 30,
+            mass: 0.8,
+          }}
+          style={{ pointerEvents: 'none' }}
+        />
+
+        {menuItems.map((item, index) => {
+          const hasChildren = !!item.children;
+          const isExpanded = expandedMenus[item.id] ?? false;
+          const parentActive = isParentActive(item);
+          const itemActive = isActive(item.path, item.id);
+
+          return (
+            <motion.div 
+              key={item.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ 
+                duration: 0.3, 
+                delay: index * 0.05,
+                ease: [0.25, 0.46, 0.45, 0.94]
+              }}
+            >
               <button
+                ref={(el) => {
+                  if (el) itemRefs.current.set(item.id, el);
+                }}
                 type="button"
-                onClick={() => setIsSchoolMenuOpen(!isSchoolMenuOpen)}
-                className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors ${
-                  isSchoolMenuOpen ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-900/30' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                onClick={() => {
+                  if (hasChildren) {
+                    toggleMenu(item.id);
+                  } else if (item.path) {
+                    navigate(item.path);
+                  }
+                }}
+                className={`relative flex w-full items-center justify-between rounded-lg px-4 py-2.5 text-[13px] font-medium transition-all duration-200 z-10 ${
+                  itemActive || parentActive
+                    ? 'text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <School size={18} />
-                  School Management
+                  <span className={`transition-colors duration-200 ${
+                    itemActive || parentActive ? 'text-accent-blue' : ''
+                  }`}>
+                    {item.icon}
+                  </span>
+                  <span>{item.label}</span>
                 </div>
-                {isSchoolMenuOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                {hasChildren && (
+                  <motion.span 
+                    animate={{ rotate: isExpanded ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-slate-500"
+                  >
+                    <ChevronDown size={14} />
+                  </motion.span>
+                )}
               </button>
-              
-              {isSchoolMenuOpen && (
-                <div className="mt-2 space-y-1 pl-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigate('/super-admin-dashboard');
-                      onClose();
-                    }}
-                    className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
-                  >
-                    <List size={16} />
-                    All Schools
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onAddSchoolClick) onAddSchoolClick();
-                      onClose();
-                    }}
-                    className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
-                  >
-                    <PlusCircle size={16} />
-                    Add School
-                  </button>
-                </div>
-              )}
-            </div>
-          </nav>
 
-          <div className="border-t border-white/10 p-4">
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-rose-200 transition hover:bg-rose-500/10 hover:text-rose-100"
-            >
-              <LogOut size={18} />
-              Logout
-            </button>
+              {/* Sub-items with Animation */}
+              <AnimatePresence>
+                {hasChildren && isExpanded && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-1 ml-4 space-y-1 border-l border-white/10 pl-3 py-1">
+                      {item.children!.map((child, childIndex) => {
+                        const childActive = isActive(child.path, child.id);
+                        return (
+                          <motion.button
+                            key={child.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.2, delay: childIndex * 0.03 }}
+                            type="button"
+                            onClick={() => navigate(child.path)}
+                            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-[12.5px] transition-all duration-200 ${
+                              childActive
+                                ? 'text-accent-blue font-semibold bg-accent-blue/10'
+                                : 'text-slate-500 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            {child.label === 'All Schools' || child.label === 'All Planner' ? (
+                              <List size={14} />
+                            ) : (
+                              <Plus size={14} />
+                            )}
+                            <span>{child.label}</span>
+                            {childActive && (
+                              <motion.div
+                                layoutId="activeChildIndicator"
+                                className="ml-auto w-1.5 h-1.5 rounded-full bg-accent-blue"
+                              />
+                            )}
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          );
+        })}
+      </nav>
+
+      {/* User Info Card */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
+        className="mx-3 mb-3 p-3 rounded-xl bg-white/5 border border-white/10"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white">
+            {(user?.username || user?.email || 'AK').split(/[@.\s]/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('')}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white truncate">{user?.username || 'Super Admin'}</p>
+            <p className="text-[10px] text-slate-400 truncate">{user?.email || 'admin@eduadmin.com'}</p>
           </div>
         </div>
-      </aside>
-    </>
+      </motion.div>
+
+      {/* Logout */}
+      <div className="border-t border-white/10 px-3 py-3">
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-[13px] font-medium text-slate-400 transition-all duration-200 hover:bg-rose-500/10 hover:text-rose-400"
+        >
+          <LogOut size={18} />
+          <span>Logout</span>
+        </motion.button>
+      </div>
+    </aside>
   );
 };
 
