@@ -219,6 +219,9 @@ const Login: React.FC = () => {
       if (receivedRole === 'SUPER_ADMIN') {
         // Super admin goes to central dashboard
         dashboardPath = '/super-admin/dashboard';
+      } else if (receivedRole === 'SCHOOL') {
+        // SCHOOL role goes to their dedicated school dashboard
+        dashboardPath = '/school/dashboard';
       } else if ((receivedRole === 'SCHOOL_ADMIN' || receivedRole === 'CAMPUS_ADMIN') && campusId) {
         // Explicit School/Campus admin goes to their specific campus silo
         dashboardPath = `/campus/${campusId}/dashboard`;

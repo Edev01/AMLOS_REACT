@@ -29,16 +29,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, children 
                            user.role === 'SUPER_ADMIN' || 
                            userAccessLevel === 'SUPER';
   
-  // Check if user is effectively a School Admin (ADMIN role + has campus_id)
+  // Check if user is effectively a School Admin (ADMIN role + has campus_id) or SCHOOL role
   const isSchoolAdminUser = (user.role === 'SCHOOL_ADMIN' || user.role === 'CAMPUS_ADMIN' || 
+                             user.role === 'SCHOOL' ||
                              (user.role === 'ADMIN' && tenant.campusId));
   
   // Role check: If Super Admin, skip role restriction
-  // If School Admin, check if allowedRoles includes SCHOOL_ADMIN or CAMPUS_ADMIN
+  // If School Admin or SCHOOL role, check if allowedRoles includes any school-related role
   // Otherwise, enforce role-based access
   const effectiveRole = user.role;
   const roleAllowed = !allowedRoles || 
                       allowedRoles.includes(effectiveRole) || 
+                      (user.role === 'SCHOOL' && allowedRoles?.includes('SCHOOL_ADMIN')) ||
                       (user.role === 'ADMIN' && isSchoolAdminUser && 
                        (allowedRoles?.includes('SCHOOL_ADMIN') || allowedRoles?.includes('CAMPUS_ADMIN')));
   

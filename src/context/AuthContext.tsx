@@ -116,15 +116,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         data.data?.access_level ||
                         (role === 'SUPER_ADMIN' ? 'SUPER' : undefined));
 
+    // Defensive: Handle case where backend returns user as just an ID (number) instead of full object
+    const rawUser = data.data?.user || data.user;
+    const isUserObject = rawUser && typeof rawUser === 'object' && !Array.isArray(rawUser);
+    const rawUserAny = isUserObject ? (rawUser as unknown as Record<string, unknown>) : null;
+    const userId = isUserObject ? ((rawUserAny?.id || rawUserAny?.user_id || '1') as string | number) : (typeof rawUser === 'number' || typeof rawUser === 'string' ? rawUser : '1');
+    const userEmail = isUserObject ? ((rawUserAny?.email || loggedInUsername || 'admin@eduadmin.com') as string) : (loggedInUsername || 'admin@eduadmin.com');
+    const userUsername = isUserObject ? ((rawUserAny?.username || rawUserAny?.name || `Admin ID: ${userId}`) as string) : `Admin ID: ${userId}`;
+
     // Build user object with tenant context
     const loggedInUser: User = {
-      ...(data.data?.user || data.user || { id: '1', email: loggedInUsername || 'user@example.com' }),
+      id: userId,
+      email: userEmail,
+      username: userUsername,
       role,
       campus_id: campusId,
       school_id: schoolId,
       campus_name: campusName,
       active_tenant_id: campusId, // Alias for consistency
       access_level: accessLevel as 'SUPER' | 'ADMIN' | 'USER' | undefined,
+      // Preserve any additional properties if user was a full object
+      ...(isUserObject ? rawUser : {}),
     };
 
     // Persist to localStorage

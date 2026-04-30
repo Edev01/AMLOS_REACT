@@ -17,6 +17,7 @@ import SchoolPortal from './pages/SchoolPortal';
 import TeacherDashboard from './pages/TeacherDashboard';
 import CampusDashboard from './pages/CampusDashboard';
 import SchoolAdminDashboard from './pages/SchoolAdminDashboard';
+import SchoolDashboard from './pages/SchoolDashboard';
 
 function App() {
   return (
@@ -71,6 +72,22 @@ function App() {
             <Route path="/campus/:tenantId/settings" element={<div>Settings Page</div>} />
             {/* Legacy route redirect for school admins */}
             <Route path="/school-dashboard" element={<Navigate to={`/campus/${localStorage.getItem('campus_id') || 'unknown'}/dashboard`} replace />} />
+          </Route>
+
+          {/* ============================================
+              SCHOOL ROLE ROUTES - School Admin Dashboard
+              ============================================ */}
+          <Route element={<ProtectedRoute allowedRoles={['SCHOOL']} />}>
+            <Route path="/school/dashboard" element={<SchoolDashboard />} />
+            <Route path="/school/students" element={<div>Students Page</div>} />
+            <Route path="/school/students/add" element={<div>Add Student</div>} />
+            <Route path="/school/teachers" element={<div>Teachers Page</div>} />
+            <Route path="/school/teachers/add" element={<div>Add Teacher</div>} />
+            <Route path="/school/classes" element={<div>Classes Page</div>} />
+            <Route path="/school/planners" element={<AllPlanners />} />
+            <Route path="/school/planners/create" element={<CreatePlanner />} />
+            <Route path="/school/analytics" element={<div>Analytics Page</div>} />
+            <Route path="/school/settings" element={<div>Settings Page</div>} />
           </Route>
 
           {/* ============================================

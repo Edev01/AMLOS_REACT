@@ -22,6 +22,7 @@ import {
   Sparkles,
   Building2,
   Shield,
+  GraduationCap,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -107,7 +108,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
   const getMenuItems = (): MenuItem[] => {
     const basePath = isTenantContext && tenantId ? `/campus/${tenantId}` : '/admin';
     
-    // SUPER_ADMIN gets full global access
+    // SUPER_ADMIN and ADMIN roles get full global access
     if (isSuperAdmin || user?.role === 'ADMIN') {
       return [
         { 
@@ -140,6 +141,85 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
         },
         { id: 'analytics', label: 'System Analytics', icon: <BarChart3 size={18} /> },
         { id: 'settings', label: 'System Settings', icon: <Settings size={18} /> },
+      ];
+    }
+
+    // SCHOOL role gets School Admin specific menu (from Figma design)
+    if (user?.role === 'SCHOOL') {
+      return [
+        { 
+          id: 'dashboard', 
+          label: 'Dashboard', 
+          icon: <LayoutDashboard size={18} />, 
+          path: '/school/dashboard' 
+        },
+        { 
+          id: 'students', 
+          label: 'Students', 
+          icon: <Users size={18} />,
+          children: [
+            { id: 'all-students', label: 'All Students', path: '/school/students' },
+            { id: 'add-student', label: 'Add Student', path: '/school/students/add' },
+          ],
+        },
+        { 
+          id: 'teachers', 
+          label: 'Teachers', 
+          icon: <GraduationCap size={18} />,
+          children: [
+            { id: 'all-teachers', label: 'All Teachers', path: '/school/teachers' },
+            { id: 'add-teacher', label: 'Add Teacher', path: '/school/teachers/add' },
+          ],
+        },
+        { 
+          id: 'academic', 
+          label: 'Academic', 
+          icon: <BookOpen size={18} />,
+          children: [
+            { id: 'classes', label: 'Classes', path: '/school/classes' },
+            { id: 'subjects', label: 'Subjects', path: '/school/subjects' },
+            { id: 'curriculum', label: 'Curriculum', path: '/school/curriculum' },
+          ],
+        },
+        { 
+          id: 'content', 
+          label: 'Content', 
+          icon: <FileText size={18} />,
+          children: [
+            { id: 'lessons', label: 'Lessons', path: '/school/lessons' },
+            { id: 'resources', label: 'Resources', path: '/school/resources' },
+          ],
+        },
+        { 
+          id: 'quiz', 
+          label: 'Quiz', 
+          icon: <ClipboardList size={18} />,
+          children: [
+            { id: 'all-quizzes', label: 'All Quizzes', path: '/school/quizzes' },
+            { id: 'create-quiz', label: 'Create Quiz', path: '/school/quizzes/create' },
+          ],
+        },
+        {
+          id: 'planner',
+          label: 'Planner',
+          icon: <CalendarDays size={18} />,
+          children: [
+            { id: 'create-planner', label: 'Create Planner', path: '/school/planners/create' },
+            { id: 'all-planner', label: 'All Planners', path: '/school/planners' },
+          ],
+        },
+        { 
+          id: 'analytics', 
+          label: 'Analytics', 
+          icon: <BarChart3 size={18} />,
+          path: '/school/analytics'
+        },
+        { 
+          id: 'settings', 
+          label: 'Settings', 
+          icon: <Settings size={18} />,
+          path: '/school/settings'
+        },
       ];
     }
     

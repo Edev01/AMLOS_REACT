@@ -10,7 +10,7 @@ export interface LoginCredentials {
 
 // --- Role ---
 // Multi-tenant RBAC roles as returned by backend
-export type Role = 'SUPER_ADMIN' | 'CAMPUS_ADMIN' | 'ADMIN' | 'SCHOOL_ADMIN' | 'TEACHER';
+export type Role = 'SUPER_ADMIN' | 'CAMPUS_ADMIN' | 'ADMIN' | 'SCHOOL_ADMIN' | 'SCHOOL' | 'TEACHER';
 
 /**
  * Role hierarchy and access levels
@@ -20,6 +20,7 @@ export const ROLE_HIERARCHY: Record<Role, number> = {
   CAMPUS_ADMIN: 50,    // Single campus access only
   ADMIN: 50,           // Legacy - treated as campus level
   SCHOOL_ADMIN: 40,    // Legacy - school level
+  SCHOOL: 35,          // School-level access (simplified role)
   TEACHER: 20,         // Class level
 };
 
@@ -45,6 +46,7 @@ export const ROLE_DASHBOARD_MAP: Record<Role, string> = {
   SUPER_ADMIN: '/super-admin/dashboard',
   CAMPUS_ADMIN: '/campus/dashboard', // Will be replaced with actual campus ID
   SCHOOL_ADMIN: '/campus/dashboard', // Tenant-isolated, replaced with actual campus ID
+  SCHOOL: '/school/dashboard', // School admin dashboard
   ADMIN: '/dashboard',
   TEACHER: '/teacher-dashboard',
 };

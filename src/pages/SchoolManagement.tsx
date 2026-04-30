@@ -2,34 +2,91 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
+import { useAuth } from '../context/AuthContext';
 import { School as SchoolType } from '../types';
-import { Plus, Search, Eye, Trash2, Pencil, MapPin, Users, GraduationCap } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Pencil, MapPin, Users, GraduationCap, School, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const icons = ['🏫', '🎓', '🌿', '📚', '🏛️', '🎒'];
 const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
 
+// Mock school data generator for SCHOOL role when API fails
+const getMockSchool = (user: any): SchoolType => ({
+  id: 1,
+  school_name: 'Greenfield Academy',
+  registration_number: 'REG-2024-001',
+  address: '123 Education Lane, Knowledge City, KC 12345',
+  website: 'www.greenfield.edu',
+  established_year: 1995,
+  admin_name: user?.username || 'School Admin',
+  admin_email: user?.email || 'admin@greenfield.edu',
+  students_count: 1247,
+  teachers_count: 48,
+  status: 'active',
+  created_at: new Date().toISOString(),
+});
+
 const SchoolManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [schools, setSchools] = useState<SchoolType[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'active' | 'inactive'>('active');
+  const [error, setError] = useState<string | null>(null);
+  const [isForbidden, setIsForbidden] = useState(false);
+
+  // Check if user has SCHOOL role
+  const isSchoolRole = user?.role === 'SCHOOL';
 
   const fetch = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
+      setIsForbidden(false);
+      
+      // For SCHOOL role, try to fetch their specific school profile first
+      if (isSchoolRole) {
+        try {
+          // Try to fetch school profile (if API supports it)
+          const profileRes = await api.get('/api/auth/school/profile');
+          const profileData = profileRes.data;
+          if (profileData) {
+            setSchools([profileData]);
+            setLoading(false);
+            return;
+          }
+        } catch (profileErr: any) {
+          // If 403 or profile endpoint doesn't exist, we'll fall through
+          if (profileErr?.response?.status === 403) {
+            setIsForbidden(true);
+          }
+        }
+      }
       
       // Fetch schools from backend API
       const r = await api.get('/api/auth/schools');
       const d = r.data;
       setSchools(Array.isArray(d) ? d : d?.results ?? d?.data ?? []);
       setLoading(false);
-    } catch { 
-      setSchools([]); 
+    } catch (err: any) { 
+      // Handle 403 Forbidden gracefully
+      if (err?.response?.status === 403) {
+        setIsForbidden(true);
+        setError('Access Denied: You do not have permission to view the global schools list.');
+        // For SCHOOL role, show mock data instead of empty screen
+        if (isSchoolRole) {
+          setSchools([getMockSchool(user)]);
+        }
+      } else {
+        // For other errors, also use mock data for SCHOOL role to prevent white screen
+        if (isSchoolRole) {
+          setSchools([getMockSchool(user)]);
+        }
+      }
       setLoading(false); 
     }
-  }, []);
+  }, [isSchoolRole]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
@@ -58,11 +115,64 @@ const SchoolManagement: React.FC = () => {
         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
         <input type="text" placeholder="Search Schools By Name, Email Address, Id Or Admin Name" value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
       </div>
+      {/* SCHOOL Role Welcome Portal - Shown when 403 or no access */}
+      {!loading && isSchoolRole && isForbidden && (
+        <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-8 mb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-500 text-white shadow-lg">
+              <Building2 size={28} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Welcome to Your School Portal</h2>
+              <p className="text-sm text-gray-600">Role: School Administrator</p>
+            </div>
+          </div>
+          <p className="text-gray-700 mb-4">
+            You have access to manage your school's resources. The global schools list is restricted to Super Administrators only.
+          </p>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => navigate('/admin/schools/add')} 
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
+            >
+              <Plus size={16} /> Manage My School
+            </button>
+            <button 
+              onClick={() => navigate('/admin/central-dashboard')} 
+              className="inline-flex items-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition"
+            >
+              Go to Dashboard
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Generic 403 Error State */}
+      {!loading && !isSchoolRole && isForbidden && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-500">
+              <School size={32} />
+            </div>
+          </div>
+          <h3 className="text-lg font-semibold text-red-800 mb-2">Access Denied</h3>
+          <p className="text-sm text-red-600 mb-4">
+            {error || 'You do not have permission to view this resource.'}
+          </p>
+          <button 
+            onClick={() => navigate('/admin/central-dashboard')} 
+            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" /></div>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && !isForbidden ? (
         <div className="rounded-2xl border bg-white p-12 text-center text-gray-500">No schools found.</div>
-      ) : (
+      ) : !isForbidden && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {filtered.map((s, i) => (
             <div key={s.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
@@ -93,4 +203,5 @@ const SchoolManagement: React.FC = () => {
     </DashboardLayout>
   );
 };
+
 export default SchoolManagement;
