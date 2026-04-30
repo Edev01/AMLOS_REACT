@@ -1,14 +1,51 @@
+// --- Login Credentials ---
+/**
+ * Login request payload - matches Django backend expectations
+ * Backend expects 'username' field (can be email or username)
+ */
+export interface LoginCredentials {
+  username: string;  // Django backend field name
+  password: string;
+}
+
 // --- Role ---
-// These values are the exact strings returned by the backend in the `role` field.
-export type Role = 'ADMIN' | 'SCHOOL_ADMIN' | 'TEACHER';
+// Multi-tenant RBAC roles as returned by backend
+export type Role = 'SUPER_ADMIN' | 'CAMPUS_ADMIN' | 'ADMIN' | 'SCHOOL_ADMIN' | 'TEACHER';
 
 /**
- * Maps each backend role to its post-login dashboard path.
- * Used by Login (redirect) and ProtectedRoute (role-mismatch fallback).
+ * Role hierarchy and access levels
+ */
+export const ROLE_HIERARCHY: Record<Role, number> = {
+  SUPER_ADMIN: 100,    // Full system access, all campuses
+  CAMPUS_ADMIN: 50,    // Single campus access only
+  ADMIN: 50,           // Legacy - treated as campus level
+  SCHOOL_ADMIN: 40,    // Legacy - school level
+  TEACHER: 20,         // Class level
+};
+
+/**
+ * Checks if role has cross-tenant access (Super Admin only)
+ */
+export const hasCrossTenantAccess = (role: Role): boolean => {
+  return role === 'SUPER_ADMIN';
+};
+
+/**
+ * Checks if role is tenant-isolated (Campus/School Admin)
+ */
+export const isTenantIsolated = (role: Role): boolean => {
+  return role === 'CAMPUS_ADMIN' || role === 'SCHOOL_ADMIN';
+};
+
+/**
+ * Maps roles to their default dashboard paths
+ * CAMPUS_ADMIN will be dynamically redirected to /campus/:id/dashboard
  */
 export const ROLE_DASHBOARD_MAP: Record<Role, string> = {
+  SUPER_ADMIN: '/super-admin/dashboard',
+  CAMPUS_ADMIN: '/campus/dashboard', // Will be replaced with actual campus ID
+  SCHOOL_ADMIN: '/campus/dashboard', // Tenant-isolated, replaced with actual campus ID
   ADMIN: '/dashboard',
-  SCHOOL_ADMIN: '/school-dashboard',
   TEACHER: '/teacher-dashboard',
 };
 
@@ -19,6 +56,14 @@ export interface User {
   username?: string;
   role: Role;
   school_id?: string;
+  campus_id?: string;      // Multi-tenant: current campus tenant
+  campus_name?: string;    // Display name for UI
+  active_tenant_id?: string; // Alias for campus_id
+  access_level?: 'SUPER' | 'ADMIN' | 'USER'; // Access level for role granularity
+  profile?: {
+    access_level?: 'SUPER' | 'ADMIN' | 'USER';
+    [key: string]: unknown;
+  };
 }
 
 // --- Domain Models ---
@@ -118,6 +163,12 @@ export interface AuthResponse {
       refresh?: string;
       access?: string;
     };
+    // Multi-tenant fields
+    campus_id?: string;
+    school_id?: string;
+    tenant_id?: string;    // Alternative field name
+    // Access control
+    access_level?: 'SUPER' | 'ADMIN' | 'USER';
   };
   // Fallbacks for older flat structures
   access_token?: string;
@@ -126,6 +177,29 @@ export interface AuthResponse {
   refresh?: string;
   role?: string;
   user?: User;
+  campus_id?: string;
+  school_id?: string;
+  access_level?: 'SUPER' | 'ADMIN' | 'USER';
+}
+
+// --- Multi-Tenant Context ---
+export interface TenantContext {
+  campus_id: string | null;
+  campus_name: string | null;
+  isSuperAdmin: boolean;
+  canAccessTenant: (tenantId: string) => boolean;
+}
+
+// Security violation types
+export type SecurityViolation = 'TENANT_MISMATCH' | 'TOKEN_EXPIRED' | 'INSUFFICIENT_PRIVILEGES';
+
+export interface SecurityEvent {
+  type: SecurityViolation;
+  timestamp: number;
+  userId?: string;
+  attemptedTenant?: string;
+  actualTenant?: string;
+  ip?: string;
 }
 
 export interface ApiResponse<T> {

@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
-import { School } from '../types';
+import api from '../api/services/api';
+import { useAuth } from '../context/AuthContext';
+import { CreateSchoolPayload } from '../types';
 import toast from 'react-hot-toast';
 import { Upload } from 'lucide-react';
 
 const AddSchool: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isSuperAdmin } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     school_name: '', username: '', email: '', password: '',
@@ -23,43 +26,33 @@ const AddSchool: React.FC = () => {
     }
     setSubmitting(true);
     try {
-      // Create new school object matching School type
-      const newSchool: School = {
-        id: Date.now(), // Generate unique ID
-        school_name: form.school_name,
-        admin_name: form.username,
+      // Build payload for backend API
+      const payload: CreateSchoolPayload = {
+        username: form.username,
+        password: form.password,
         email: form.email,
+        school_name: form.school_name,
+        registration_number: form.registration_number || `REG-${Date.now()}`,
         address: [form.address, form.city, form.state, form.zip].filter(Boolean).join(', '),
         website: form.website,
-        registration_number: form.registration_number || `REG-${Date.now()}`,
         established_year: Number(form.established_year) || new Date().getFullYear(),
-        students_count: Math.floor(Math.random() * 1000 + 200), // Mock data for display
-        teachers_count: Math.floor(Math.random() * 100 + 20), // Mock data for display
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       };
 
-      // ── LOCAL STORAGE PERSISTENCE ──
-      // Get existing schools from localStorage or initialize empty array
-      const existingData = localStorage.getItem('mock_schools');
-      const existingSchools: School[] = existingData ? JSON.parse(existingData) : [];
+      // POST to backend API
+      const response = await api.post('/api/auth/school/create', payload);
       
-      // Add new school to array
-      const updatedSchools = [...existingSchools, newSchool];
+      toast.success('School created successfully!');
       
-      // Save back to localStorage
-      localStorage.setItem('mock_schools', JSON.stringify(updatedSchools));
-      
-      // Simulate network delay for UX
-      setTimeout(() => {
-        toast.success('School created successfully!');
+      // Super Admin redirect to central dashboard, others to schools list
+      if (isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.access_level === 'SUPER') {
+        navigate('/admin/schools');
+      } else {
         navigate('/schools');
-        setSubmitting(false);
-      }, 800);
+      }
     } catch (err) {
-      console.error('Error saving school:', err);
-      toast.error('Failed to save school. Please try again.');
+      console.error('Error creating school:', err);
+      // Error toast handled by API interceptor
+    } finally {
       setSubmitting(false);
     }
   };

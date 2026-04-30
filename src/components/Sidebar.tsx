@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { hasCrossTenantAccess } from '../types';
 import {
   LogOut,
   LayoutDashboard,
@@ -19,6 +20,8 @@ import {
   Plus,
   List,
   Sparkles,
+  Building2,
+  Shield,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -34,9 +37,15 @@ interface MenuItem {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, tenant, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams();
+  
+  // Detect if we're in tenant context
+  const tenantId = params.tenantId || tenant.campusId;
+  const isTenantContext = location.pathname.startsWith('/campus/');
+  
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     school: true,
     planner: false,
@@ -94,34 +103,76 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
     return () => window.removeEventListener('resize', updateIndicator);
   }, [location.pathname, activePage, expandedMenus]);
 
-  const menuItems: MenuItem[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, path: '/dashboard' },
-    {
-      id: 'school',
-      label: 'School Management',
-      icon: <School size={18} />,
-      children: [
-        { id: 'all-schools', label: 'All Schools', path: '/schools' },
-        { id: 'add-school', label: 'Add School', path: '/schools/add' },
-      ],
-    },
-    { id: 'users', label: 'User Management', icon: <Users size={18} /> },
-    { id: 'academic', label: 'Academic Structure', icon: <BookOpen size={18} /> },
-    { id: 'content', label: 'Content Management', icon: <FileText size={18} /> },
-    { id: 'quiz', label: 'Quiz Management', icon: <ClipboardList size={18} /> },
-    {
-      id: 'planner',
-      label: 'Planner Management',
-      icon: <CalendarDays size={18} />,
-      children: [
-        { id: 'create-planner', label: 'Create Planner', path: '/planners/create' },
-        { id: 'all-planner', label: 'All Planner', path: '/planners' },
-      ],
-    },
-    { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
-    { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
-    { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
-  ];
+  // Generate tenant-aware menu items based on role and context
+  const getMenuItems = (): MenuItem[] => {
+    const basePath = isTenantContext && tenantId ? `/campus/${tenantId}` : '/admin';
+    
+    // SUPER_ADMIN gets full global access
+    if (isSuperAdmin || user?.role === 'ADMIN') {
+      return [
+        { 
+          id: 'dashboard', 
+          label: 'Central Dashboard', 
+          icon: <LayoutDashboard size={18} />, 
+          path: '/admin/central-dashboard' 
+        },
+        {
+          id: 'school',
+          label: 'Global School Management',
+          icon: <School size={18} />,
+          children: [
+            { id: 'all-schools', label: 'All Schools', path: '/admin/schools' },
+            { id: 'add-school', label: 'Add School', path: '/admin/schools/add' },
+          ],
+        },
+        { id: 'users', label: 'User Management', icon: <Users size={18} /> },
+        { id: 'academic', label: 'Academic Structure', icon: <BookOpen size={18} /> },
+        { id: 'content', label: 'Content Management', icon: <FileText size={18} /> },
+        { id: 'quiz', label: 'Quiz Management', icon: <ClipboardList size={18} /> },
+        {
+          id: 'planner',
+          label: 'Planner Management',
+          icon: <CalendarDays size={18} />,
+          children: [
+            { id: 'create-planner', label: 'Create Planner', path: '/admin/planners/create' },
+            { id: 'all-planner', label: 'All Planner', path: '/admin/planners' },
+          ],
+        },
+        { id: 'analytics', label: 'System Analytics', icon: <BarChart3 size={18} /> },
+        { id: 'settings', label: 'System Settings', icon: <Settings size={18} /> },
+      ];
+    }
+    
+    // CAMPUS_ADMIN gets restricted tenant-only access
+    return [
+      { 
+        id: 'dashboard', 
+        label: 'Campus Dashboard', 
+        icon: <LayoutDashboard size={18} />, 
+        path: `${basePath}/dashboard` 
+      },
+      { 
+        id: 'school', 
+        label: 'My Campus', 
+        icon: <Building2 size={18} />,
+        path: `${basePath}/schools`
+      },
+      { 
+        id: 'planner',
+        label: 'Study Planners',
+        icon: <CalendarDays size={18} />,
+        children: [
+          { id: 'create-planner', label: 'Create Planner', path: `${basePath}/planners/create` },
+          { id: 'all-planner', label: 'All Planners', path: `${basePath}/planners` },
+        ],
+      },
+      { id: 'users', label: 'Campus Staff', icon: <Users size={18} /> },
+      { id: 'analytics', label: 'Campus Reports', icon: <BarChart3 size={18} /> },
+      { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+    ];
+  };
+
+  const menuItems = getMenuItems();
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-navy-800 text-white overflow-hidden">
@@ -135,14 +186,33 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
         transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="relative flex items-center gap-3 px-6 py-5 border-b border-white/5"
       >
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo shadow-glow-blue">
-          <Sparkles size={20} className="text-white" />
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl shadow-glow-blue ${
+          isSuperAdmin 
+            ? 'bg-gradient-to-br from-purple-500 to-purple-700' 
+            : 'bg-gradient-to-br from-accent-blue to-accent-indigo'
+        }`}>
+          {isSuperAdmin ? <Shield size={20} className="text-white" /> : <Sparkles size={20} className="text-white" />}
         </div>
         <div>
-          <h1 className="text-lg font-bold leading-tight text-white">EduAdmin</h1>
-          <p className="text-[11px] text-slate-400 font-medium tracking-wide">SUPER DASHBOARD</p>
+          <h1 className="text-lg font-bold leading-tight text-white">AMLOS</h1>
+          <p className="text-[11px] text-slate-400 font-medium tracking-wide">
+            {isSuperAdmin ? 'SUPER ADMIN' : isTenantContext ? tenant.campusName?.toUpperCase() || 'CAMPUS' : 'ADMIN PORTAL'}
+          </p>
         </div>
       </motion.div>
+
+      {/* Tenant Context Banner (for Campus Admins) */}
+      {isTenantContext && tenant.campusName && (
+        <div className="mx-4 mt-4 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Building2 size={14} className="text-blue-400" />
+            <span className="text-xs text-blue-300 font-medium truncate">
+              {tenant.campusName}
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1">Tenant ID: {tenantId}</p>
+        </div>
+      )}
 
       {/* Navigation with Sliding Highlight */}
       <nav ref={navRef} className="relative flex-1 overflow-y-auto px-3 py-3 space-y-1">

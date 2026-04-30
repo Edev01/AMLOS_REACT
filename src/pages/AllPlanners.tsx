@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/DashboardLayout';
 import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
+import api from '../api/services/api';
 import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -69,66 +70,39 @@ const AllPlanners: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  // Default mock planners to initialize localStorage if empty (2-3 realistic ones)
-  const DEFAULT_PLANNERS: Planner[] = [
-    {
-      id: 1,
-      name: 'JEE Main 2024 Preparation',
-      duration: '12 weeks',
-      subjects: ['Mathematics', 'Physics', 'Chemistry'],
-      topics: 245,
-      status: 'active',
-      createdDate: '2024-01-15',
-      examType: 'Entrance',
-    },
-    {
-      id: 2,
-      name: 'NEET Biology Focus',
-      duration: '8 weeks',
-      subjects: ['Biology', 'Chemistry'],
-      topics: 180,
-      status: 'active',
-      createdDate: '2024-02-01',
-      examType: 'Medical',
-    },
-    {
-      id: 3,
-      name: 'Board Exam Complete',
-      duration: '16 weeks',
-      subjects: ['All Subjects'],
-      topics: 420,
-      status: 'draft',
-      createdDate: '2024-02-10',
-      examType: 'Board',
-    },
-  ];
-
-  // Load planners from localStorage on mount
-  useEffect(() => {
-    const loadPlanners = () => {
-      try {
-        const storedData = localStorage.getItem('amlos_planners');
-        
-        if (storedData) {
-          // Use stored data
-          const parsedPlanners: Planner[] = JSON.parse(storedData);
-          setPlanners(parsedPlanners);
-        } else {
-          // Initialize localStorage with default planners
-          localStorage.setItem('amlos_planners', JSON.stringify(DEFAULT_PLANNERS));
-          setPlanners(DEFAULT_PLANNERS);
-        }
-      } catch (err) {
-        console.error('Error loading planners from localStorage:', err);
-        setPlanners(DEFAULT_PLANNERS);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Simulate loading delay for UX
-    setTimeout(loadPlanners, 500);
+  // Fetch planners from backend API
+  const fetchPlanners = useCallback(async () => {
+    try {
+      setLoading(true);
+      const r = await api.get('/api/study-plans');
+      const d = r.data;
+      
+      // Transform backend data to match Planner interface
+      const fetchedPlanners: Planner[] = Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
+      
+      setPlanners(fetchedPlanners.map((p: any) => ({
+        id: p.id,
+        name: p.plan_name || p.name,
+        duration: p.duration || `${p.duration_weeks || 12} weeks`,
+        subjects: p.subjects || ['General'],
+        topics: p.topics_count || p.topics || 0,
+        status: p.status || 'active',
+        createdDate: p.created_at?.split('T')[0] || p.createdDate || new Date().toISOString().split('T')[0],
+        examType: p.exam_type || p.examType || 'General',
+        startDate: p.start_date,
+        endDate: p.end_date,
+        dailyLimit: p.daily_limit_minutes?.toString(),
+      })));
+    } catch {
+      setPlanners([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchPlanners();
+  }, [fetchPlanners]);
 
   // Filter planners based on search
   const filteredPlanners = useMemo(() => {
@@ -151,29 +125,27 @@ const AllPlanners: React.FC = () => {
   // Action handlers
   const handleView = (id: number) => navigate(`/planners/${id}`);
   const handleEdit = (id: number) => navigate(`/planners/${id}/edit`);
-  const handleClone = (id: number) => {
+  const handleClone = async (id: number) => {
     const planner = planners.find(p => p.id === id);
     if (planner) {
-      const clonedPlanner: Planner = {
-        ...planner,
-        id: Date.now(),
-        name: `${planner.name} (Copy)`,
-        createdDate: new Date().toISOString().split('T')[0],
-        status: 'draft',
-      };
-      
-      const updatedPlanners = [...planners, clonedPlanner];
-      localStorage.setItem('amlos_planners', JSON.stringify(updatedPlanners));
-      setPlanners(updatedPlanners);
-      toast.success(`Cloned: ${planner.name}`);
+      try {
+        // Clone via API (if supported) or show message
+        toast.success(`Cloning feature requires backend support for: ${planner.name}`);
+      } catch {
+        toast.error('Failed to clone planner');
+      }
     }
   };
-  const handleDelete = (id: number) => {
+  
+  const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this planner?')) {
-      const updatedPlanners = planners.filter(p => p.id !== id);
-      localStorage.setItem('amlos_planners', JSON.stringify(updatedPlanners));
-      setPlanners(updatedPlanners);
-      toast.success('Planner deleted successfully');
+      try {
+        await api.delete(`/api/study-plans/${id}`);
+        setPlanners(planners.filter(p => p.id !== id));
+        toast.success('Planner deleted successfully');
+      } catch {
+        toast.error('Failed to delete planner');
+      }
     }
   };
 

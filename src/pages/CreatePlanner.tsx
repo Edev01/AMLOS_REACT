@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
+import api from '../api/services/api';
 import { Subject } from '../types';
 import toast from 'react-hot-toast';
 import { ArrowLeft, ArrowRight, Check, BookOpen, Calculator, FlaskConical, Globe } from 'lucide-react';
@@ -12,17 +13,7 @@ const steps = [
   { n: 4, title: 'Planner Preview', sub: 'Review & publish' },
 ];
 
-// Mock data for subjects - no API calls needed
-const MOCK_SUBJECTS: Subject[] = [
-  { id: 1, name: 'Mathematics', description: 'Algebra, Geometry, Calculus', grade: '10' },
-  { id: 2, name: 'Physics', description: 'Mechanics, Thermodynamics, Optics', grade: '11' },
-  { id: 3, name: 'Chemistry', description: 'Organic, Inorganic, Physical', grade: '10' },
-  { id: 4, name: 'Biology', description: 'Zoology, Botany, Genetics', grade: '9' },
-  { id: 5, name: 'English', description: 'Grammar, Literature, Composition', grade: '12' },
-  { id: 6, name: 'History', description: 'World History, Civilizations', grade: '10' },
-];
-
-// Mock exam types
+// Static exam types - could be fetched from API if needed
 const EXAM_TYPES = [
   { value: 'midterm', label: 'Midterm Examination' },
   { value: 'final', label: 'Final Examination' },
@@ -31,7 +22,7 @@ const EXAM_TYPES = [
   { value: 'mock', label: 'Mock Test' },
 ];
 
-// Mock chapters for each subject
+// Mock chapters for each subject - will be replaced with API data when available
 const MOCK_CHAPTERS: Record<number, { id: number; name: string; topics: string[] }[]> = {
   1: [ // Math
     { id: 101, name: 'Algebra Basics', topics: ['Linear Equations', 'Quadratic Equations', 'Polynomials'] },
@@ -76,9 +67,31 @@ const getSubjectIcon = (name: string) => {
 
 const CreatePlanner: React.FC = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // Step starts at 1 (user-friendly)
-  const [subjects] = useState<Subject[]>(MOCK_SUBJECTS || []); // Fallback to empty array
+  const [step, setStep] = useState(1);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(true);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
+  
+  // Fetch subjects from backend on mount
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        setSubjectsLoading(true);
+        const r = await api.get('/api/curriculum/subjects');
+        const d = r.data;
+        const fetchedSubjects = Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
+        setSubjects(fetchedSubjects);
+      } catch {
+        // Fallback to empty array if API fails
+        setSubjects([]);
+        toast.error('Failed to load subjects. Please try again.');
+      } finally {
+        setSubjectsLoading(false);
+      }
+    };
+    
+    fetchSubjects();
+  }, []);
   const [selectedChapters, setSelectedChapters] = useState<number[]>([]);
   const [expandedSubject, setExpandedSubject] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -127,57 +140,42 @@ const CreatePlanner: React.FC = () => {
     return total;
   };
 
-  // Safe submit handler with LocalStorage persistence
+  // Submit handler - POST to backend API
   const handleSubmit = async () => {
     if (!form.plan_name || !form.start_date || !form.end_date) {
       toast.error('Please fill required fields.');
       return;
     }
+    if (selectedSubjects.length === 0) {
+      toast.error('Please select at least one subject.');
+      return;
+    }
+    
     setSubmitting(true);
     
-    // Get selected subject names
-    const selectedSubjectNames = (selectedSubjects || []).map(id => {
-      const sub = (subjects || []).find(s => s?.id === id);
-      return sub?.name || '';
-    }).filter(Boolean);
-
-    // Create new planner object
-    const newPlanner = {
-      id: Date.now(),
-      name: form.plan_name,
-      duration: form.duration ? `${form.duration} weeks` : '12 weeks',
-      subjects: selectedSubjectNames.length > 0 ? selectedSubjectNames : ['General'],
-      topics: calculateTotalTopics() || selectedChapters.length * 3 || Math.floor(Math.random() * 100 + 50),
-      status: 'active' as const,
-      createdDate: new Date().toISOString().split('T')[0],
-      examType: (EXAM_TYPES || []).find(et => et?.value === form.exam_type)?.label || form.exam_type || 'General',
-      startDate: form.start_date,
-      endDate: form.end_date,
-      dailyLimit: form.daily_limit,
-      selectedSubjects: selectedSubjects,
-      selectedChapters: selectedChapters,
+    // Build payload for backend
+    const payload = {
+      plan_name: form.plan_name,
+      exam_type: form.exam_type,
+      duration_weeks: parseInt(form.duration) || 12,
+      start_date: form.start_date,
+      end_date: form.end_date,
+      daily_limit_minutes: parseInt(form.daily_limit) || 120,
+      description: form.description,
+      subjects: selectedSubjects,
+      chapters: selectedChapters,
+      status: 'active',
     };
 
-    // ── LOCAL STORAGE PERSISTENCE ──
     try {
-      // Get existing planners from localStorage
-      const existingData = localStorage.getItem('amlos_planners');
-      const existingPlanners = existingData ? JSON.parse(existingData) : [];
-      
-      // Add new planner to array
-      const updatedPlanners = [...existingPlanners, newPlanner];
-      
-      // Save back to localStorage
-      localStorage.setItem('amlos_planners', JSON.stringify(updatedPlanners));
-      
-      // Simulate API delay for UX
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // POST to backend API
+      await api.post('/api/study-plans', payload);
       
       toast.success('Planner created successfully!');
       navigate('/planners');
     } catch (err) {
-      console.error('Error saving planner:', err);
-      toast.error('Failed to save planner. Please try again.');
+      console.error('Error creating planner:', err);
+      toast.error('Failed to create planner. Please try again.');
     } finally {
       setSubmitting(false);
     }

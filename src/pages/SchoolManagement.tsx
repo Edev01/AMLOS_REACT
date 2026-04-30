@@ -16,39 +16,15 @@ const SchoolManagement: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'active' | 'inactive'>('active');
 
-  // Default mock data to initialize localStorage if empty
-  const DEFAULT_MOCK_SCHOOLS: SchoolType[] = [
-    { id: 1, school_name: 'Green Valley High School', admin_name: 'OMAR ', address: '123 Green Valley Road, Cityville', students_count: 1250, teachers_count: 85, registration_number: 'GVHS-001', established_year: 1995, website: 'greenvalley.edu', status: 'active' },
-    { id: 2, school_name: 'Lincoln Preparatory Academy', admin_name: 'Sameer Khan Yousafzai', address: '456 Lincoln Ave, Metropolis', students_count: 980, teachers_count: 72, registration_number: 'LPA-002', established_year: 2002, website: 'lincolnprep.edu', status: 'active' },
-    { id: 3, school_name: 'Oakridge Elementary', admin_name: 'Ebad Khan', address: '789 Oak Ln, Springdale', students_count: 650, teachers_count: 45, registration_number: 'OE-003', established_year: 1988, website: 'oakridge.edu', status: 'active' },
-  ];
-
   const fetch = useCallback(async () => {
     try {
       setLoading(true);
       
-      // ── LOCAL STORAGE PERSISTENCE ──
-      setTimeout(() => {
-        // Check if localStorage has schools data
-        const storedData = localStorage.getItem('mock_schools');
-        
-        if (storedData) {
-          // Use data from localStorage
-          const parsedSchools: SchoolType[] = JSON.parse(storedData);
-          setSchools(parsedSchools);
-        } else {
-          // Initialize localStorage with default mock data
-          localStorage.setItem('mock_schools', JSON.stringify(DEFAULT_MOCK_SCHOOLS));
-          setSchools(DEFAULT_MOCK_SCHOOLS);
-        }
-        
-        setLoading(false);
-      }, 500);
-
-      // ── ORIGINAL API CALL (commented for UI-first mode) ──
-      // const r = await api.get('/api/auth/schools');
-      // const d = r.data;
-      // setSchools(Array.isArray(d) ? d : d?.results ?? d?.data ?? []);
+      // Fetch schools from backend API
+      const r = await api.get('/api/auth/schools');
+      const d = r.data;
+      setSchools(Array.isArray(d) ? d : d?.results ?? d?.data ?? []);
+      setLoading(false);
     } catch { 
       setSchools([]); 
       setLoading(false); 

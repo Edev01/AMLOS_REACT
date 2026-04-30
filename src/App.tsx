@@ -1,7 +1,8 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './routes/ProtectedRoute';
+import TenantProtectedRoute from './routes/TenantProtectedRoute';
 
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -14,12 +15,13 @@ import CreatePlanner from './pages/CreatePlanner';
 import AllPlanners from './pages/AllPlanners';
 import SchoolPortal from './pages/SchoolPortal';
 import TeacherDashboard from './pages/TeacherDashboard';
+import CampusDashboard from './pages/CampusDashboard';
+import SchoolAdminDashboard from './pages/SchoolAdminDashboard';
 
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Toaster
+      <Toaster
           position="top-right"
           toastOptions={{
             duration: 4000,
@@ -34,33 +36,61 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* Protected routes — ADMIN */}
-          <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-            <Route path="/dashboard" element={<DashboardOverview />} />
-            <Route path="/schools" element={<SchoolManagement />} />
-            <Route path="/schools/add" element={<AddSchool />} />
-            <Route path="/schools/:id" element={<SchoolDetail />} />
-            <Route path="/planners" element={<AllPlanners />} />
-            <Route path="/planners/create" element={<CreatePlanner />} />
-            {/* Legacy route redirect */}
-            <Route path="/super-admin-dashboard" element={<Navigate to="/dashboard" replace />} />
+          {/* ============================================
+              SUPER ADMIN ROUTES - Central Dashboard
+              ============================================ */}
+          <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
+            <Route path="/admin/dashboard" element={<DashboardOverview />} />
+            <Route path="/super-admin/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/admin/central-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/admin/schools" element={<SchoolManagement />} />
+            <Route path="/admin/schools/add" element={<AddSchool />} />
+            <Route path="/admin/schools/:id" element={<SchoolDetail />} />
+            <Route path="/admin/planners" element={<AllPlanners />} />
+            <Route path="/admin/planners/create" element={<CreatePlanner />} />
+            {/* Legacy route redirects */}
+            <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/super-admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
           </Route>
 
-          {/* Protected routes — SCHOOL_ADMIN */}
-          <Route element={<ProtectedRoute allowedRoles={['SCHOOL_ADMIN']} />}>
-            <Route path="/school-dashboard" element={<SchoolPortal />} />
+          {/* ============================================
+              SCHOOL ADMIN ROUTES - Tenant Isolated
+              Iron-Clad Tenant Validation Active
+              Allows: SCHOOL_ADMIN, CAMPUS_ADMIN, ADMIN (with campus_id)
+              ============================================ */}
+          <Route element={<TenantProtectedRoute allowedRoles={['SCHOOL_ADMIN', 'CAMPUS_ADMIN', 'ADMIN']} requireTenantMatch={true} />}>
+            {/* School Admin Dashboard with Figma design */}
+            <Route path="/campus/:tenantId/dashboard" element={<SchoolAdminDashboard />} />
+            <Route path="/campus/:tenantId/students" element={<div>Students Page</div>} />
+            <Route path="/campus/:tenantId/students/add" element={<div>Add Student</div>} />
+            <Route path="/campus/:tenantId/teachers" element={<div>Teachers Page</div>} />
+            <Route path="/campus/:tenantId/classes" element={<div>Classes Page</div>} />
+            <Route path="/campus/:tenantId/planners" element={<AllPlanners />} />
+            <Route path="/campus/:tenantId/planners/create" element={<CreatePlanner />} />
+            <Route path="/campus/:tenantId/analytics" element={<div>Analytics Page</div>} />
+            <Route path="/campus/:tenantId/settings" element={<div>Settings Page</div>} />
+            {/* Legacy route redirect for school admins */}
+            <Route path="/school-dashboard" element={<Navigate to={`/campus/${localStorage.getItem('campus_id') || 'unknown'}/dashboard`} replace />} />
           </Route>
 
-          {/* Protected routes — TEACHER */}
+          {/* ============================================
+              TEACHER ROUTES
+              ============================================ */}
           <Route element={<ProtectedRoute allowedRoles={['TEACHER']} />}>
             <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
           </Route>
 
-          {/* Fallbacks */}
+          {/* ============================================
+              FALLBACKS & SECURITY REDIRECTS
+              ============================================ */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          
+          {/* Security breach redirect handler */}
+          <Route path="/login" element={<Login />} />
+          
+          {/* 404 - Catch all unmatched routes */}
+          <Route path="*" element={<Navigate to="/unauthorized" replace />} />
         </Routes>
-      </Router>
     </AuthProvider>
   );
 }

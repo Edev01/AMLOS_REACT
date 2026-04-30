@@ -110,20 +110,18 @@ const DashboardOverview: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate loading for demo
-    setTimeout(() => {
-      setSchoolCount(248);
-      setLoading(false);
-    }, 1000);
-
-    // ── ORIGINAL API CALL (commented for UI-first mode) ──
-    // api.get('/api/auth/schools')
-    //   .then((res) => {
-    //     const data = res.data;
-    //     const list = Array.isArray(data) ? data : data?.results ?? data?.data ?? [];
-    //     setSchoolCount(list.length);
-    //   })
-    //   .catch(() => setSchoolCount(0));
+    // Fetch real data from backend
+    api.get('/api/auth/schools')
+      .then((res) => {
+        const data = res.data;
+        const list = Array.isArray(data) ? data : data?.results ?? data?.data ?? [];
+        setSchoolCount(list.length);
+        setLoading(false);
+      })
+      .catch(() => {
+        setSchoolCount(0);
+        setLoading(false);
+      });
   }, []);
 
   const stats = [

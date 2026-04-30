@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 import { 
   Search, 
   Bell, 
@@ -14,10 +15,12 @@ import {
   FileText,
   Settings,
   ArrowUpRight,
-  Sparkles
+  Sparkles,
+  Building2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from './Sidebar';
+import SchoolAdminSidebar from './SchoolAdminSidebar';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -37,8 +40,13 @@ const searchItems = [
 ];
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage }) => {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  
+  // Determine which sidebar to show based on route
+  const isSchoolAdminRoute = location.pathname.startsWith('/campus/');
+  const useSchoolAdminSidebar = isSchoolAdminRoute && !isSuperAdmin;
   const [commandOpen, setCommandOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [scrolled, setScrolled] = useState(false);
@@ -204,7 +212,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <Sidebar activePage={activePage} />
+        {useSchoolAdminSidebar ? (
+          <SchoolAdminSidebar activePage={activePage} />
+        ) : (
+          <Sidebar activePage={activePage} />
+        )}
       </div>
 
       {/* Main content area */}
@@ -269,7 +281,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
             {/* User avatar & info */}
             <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
               <div className="hidden sm:block text-right">
-                <p className="text-sm font-semibold text-slate-800">Super Admin</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {isSuperAdmin ? 'Super Admin' : user?.role === 'SCHOOL_ADMIN' ? 'School Admin' : 'Admin'}
+                </p>
                 <p className="text-[11px] text-slate-400">{user?.email || 'admin@eduadmin.com'}</p>
               </div>
               <motion.div 

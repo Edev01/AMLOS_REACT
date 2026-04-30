@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-// import api from '../api/services/api';             // commented for UI-first mode
+import api from '../api/services/api';
 import { ROLE_DASHBOARD_MAP } from '../types';
-// import toast from 'react-hot-toast';               // commented for UI-first mode
+import toast from 'react-hot-toast';
 
 const Signup: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -13,7 +13,7 @@ const Signup: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { mockLogin, user } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -47,22 +47,17 @@ const Signup: React.FC = () => {
 
     setIsLoading(true);
 
-    // ── UI-FIRST MODE: bypass API, mock login ──
-    setTimeout(() => {
-      mockLogin();
+    // Real API signup and login
+    try {
+      await api.post('/api/auth/admin/signup', { email: email.trim(), username: username.trim(), password });
+      toast.success('Account created! Logging you in...');
+      const loginRes = await api.post('/api/auth/login', { username: username.trim(), password });
+      login(loginRes.data, username.trim());
       navigate('/dashboard', { replace: true });
-      setIsLoading(false);
-    }, 600);
-
-    // ── ORIGINAL API CALLS (commented for UI-first mode) ──
-    // try {
-    //   await api.post('/api/auth/admin/signup', { email: email.trim(), username: username.trim(), password });
-    //   toast.success('Account created! Logging you in...');
-    //   const loginRes = await api.post('/api/auth/login', { username: username.trim(), password });
-    //   login(loginRes.data, username.trim());
-    //   navigate('/dashboard', { replace: true });
-    // } catch (err: any) { setError(err?.response?.data?.detail || 'Signup failed.'); }
-    // finally { setIsLoading(false); }
+    } catch (err: any) { 
+      setError(err?.response?.data?.detail || err?.response?.data?.message || 'Signup failed.'); 
+    }
+    finally { setIsLoading(false); }
   };
 
   return (
