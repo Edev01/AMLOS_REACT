@@ -17,6 +17,7 @@ const emptyStateConfig = {
     title: 'No results found',
     description: 'Try adjusting your search terms or filters',
     gradient: 'from-slate-400 to-slate-500',
+    actionLabel: undefined,
   },
   schools: {
     icon: School,
@@ -30,18 +31,21 @@ const emptyStateConfig = {
     title: 'No data available',
     description: 'There is no data to display at the moment',
     gradient: 'from-amber-400 to-orange-500',
+    actionLabel: undefined,
   },
   files: {
     icon: FileX,
     title: 'No files found',
     description: 'Upload files to see them here',
     gradient: 'from-rose-400 to-pink-500',
+    actionLabel: undefined,
   },
   generic: {
     icon: Inbox,
     title: 'Nothing here yet',
     description: 'This section is waiting for content',
     gradient: 'from-emerald-400 to-teal-500',
+    actionLabel: undefined,
   },
 };
 
@@ -57,7 +61,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   const Icon = config.icon;
   const displayTitle = title || config.title;
   const displayDescription = description || config.description;
-  const displayActionLabel = actionLabel || config.actionLabel;
+  const displayActionLabel = actionLabel || config?.actionLabel;
 
   return (
     <motion.div

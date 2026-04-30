@@ -90,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
 
       if (activeItem && navRef.current) {
         const navRect = navRef.current.getBoundingClientRect();
-        const itemRect = activeItem.getBoundingClientRect();
+        const itemRect = (activeItem as HTMLElement).getBoundingClientRect();
         setActiveIndicator({
           top: itemRect.top - navRect.top,
           height: itemRect.height,
