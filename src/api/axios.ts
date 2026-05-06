@@ -57,12 +57,6 @@ axiosInstance.interceptors.request.use(
       config.headers.set('X-Tenant-ID', campusId);
     }
     
-    // Attach school_id if available
-    const schoolId = localStorage.getItem('school_id');
-    if (schoolId && config.headers) {
-      config.headers.set('X-School-ID', schoolId);
-    }
-    
     return config;
   },
   (error: AxiosError): Promise<AxiosError> => Promise.reject(error)

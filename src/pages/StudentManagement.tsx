@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import api from '../api/services/api';
+import { studentService } from '../api/services/studentService';
 import { useAuth } from '../context/AuthContext';
-import { Student as StudentType } from '../types';
+import { Student as StudentType, UpdateStudentPayload } from '../types';
+import Modal from '../components/Modal';
 import {
   Plus,
   Search,
@@ -18,6 +19,7 @@ import {
   Hash,
   ChevronLeft,
   AlertCircle,
+  Save,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -26,15 +28,21 @@ const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-p
 
 const normalizeStudent = (raw: any): StudentType => {
   if (!raw || typeof raw !== 'object') return raw;
+  const firstName = raw.first_name ?? raw.firstName ?? '';
+  const lastName = raw.last_name ?? raw.lastName ?? '';
+  const fullName = raw.full_name ?? raw.name ?? (firstName || lastName ? `${firstName} ${lastName}`.trim() : undefined) ?? raw.username ?? 'Unnamed';
   return {
     ...raw,
-    full_name: raw.full_name ?? raw.name ?? raw.username ?? 'Unnamed',
+    full_name: fullName,
+    first_name: firstName || undefined,
+    last_name: lastName || undefined,
     email: raw.email ?? raw.school_email ?? raw.contact_email ?? undefined,
     dob: raw.dob ?? raw.date_of_birth ?? raw.birth_date ?? raw.enrollment_date ?? undefined,
     class_grade: raw.class_grade ?? raw.grade ?? raw.class ?? undefined,
     section: raw.section ?? undefined,
     guardian_name: raw.guardian_name ?? raw.parent_name ?? raw.guardian ?? undefined,
-    guardian_contact: raw.guardian_contact ?? raw.parent_contact ?? raw.phone ?? undefined,
+    guardian_contact: raw.guardian_phone ?? raw.guardian_contact ?? raw.parent_contact ?? raw.phone ?? undefined,
+    guardian_phone: raw.guardian_phone ?? undefined,
     student_id: raw.student_id ?? raw.roll_number ?? raw.id ?? undefined,
   };
 };
@@ -47,6 +55,11 @@ const StudentManagement: React.FC = () => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [isForbidden, setIsForbidden] = useState(false);
+
+  // Edit modal state
+  const [editingStudent, setEditingStudent] = useState<StudentType | null>(null);
+  const [editForm, setEditForm] = useState<Partial<UpdateStudentPayload>>({});
+  const [editSaving, setEditSaving] = useState(false);
 
   const schoolId = tenant.schoolId || user?.school_id;
   const tenantId = tenant.campusId || user?.campus_id;
@@ -66,21 +79,77 @@ const StudentManagement: React.FC = () => {
         return;
       }
 
-      const r = await api.get(`/api/auth/schools/${schoolId}/students`);
-      const d = r.data;
-      const rawList = Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
+      const rawList = await studentService.getStudents();
       setStudents(rawList.map(normalizeStudent));
       setLoading(false);
     } catch (err: any) {
       if (err?.response?.status === 403) {
         setIsForbidden(true);
         setError('Access Denied: You do not have permission to view students for this school.');
+        toast.error('Permission Denied: You cannot access students from another school.', {
+          duration: 5000,
+          id: 'student-forbidden',
+        });
       } else {
         setError('Failed to load students. Please try again.');
       }
       setLoading(false);
     }
   }, [schoolId]);
+
+  const handleDelete = useCallback(async (student: StudentType) => {
+    if (!window.confirm(`Delete student "${student.full_name || 'this student'}"? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await studentService.deleteStudent(student.id);
+      toast.success('Student deleted successfully.');
+      setStudents((prev) => prev.filter((s) => s.id !== student.id));
+    } catch {
+      toast.error('Failed to delete student. Please try again.');
+    }
+  }, []);
+
+  const openEdit = useCallback((student: StudentType) => {
+    setEditingStudent(student);
+    setEditForm({
+      student_id: student.id,
+      first_name: student.first_name || '',
+      last_name: student.last_name || '',
+      grade: student.class_grade || student.grade || '',
+      section: student.section || '',
+      roll_number: student.roll_number || student.student_id || '',
+      state: student.state || '',
+      guardian_name: student.guardian_name || student.parent_name || '',
+      guardian_phone: student.guardian_phone || student.guardian_contact || student.parent_contact || '',
+      guardian_email: student.guardian_email || student.email || '',
+    });
+  }, []);
+
+  const closeEdit = useCallback(() => {
+    setEditingStudent(null);
+    setEditForm({});
+    setEditSaving(false);
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingStudent) return;
+    setEditSaving(true);
+    try {
+      const payload: UpdateStudentPayload = {
+        student_id: editingStudent.id,
+        ...editForm,
+      };
+      await studentService.updateStudent(payload);
+      toast.success('Student updated successfully.');
+      closeEdit();
+      fetchStudents();
+    } catch {
+      toast.error('Failed to update student. Please try again.');
+    } finally {
+      setEditSaving(false);
+    }
+  }, [editingStudent, editForm, fetchStudents, closeEdit]);
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
@@ -273,14 +342,14 @@ const StudentManagement: React.FC = () => {
                   <Eye size={15} />
                 </button>
                 <button
-                  onClick={() => toast.success('Delete endpoint not available yet.')}
+                  onClick={() => handleDelete(s)}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                   title="Delete"
                 >
                   <Trash2 size={15} />
                 </button>
                 <button
-                  onClick={() => toast.success('Edit endpoint not available yet.')}
+                  onClick={() => openEdit(s)}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
                   title="Edit"
                 >
@@ -324,6 +393,135 @@ const StudentManagement: React.FC = () => {
           )}
         </motion.div>
       )}
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={!!editingStudent}
+        onClose={closeEdit}
+        title={editingStudent ? `Edit: ${editingStudent.full_name || 'Student'}` : 'Edit Student'}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">First Name</label>
+              <input
+                type="text"
+                value={editForm.first_name || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="First name"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Last Name</label>
+              <input
+                type="text"
+                value={editForm.last_name || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="Last name"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Grade</label>
+              <input
+                type="text"
+                value={editForm.grade || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, grade: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="e.g. Grade 10"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Section</label>
+              <input
+                type="text"
+                value={editForm.section || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, section: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="e.g. A"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Roll Number</label>
+            <input
+              type="text"
+              value={editForm.roll_number || ''}
+              onChange={(e) => setEditForm((f) => ({ ...f, roll_number: e.target.value }))}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              placeholder="e.g. ROLL-2024-001"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">State</label>
+            <input
+              type="text"
+              value={editForm.state || ''}
+              onChange={(e) => setEditForm((f) => ({ ...f, state: e.target.value }))}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              placeholder="e.g. Punjab"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Guardian Name</label>
+            <input
+              type="text"
+              value={editForm.guardian_name || ''}
+              onChange={(e) => setEditForm((f) => ({ ...f, guardian_name: e.target.value }))}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              placeholder="Parent / Guardian full name"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Guardian Phone</label>
+              <input
+                type="tel"
+                value={editForm.guardian_phone || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, guardian_phone: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="+92 300 1234567"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Guardian Email</label>
+              <input
+                type="email"
+                value={editForm.guardian_email || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, guardian_email: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="guardian@email.com"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              onClick={closeEdit}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={editSaving}
+              className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold text-white transition-all disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 100%)' }}
+            >
+              <Save size={14} />
+              {editSaving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

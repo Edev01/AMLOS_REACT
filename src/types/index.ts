@@ -192,6 +192,8 @@ export interface CreateSchoolPayload {
 export interface Student {
   id: string | number;
   full_name?: string;
+  first_name?: string;
+  last_name?: string;
   name?: string;
   email?: string;
   dob?: string;
@@ -202,6 +204,7 @@ export interface Student {
   section?: string;
   guardian_name?: string;
   guardian_contact?: string;
+  guardian_phone?: string;
   guardian_relation?: string;
   parent_name?: string;
   parent_contact?: string;
@@ -219,34 +222,55 @@ export interface Student {
 
 /**
  * IStudentData — canonical front-end form model for the 4-step Add Student form.
+ * Maps to POST /api/auth/students/create payload.
  */
 export interface IStudentData {
-  fullName: string;
+  firstName: string;
+  lastName: string;
   email: string;
-  dob: string;
-  classGrade: string;
+  dateOfBirth: string;
+  grade: string;
   section: string;
+  state: string;
+  rollNumber: string;
   guardianName: string;
-  guardianContact: string;
-  guardianRelation: string;
+  guardianPhone: string;
+  guardianEmail: string;
   username: string;
   password: string;
-  studentId: string;
 }
 
-/** Payload for POST /api/auth/schools/{schoolId}/students — built from IStudentData */
+/** Payload for POST /api/auth/students/create — exact backend contract */
 export interface CreateStudentPayload {
-  full_name: string;
+  school_id: string;
   email: string;
-  dob: string;
-  class_grade: string;
-  section: string;
-  guardian_name: string;
-  guardian_contact: string;
-  guardian_relation: string;
   username: string;
   password: string;
-  student_id: string;
+  first_name: string;
+  last_name: string;
+  roll_number: string;
+  grade: string;
+  section: string;
+  state: string;
+  date_of_birth: string;
+  guardian_name: string;
+  guardian_phone: string;
+  guardian_email: string;
+}
+
+/** Payload for PATCH /api/auth/students/update */
+export interface UpdateStudentPayload {
+  student_id: string | number;
+  grade?: string;
+  section?: string;
+  roll_number?: string;
+  state?: string;
+  guardian_name?: string;
+  guardian_phone?: string;
+  guardian_email?: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
 }
 
 export interface Teacher {

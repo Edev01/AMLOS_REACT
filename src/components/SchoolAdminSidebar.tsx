@@ -129,15 +129,15 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage }) => {
         icon: <ClipboardList size={20} />,
         path: `${basePath}/quizzes`
       },
-      {
-        id: 'planner',
+      ...(isSuperAdmin ? [{
+        id: 'planner' as const,
         label: isCollapsed ? '' : 'Planner',
         icon: <CalendarDays size={20} />,
         children: [
           { id: 'create-planner', label: 'Create Planner', path: `${basePath}/planners/create` },
           { id: 'all-planner', label: 'All Planners', path: `${basePath}/planners` },
         ],
-      },
+      }] : []),
       { 
         id: 'analytics', 
         label: isCollapsed ? '' : 'Analytics', 

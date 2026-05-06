@@ -25,11 +25,10 @@ import {
   LogOut,
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
-import api from '../api/services/api';
+import { studentService } from '../api/services/studentService';
 import { useAuth } from '../context/AuthContext';
-import { IStudentData } from '../types';
+import { IStudentData, CreateStudentPayload } from '../types';
 import toast from 'react-hot-toast';
-import axios from 'axios';
 
 // ─── Exported type alias ───────────────────────────────────────────────────
 export type { IStudentData as AddStudentFormValues } from '../types';
@@ -45,48 +44,52 @@ const steps = [
 ];
 
 const stepFieldNames: (keyof FormValues)[][] = [
-  ['fullName', 'email', 'dob'],
-  ['classGrade', 'section'],
-  ['guardianName', 'guardianContact', 'guardianRelation'],
-  ['username', 'password', 'studentId'],
+  ['firstName', 'lastName', 'email', 'dateOfBirth'],
+  ['grade', 'section', 'state', 'rollNumber'],
+  ['guardianName', 'guardianPhone', 'guardianEmail'],
+  ['username', 'password'],
 ];
 
 // ─── Per-step validation schemas ────────────────────────────────────────────
 const stepSchemas = [
   Yup.object({
-    fullName: Yup.string().trim().required('Full name is required'),
+    firstName: Yup.string().trim().required('First name is required'),
+    lastName: Yup.string().trim().required('Last name is required'),
     email: Yup.string().trim().email('Enter a valid email').required('Email is required'),
-    dob: Yup.string().required('Date of birth is required'),
+    dateOfBirth: Yup.string().required('Date of birth is required'),
   }),
   Yup.object({
-    classGrade: Yup.string().trim().required('Class / grade is required'),
+    grade: Yup.string().trim().required('Grade is required'),
     section: Yup.string().trim().required('Section is required'),
+    state: Yup.string().trim().required('State is required'),
+    rollNumber: Yup.string().trim().required('Roll number is required'),
   }),
   Yup.object({
     guardianName: Yup.string().trim().required('Guardian name is required'),
-    guardianContact: Yup.string().trim().required('Guardian contact is required'),
-    guardianRelation: Yup.string().trim().required('Relation is required'),
+    guardianPhone: Yup.string().trim().required('Guardian phone is required'),
+    guardianEmail: Yup.string().trim().email('Enter a valid email').required('Guardian email is required'),
   }),
   Yup.object({
     username: Yup.string().trim().required('Username is required'),
     password: Yup.string().min(8, 'Password must be at least 8 characters').required('Password is required'),
-    studentId: Yup.string().trim().required('Student ID is required'),
   }),
 ];
 
 // ─── Initial values ─────────────────────────────────────────────────────────
 const initialValues: FormValues = {
-  fullName: '',
+  firstName: '',
+  lastName: '',
   email: '',
-  dob: '',
-  classGrade: '',
+  dateOfBirth: '',
+  grade: '',
   section: '',
+  state: '',
+  rollNumber: '',
   guardianName: '',
-  guardianContact: '',
-  guardianRelation: '',
+  guardianPhone: '',
+  guardianEmail: '',
   username: '',
   password: '',
-  studentId: '',
 };
 
 // ─── Field configs per step ─────────────────────────────────────────────────
@@ -102,23 +105,25 @@ interface FieldConfig {
 
 const stepFields: FieldConfig[][] = [
   [
-    { name: 'fullName', label: 'Full Name', placeholder: 'Muhammad Ali Khan', icon: <User size={16} />, required: true },
+    { name: 'firstName', label: 'First Name', placeholder: 'Muhammad', icon: <User size={16} />, required: true },
+    { name: 'lastName', label: 'Last Name', placeholder: 'Ali Khan', icon: <User size={16} />, required: true },
     { name: 'email', label: 'Email Address', placeholder: 'student@school.edu', icon: <Mail size={16} />, required: true, type: 'email' },
-    { name: 'dob', label: 'Date of Birth', placeholder: '', icon: <Calendar size={16} />, required: true, type: 'date' },
+    { name: 'dateOfBirth', label: 'Date of Birth', placeholder: '', icon: <Calendar size={16} />, required: true, type: 'date' },
   ],
   [
-    { name: 'classGrade', label: 'Class / Grade', placeholder: 'Select grade', icon: <BookOpen size={16} />, required: true, options: ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'] },
+    { name: 'grade', label: 'Grade', placeholder: 'Select grade', icon: <BookOpen size={16} />, required: true, options: ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'] },
     { name: 'section', label: 'Section', placeholder: 'Select section', icon: <Hash size={16} />, required: true, options: ['A', 'B', 'C', 'D'] },
+    { name: 'state', label: 'State', placeholder: 'Punjab / Sindh / etc.', icon: <Shield size={16} />, required: true },
+    { name: 'rollNumber', label: 'Roll Number', placeholder: 'ROLL-2024-001', icon: <GraduationCap size={16} />, required: true },
   ],
   [
     { name: 'guardianName', label: 'Guardian Name', placeholder: 'Parent / Guardian full name', icon: <Users size={16} />, required: true },
-    { name: 'guardianContact', label: 'Guardian Contact', placeholder: '+92 300 1234567', icon: <Phone size={16} />, required: true, type: 'tel' },
-    { name: 'guardianRelation', label: 'Relation', placeholder: 'Father / Mother / Guardian', icon: <Shield size={16} />, required: true },
+    { name: 'guardianPhone', label: 'Guardian Phone', placeholder: '+92 300 1234567', icon: <Phone size={16} />, required: true, type: 'tel' },
+    { name: 'guardianEmail', label: 'Guardian Email', placeholder: 'guardian@email.com', icon: <Mail size={16} />, required: true, type: 'email' },
   ],
   [
     { name: 'username', label: 'Username', placeholder: 'student_username', icon: <User size={16} />, required: true },
     { name: 'password', label: 'Password', placeholder: '••••••••', icon: <Lock size={16} />, required: true, type: 'password' },
-    { name: 'studentId', label: 'Student ID', placeholder: 'STU-2024-001', icon: <GraduationCap size={16} />, required: true },
   ],
 ];
 
@@ -163,44 +168,28 @@ const AddStudent: React.FC = () => {
       }
 
       try {
-        const payload = {
-          full_name: values.fullName,
+        const payload: Omit<CreateStudentPayload, 'school_id'> = {
           email: values.email,
-          dob: values.dob,
-          class_grade: values.classGrade,
-          section: values.section,
-          guardian_name: values.guardianName,
-          guardian_contact: values.guardianContact,
-          guardian_relation: values.guardianRelation,
           username: values.username,
           password: values.password,
-          student_id: values.studentId,
+          first_name: values.firstName,
+          last_name: values.lastName,
+          roll_number: values.rollNumber,
+          grade: values.grade,
+          section: values.section,
+          state: values.state,
+          date_of_birth: values.dateOfBirth,
+          guardian_name: values.guardianName,
+          guardian_phone: values.guardianPhone,
+          guardian_email: values.guardianEmail,
         };
 
-        const response = await api.post(`/api/auth/schools/${schoolId}/students`, payload);
-        console.log('[AddStudent] ✅ Response:', response.status, response.data);
-        toast.success(`Student "${values.fullName}" enrolled successfully! 🎉`);
+        await studentService.createStudent(schoolId, payload);
+        toast.success(`Student "${values.firstName} ${values.lastName}" created successfully! 🎉`);
         navigate(backPath);
-      } catch (err: unknown) {
-        if (axios.isAxiosError(err)) {
-          const status = err.response?.status;
-          const data = err.response?.data;
-          console.error(`[AddStudent] ❌ ${status}:`, JSON.stringify(data, null, 2));
-          const d = data as Record<string, unknown> | undefined;
-          const detail =
-            (typeof d?.detail === 'string' && d.detail) ||
-            (typeof d?.message === 'string' && d.message) ||
-            (Array.isArray(d?.non_field_errors) && (d.non_field_errors as string[]).join(', ')) ||
-            Object.entries(d ?? {})
-              .filter(([k]) => k !== 'success' && k !== 'code' && k !== 'data')
-              .map(([k, v]) => `${k}: ${Array.isArray(v) ? (v as string[]).join(', ') : String(v)}`)
-              .join(' | ') ||
-            'Student creation failed — see console for details.';
-          toast.error(detail, { duration: 6000 });
-        } else {
-          console.error('[AddStudent] ❌ Unexpected error:', err);
-          toast.error('An unexpected error occurred.');
-        }
+      } catch {
+        // Axios interceptors already show toasts for 4xx/5xx errors.
+        // We swallow here so Formik stops submitting state gracefully.
       }
     },
   });

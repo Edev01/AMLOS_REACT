@@ -90,9 +90,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
     }
   }, [commandOpen]);
 
-  const filteredItems = searchItems.filter(item => 
-    item.label.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredItems = searchItems
+    .filter(item => item.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(item => {
+      const isPlannerItem = item.id === 'planners' || item.id === 'create-planner';
+      return !isPlannerItem || isSuperAdmin;
+    });
 
   const handleNavigate = (path: string) => {
     if (path !== '#') {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/DashboardLayout';
 import { DashboardOverviewSkeleton } from '../components/Skeleton';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/services/api';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -106,6 +107,7 @@ const GlowingDot: React.FC<{ color: string }> = ({ color }) => (
 
 const DashboardOverview: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [schoolCount, setSchoolCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -213,7 +215,9 @@ const DashboardOverview: React.FC = () => {
 
       {/* Stat Cards with Sparklines */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-        {stats.map((s, index) => (
+        {stats
+          .filter(s => s.label !== 'Planners' || user?.role === 'SUPER_ADMIN')
+          .map((s, index) => (
           <motion.div
             key={s.label}
             initial={{ opacity: 0, y: 20 }}

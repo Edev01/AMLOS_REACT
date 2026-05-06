@@ -199,15 +199,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
             { id: 'create-quiz', label: 'Create Quiz', path: '/school/quizzes/create' },
           ],
         },
-        {
-          id: 'planner',
-          label: 'Planner',
-          icon: <CalendarDays size={18} />,
-          children: [
-            { id: 'create-planner', label: 'Create Planner', path: '/school/planners/create' },
-            { id: 'all-planner', label: 'All Planners', path: '/school/planners' },
-          ],
-        },
         { 
           id: 'analytics', 
           label: 'Analytics', 
