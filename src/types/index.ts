@@ -85,9 +85,29 @@ export interface School {
   updated_at?: string;
 }
 
-/** Payload for POST /api/auth/school/create — CRITICAL OVERRIDE */
+/**
+ * ISchoolData — canonical front-end form model.
+ * STRICT: administrator field is `principalName` (NOT adminName).
+ * Exported for reuse across AddSchool, EditSchool, SchoolDetail, etc.
+ */
+export interface ISchoolData {
+  schoolName: string;
+  principalName: string;   // Maps to backend `username` — DO NOT rename
+  email: string;
+  password: string;
+  phone: string;
+  website: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  registrationNumber: string;
+  establishedYear: string;
+}
+
+/** Payload for POST /api/auth/school/create — built from ISchoolData */
 export interface CreateSchoolPayload {
-  username: string;
+  username: string;            // principalName
   password: string;
   email: string;
   school_name: string;
@@ -95,6 +115,7 @@ export interface CreateSchoolPayload {
   address: string;
   website: string;
   established_year: number;
+  phone?: string;
 }
 
 export interface Student {

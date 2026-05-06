@@ -7,12 +7,12 @@ import toast from 'react-hot-toast';
  */
 
 const axiosInstance = axios.create({
-  baseURL: 'https://amlos-backend.onrender.com',
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'https://amlos-backend.onrender.com',
   headers: { 
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
-  timeout: 10000, // 10 second timeout to prevent ERR_CONNECTION_CLOSED
+  timeout: 15000, // 15 second timeout (Render cold-starts can be slow)
 });
 
 // Helper to manually set/clear the token on the axios defaults

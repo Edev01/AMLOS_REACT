@@ -45,6 +45,7 @@ function App() {
             <Route path="/super-admin/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/central-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/schools" element={<SchoolManagement />} />
+            <Route path="/admin/schools/all" element={<SchoolManagement />} />
             <Route path="/admin/schools/add" element={<AddSchool />} />
             <Route path="/admin/schools/:id" element={<SchoolDetail />} />
             <Route path="/admin/planners" element={<AllPlanners />} />
