@@ -18,6 +18,8 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import CampusDashboard from './pages/CampusDashboard';
 import SchoolAdminDashboard from './pages/SchoolAdminDashboard';
 import SchoolDashboard from './pages/SchoolDashboard';
+import AddStudent from './pages/AddStudent';
+import StudentManagement from './pages/StudentManagement';
 
 function App() {
   return (
@@ -63,8 +65,8 @@ function App() {
           <Route element={<TenantProtectedRoute allowedRoles={['SCHOOL_ADMIN', 'CAMPUS_ADMIN', 'ADMIN']} requireTenantMatch={true} />}>
             {/* School Admin Dashboard with Figma design */}
             <Route path="/campus/:tenantId/dashboard" element={<SchoolAdminDashboard />} />
-            <Route path="/campus/:tenantId/students" element={<div>Students Page</div>} />
-            <Route path="/campus/:tenantId/students/add" element={<div>Add Student</div>} />
+            <Route path="/campus/:tenantId/students" element={<StudentManagement />} />
+            <Route path="/campus/:tenantId/students/add" element={<AddStudent />} />
             <Route path="/campus/:tenantId/teachers" element={<div>Teachers Page</div>} />
             <Route path="/campus/:tenantId/classes" element={<div>Classes Page</div>} />
             <Route path="/campus/:tenantId/planners" element={<AllPlanners />} />
@@ -80,8 +82,8 @@ function App() {
               ============================================ */}
           <Route element={<ProtectedRoute allowedRoles={['SCHOOL']} />}>
             <Route path="/school/dashboard" element={<SchoolDashboard />} />
-            <Route path="/school/students" element={<div>Students Page</div>} />
-            <Route path="/school/students/add" element={<div>Add Student</div>} />
+            <Route path="/school/students" element={<StudentManagement />} />
+            <Route path="/school/students/add" element={<AddStudent />} />
             <Route path="/school/teachers" element={<div>Teachers Page</div>} />
             <Route path="/school/teachers/add" element={<div>Add Teacher</div>} />
             <Route path="/school/classes" element={<div>Classes Page</div>} />

@@ -34,6 +34,36 @@ const STORAGE_KEYS = {
   SCHOOL_ID: 'school_id',
 } as const;
 
+/**
+ * Recursively scan an object for any key that looks like a school identifier.
+ * Returns the first non-empty string value found under a key containing 'school'.
+ */
+const findSchoolIdDeep = (obj: unknown): string | undefined => {
+  if (!obj || typeof obj !== 'object') return undefined;
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const found = findSchoolIdDeep(item);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  for (const [key, val] of Object.entries(obj)) {
+    const lowerKey = key.toLowerCase();
+    if (
+      (lowerKey.includes('school') || lowerKey === 'id') &&
+      typeof val === 'string' &&
+      val.length > 0
+    ) {
+      return val;
+    }
+    if (typeof val === 'object' && val !== null) {
+      const nested = findSchoolIdDeep(val);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [tenant, setTenant] = useState<TenantContext>({
@@ -105,9 +135,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const role = (data.data?.user?.role || data.role) as Role;
     if (!role) throw new Error('Login response did not include a role.');
 
-    // Extract multi-tenant identifiers
+    // Extract multi-tenant identifiers (defensive multi-path extraction)
     const campusId = data.data?.campus_id || data.data?.tenant_id || data.campus_id || '';
-    const schoolId = data.data?.school_id || data.school_id || '';
+    const schoolId =
+      data.data?.school_id ||
+      (data.data?.user as any)?.school_id ||
+      data.school_id ||
+      findSchoolIdDeep(data) ||
+      '';
     const campusName = data.data?.user?.campus_name || '';
     
     // Extract access level from various possible response structures
@@ -146,7 +181,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(loggedInUser));
     if (campusId) localStorage.setItem(STORAGE_KEYS.CAMPUS_ID, campusId);
     if (campusName) localStorage.setItem(STORAGE_KEYS.CAMPUS_NAME, campusName);
-    if (schoolId) localStorage.setItem(STORAGE_KEYS.SCHOOL_ID, schoolId);
+    // Always write school_id so we overwrite stale empty values
+    localStorage.setItem(STORAGE_KEYS.SCHOOL_ID, schoolId);
+
+    if (import.meta.env.DEV) {
+      console.log('[AuthContext] login extracted:', { campusId, schoolId, campusName, role });
+    }
 
     // Update state
     setUser(loggedInUser);

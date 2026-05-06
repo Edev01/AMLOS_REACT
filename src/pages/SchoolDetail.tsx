@@ -31,6 +31,65 @@ const activity = [
   { action:'Teacher joined', who:'James Parker', time:'3 hours ago', c:'#8b5cf6' },
 ];
 
+const EMAIL_RE_STRICT = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
+const EMAIL_RE_LOOSE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i;
+
+const flattenObject = (obj: any, prefix = ''): Record<string, any> => {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {};
+  return Object.entries(obj).reduce((acc, [key, val]) => {
+    const newKey = prefix ? `${prefix}.${key}` : key;
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      Object.assign(acc, flattenObject(val, newKey));
+    } else {
+      acc[newKey] = val;
+    }
+    return acc;
+  }, {} as Record<string, any>);
+};
+
+/**
+ * Normalize raw API school data to the canonical SchoolType shape.
+ * Mirrors the helper in SchoolManagement.tsx for consistency.
+ */
+const normalizeSchool = (raw: any): SchoolType => {
+  if (!raw || typeof raw !== 'object') return raw;
+
+  const flat = flattenObject(raw);
+
+  const principalKnownKeys = [
+    'principal_name','admin_name','username','user.username','admin.username',
+    'contact_name','name','full_name','first_name','profile.name','user.name',
+    'admin.name','owner','created_by',
+  ];
+  const principal =
+    principalKnownKeys.map((k) => flat[k]).find((v) => typeof v === 'string' && v.length > 0 && v !== raw.school_name)
+    ?? Object.entries(flat).find(([k, v]) => {
+      if (typeof v !== 'string' || v.length < 2) return false;
+      if (v === raw.school_name || EMAIL_RE_STRICT.test(v) || /^\d+$/.test(v)) return false;
+      const lowerK = k.toLowerCase();
+      if (lowerK.includes('id') || lowerK.includes('email') || lowerK.includes('address')
+          || lowerK.includes('website') || lowerK.includes('status') || lowerK.includes('password')
+          || lowerK.includes('phone') || lowerK.includes('city') || lowerK.includes('state')
+          || lowerK.includes('zip') || lowerK.includes('registration') || lowerK.includes('established')
+          || lowerK.includes('count') || lowerK.includes('created') || lowerK.includes('updated')) return false;
+      return true;
+    })?.[1];
+
+  const emailKnownKeys = [
+    'email','school_email','contact_email','admin_email','user.email',
+    'admin.email','contact.email','principal.email','profile.email','owner.email',
+  ];
+  const emailFromKeys = emailKnownKeys.map((k) => flat[k]).find((v) => typeof v === 'string' && EMAIL_RE_STRICT.test(v));
+  const emailFromDeepScan = Object.values(flat).find((v) => typeof v === 'string' && EMAIL_RE_STRICT.test(v)) as string | undefined;
+  const addressEmail = typeof raw.address === 'string' ? raw.address.match(EMAIL_RE_LOOSE)?.[0] : undefined;
+
+  return {
+    ...raw,
+    principal_name: principal,
+    email: emailFromKeys || emailFromDeepScan || addressEmail,
+  };
+};
+
 const SchoolDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -38,9 +97,12 @@ const SchoolDetail: React.FC = () => {
 
   useEffect(() => {
     api.get('/api/auth/schools').then(r => {
-      const list = Array.isArray(r.data) ? r.data : r.data?.results ?? r.data?.data ?? [];
-      const found = list.find((s: any) => String(s.id) === id);
-      if (found) setSchool(found);
+      const rawList = Array.isArray(r.data) ? r.data : r.data?.results ?? r.data?.data ?? [];
+      if (import.meta.env.DEV && rawList.length > 0) {
+        console.log('%c[SchoolDetail] First raw school shape:', 'color: #2563eb; font-weight: bold;', Object.keys(rawList[0]));
+      }
+      const found = rawList.find((s: any) => String(s.id) === id);
+      if (found) setSchool(normalizeSchool(found));
     }).catch(() => {});
   }, [id]);
 
@@ -60,7 +122,7 @@ const SchoolDetail: React.FC = () => {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-2xl">🏫</div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{school?.school_name || 'School Detail'}</h1>
-            <p className="text-xs text-gray-500">Admin: {school?.admin_name || 'N/A'} · {school?.admin_email || ''}</p>
+            <p className="text-xs text-gray-500">Principal: {school?.principal_name || 'N/A'} · {school?.email || ''}</p>
           </div>
         </div>
       </div>

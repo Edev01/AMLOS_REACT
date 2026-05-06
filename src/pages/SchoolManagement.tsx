@@ -4,11 +4,133 @@ import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
 import { useAuth } from '../context/AuthContext';
 import { School as SchoolType } from '../types';
-import { Plus, Search, Eye, Trash2, Pencil, MapPin, Users, GraduationCap, School, Building2 } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Pencil, MapPin, Users, GraduationCap, School, Building2, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const icons = ['🏫', '🎓', '🌿', '📚', '🏛️', '🎒'];
 const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
+
+/**
+ * Flatten a nested object into dot-notation keys so we can inspect every leaf.
+ */
+const flattenObject = (obj: any, prefix = ''): Record<string, any> => {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {};
+  return Object.entries(obj).reduce((acc, [key, val]) => {
+    const newKey = prefix ? `${prefix}.${key}` : key;
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      Object.assign(acc, flattenObject(val, newKey));
+    } else {
+      acc[newKey] = val;
+    }
+    return acc;
+  }, {} as Record<string, any>);
+};
+
+const EMAIL_RE_STRICT = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
+const EMAIL_RE_LOOSE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i;
+
+/**
+ * Normalize raw API school data to the canonical SchoolType shape.
+ * Recursively inspects the ENTIRE object tree so the email / principal
+ * are found no matter how deeply nested or what the key is called.
+ */
+const normalizeSchool = (raw: any): SchoolType => {
+  if (!raw || typeof raw !== 'object') {
+    console.warn('[normalizeSchool] Received non-object:', raw);
+    return raw;
+  }
+
+  const flat = flattenObject(raw);
+
+  // ── Debug: log every flattened key so we can see the exact API shape ──
+  if (import.meta.env.DEV) {
+    console.log('[normalizeSchool] Raw keys:', Object.keys(raw));
+    console.log('[normalizeSchool] Flattened keys:', Object.keys(flat));
+    console.log('[normalizeSchool] Flattened object:', flat);
+  }
+
+  // ── Principal: prefer known keys, then any plausible name string ──
+  const principalKnownKeys = [
+    'principal_name',
+    'admin_name',
+    'username',
+    'user.username',
+    'admin.username',
+    'contact_name',
+    'name',
+    'full_name',
+    'first_name',
+    'profile.name',
+    'user.name',
+    'admin.name',
+    'owner',
+    'created_by',
+  ];
+  const principal =
+    principalKnownKeys
+      .map((k) => flat[k])
+      .find((v) => typeof v === 'string' && v.length > 0 && v !== raw.school_name)
+    ?? Object.entries(flat).find(([k, v]) => {
+      if (typeof v !== 'string' || v.length < 2) return false;
+      if (v === raw.school_name) return false;
+      if (EMAIL_RE_STRICT.test(v)) return false; // don't treat emails as names
+      if (/^\d+$/.test(v)) return false;  // skip pure numbers
+      // Reject obvious non-name keys
+      const lowerK = k.toLowerCase();
+      if (lowerK.includes('id') || lowerK.includes('email') || lowerK.includes('address')
+          || lowerK.includes('website') || lowerK.includes('status') || lowerK.includes('password')
+          || lowerK.includes('phone') || lowerK.includes('city') || lowerK.includes('state')
+          || lowerK.includes('zip') || lowerK.includes('registration') || lowerK.includes('established')
+          || lowerK.includes('count') || lowerK.includes('created') || lowerK.includes('updated')) {
+        return false;
+      }
+      return true;
+    })?.[1];
+
+  // ── Email: prefer known keys, then deep-scan any string for email pattern ──
+  const emailKnownKeys = [
+    'email',
+    'school_email',
+    'contact_email',
+    'admin_email',
+    'user.email',
+    'admin.email',
+    'contact.email',
+    'principal.email',
+    'profile.email',
+    'owner.email',
+  ];
+  const emailFromKeys =
+    emailKnownKeys
+      .map((k) => flat[k])
+      .find((v) => typeof v === 'string' && EMAIL_RE_STRICT.test(v));
+
+  const emailFromDeepScan = Object.values(flat).find(
+    (v) => typeof v === 'string' && EMAIL_RE_STRICT.test(v)
+  ) as string | undefined;
+
+  // ── Fallback: scrape an email from the address string ──
+  const addressEmail =
+    typeof raw.address === 'string'
+      ? raw.address.match(EMAIL_RE_LOOSE)?.[0]
+      : undefined;
+
+  const resolvedEmail = emailFromKeys || emailFromDeepScan || addressEmail;
+
+  if (import.meta.env.DEV && !resolvedEmail) {
+    console.warn(
+      '[normalizeSchool] ⚠️ No email found for school:',
+      raw.school_name,
+      '| Keys:', Object.keys(raw)
+    );
+  }
+
+  return {
+    ...raw,
+    principal_name: principal,
+    email: resolvedEmail,
+  };
+};
 
 // Mock school data generator for SCHOOL role when API fails
 const getMockSchool = (user: any): SchoolType => ({
@@ -18,8 +140,8 @@ const getMockSchool = (user: any): SchoolType => ({
   address: '123 Education Lane, Knowledge City, KC 12345',
   website: 'www.greenfield.edu',
   established_year: 1995,
-  admin_name: user?.username || 'School Admin',
-  admin_email: user?.email || 'admin@greenfield.edu',
+  principal_name: user?.username || 'School Admin',
+  email: user?.email || 'admin@greenfield.edu',
   students_count: 1247,
   teachers_count: 48,
   status: 'active',
@@ -52,7 +174,7 @@ const SchoolManagement: React.FC = () => {
           const profileRes = await api.get('/api/auth/school/profile');
           const profileData = profileRes.data;
           if (profileData) {
-            setSchools([profileData]);
+            setSchools([normalizeSchool(profileData)]);
             setLoading(false);
             return;
           }
@@ -67,7 +189,17 @@ const SchoolManagement: React.FC = () => {
       // Fetch schools from backend API
       const r = await api.get('/api/auth/schools');
       const d = r.data;
-      setSchools(Array.isArray(d) ? d : d?.results ?? d?.data ?? []);
+      const rawList = Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
+
+      // ── One-time API shape inspection ──
+      if (import.meta.env.DEV && rawList.length > 0) {
+        const first = rawList[0];
+        const keys = Object.keys(first);
+        console.log('%c[API INSPECTION] GET /api/auth/schools — First item keys:', 'color: #2563eb; font-size: 13px; font-weight: bold;', keys.join(', '));
+        console.log('[API INSPECTION] Full object:', JSON.stringify(first, null, 2));
+      }
+
+      setSchools(rawList.map(normalizeSchool));
       setLoading(false);
     } catch (err: any) { 
       // Handle 403 Forbidden gracefully
@@ -92,7 +224,7 @@ const SchoolManagement: React.FC = () => {
 
   const filtered = schools.filter(s => {
     const q = search.toLowerCase();
-    return !q || (s.school_name || '').toLowerCase().includes(q) || (s.admin_name || '').toLowerCase().includes(q) || String(s.id).includes(q);
+    return !q || (s.school_name || '').toLowerCase().includes(q) || (s.principal_name || '').toLowerCase().includes(q) || String(s.id).includes(q);
   });
 
   return (
@@ -113,7 +245,7 @@ const SchoolManagement: React.FC = () => {
       </div>
       <div className="relative mb-6">
         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input type="text" placeholder="Search Schools By Name, Email Address, Id Or Admin Name" value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
+        <input type="text" placeholder="Search Schools By Name, Email Address, Id Or Principal Name" value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
       </div>
       {/* SCHOOL Role Welcome Portal - Shown when 403 or no access */}
       {!loading && isSchoolRole && isForbidden && (
@@ -180,10 +312,11 @@ const SchoolManagement: React.FC = () => {
                 <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${bgs[i % bgs.length]}`}>{icons[i % icons.length]}</div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-base font-bold text-gray-900 truncate">{s.school_name || 'Unnamed'}</h3>
-                  <p className="text-xs text-gray-400">Admin Name: {s.admin_name || 'N/A'}</p>
+                  <p className="text-xs text-gray-400 truncate">Principal Name: {s.principal_name || 'N/A'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mb-3"><MapPin size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.address || 'N/A'}</p></div>
+              <div className="flex items-center gap-1.5 mb-3"><Mail size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.email || 'N/A'}</p></div>
               <div className="flex items-center gap-2 mb-3">
                 <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{s.students_count ?? Math.floor(Math.random() * 2000 + 500)}</span></div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-pink-100 px-3 py-1.5"><GraduationCap size={12} className="text-pink-600" /><span className="text-xs font-bold text-pink-700">{s.teachers_count ?? Math.floor(Math.random() * 100 + 20)}</span></div>

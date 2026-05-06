@@ -69,20 +69,81 @@ export interface User {
 }
 
 // --- Domain Models ---
+/**
+ * School — backend GET /api/auth/schools response.
+ * Declared with every known Django-serializer field as optional
+ * plus an index signature so the frontend never breaks when the
+ * backend adds, removes, or renames keys.
+ */
 export interface School {
+  // Core identity (always present in GET list)
   id: string | number;
   school_name: string;
-  registration_number: string;
   address: string;
+
+  // Optional / may vary by backend serializer version
+  registration_number?: string;
   website?: string;
-  established_year: number;
+  established_year?: number;
+  status?: 'active' | 'inactive' | 'pending';
+
+  // Principal / admin — mapped by normalizeSchool()
+  principal_name?: string;
   admin_name?: string;
+  username?: string;
+  name?: string;
+  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  contact_name?: string;
+
+  // Email — mapped by normalizeSchool()
+  email?: string;
   admin_email?: string;
+  school_email?: string;
+  contact_email?: string;
+
+  // User/admin nested objects (some serializers return these)
+  user?: {
+    username?: string;
+    email?: string;
+    name?: string;
+    first_name?: string;
+    last_name?: string;
+  };
+  admin?: {
+    username?: string;
+    email?: string;
+    name?: string;
+  };
+  contact?: {
+    email?: string;
+    name?: string;
+  };
+  principal?: {
+    email?: string;
+    name?: string;
+  };
+  profile?: {
+    name?: string;
+    email?: string;
+  };
+
+  // Counts & metadata
   students_count?: number;
   teachers_count?: number;
-  status?: 'active' | 'inactive';
+  students?: number;
+  teachers?: number;
   created_at?: string;
   updated_at?: string;
+  phone?: string;
+  phone_number?: string;
+  city?: string;
+  state?: string;
+  zip_code?: number | string;
+
+  // Catch-all so TypeScript never complains about unknown keys
+  [key: string]: any;
 }
 
 /**
@@ -108,6 +169,7 @@ export interface ISchoolData {
 /** Payload for POST /api/auth/school/create — built from ISchoolData */
 export interface CreateSchoolPayload {
   username: string;            // principalName
+  principal_name: string;      // explicitly sent for backends that prefer this key
   password: string;
   email: string;
   school_name: string;
@@ -116,21 +178,75 @@ export interface CreateSchoolPayload {
   website: string;
   established_year: number;
   phone?: string;
+  phone_number?: string;
+  city?: string;
+  state?: string;
+  zip_code?: number;
 }
 
+/**
+ * Student — backend GET /api/auth/schools/{schoolId}/students response.
+ * Declared with every known field as optional plus an index signature
+ * so the frontend never breaks when the backend changes keys.
+ */
 export interface Student {
   id: string | number;
-  username?: string;
-  email?: string;
-  roll_number?: string;
-  grade?: string;
-  gpa?: number;
-  school_id?: string;
+  full_name?: string;
   name?: string;
+  email?: string;
+  dob?: string;
+  enrollment_date?: string;
+  class_grade?: string;
+  grade?: string;
   class?: string;
+  section?: string;
+  guardian_name?: string;
+  guardian_contact?: string;
+  guardian_relation?: string;
+  parent_name?: string;
   parent_contact?: string;
+  parent_relation?: string;
+  username?: string;
+  student_id?: string;
+  roll_number?: string;
+  password?: string;
+  school_id?: string;
+  gpa?: number;
   created_at?: string;
   updated_at?: string;
+  [key: string]: any;
+}
+
+/**
+ * IStudentData — canonical front-end form model for the 4-step Add Student form.
+ */
+export interface IStudentData {
+  fullName: string;
+  email: string;
+  dob: string;
+  classGrade: string;
+  section: string;
+  guardianName: string;
+  guardianContact: string;
+  guardianRelation: string;
+  username: string;
+  password: string;
+  studentId: string;
+}
+
+/** Payload for POST /api/auth/schools/{schoolId}/students — built from IStudentData */
+export interface CreateStudentPayload {
+  full_name: string;
+  email: string;
+  dob: string;
+  class_grade: string;
+  section: string;
+  guardian_name: string;
+  guardian_contact: string;
+  guardian_relation: string;
+  username: string;
+  password: string;
+  student_id: string;
 }
 
 export interface Teacher {
