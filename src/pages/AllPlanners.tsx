@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/DashboardLayout';
+import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
@@ -64,41 +65,104 @@ const TopicsBadge: React.FC<{ count: number }> = ({ count }) => (
 
 const AllPlanners: React.FC = () => {
   const navigate = useNavigate();
+  const { user, tenant, isSuperAdmin } = useAuth();
   const [planners, setPlanners] = useState<Planner[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  // Fetch planners from backend API
+  // Fetch planners from backend API - NO dummy/mock data
   const fetchPlanners = useCallback(async () => {
     try {
       setLoading(true);
-      const r = await api.get('/api/study-plans');
+      setFetchError(null);
+      
+      let url = '/api/study-plans';
+      const schoolId = tenant?.schoolId || user?.school_id || localStorage.getItem('school_id');
+      
+      if (!isSuperAdmin && schoolId) {
+        url += `?school_id=${schoolId}`;
+      }
+      
+      const token = localStorage.getItem('access_token');
+      
+      console.log(`[AllPlanners] Fetching: ${url}`);
+      
+      const r = await api.get(url, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : undefined
+        },
+        timeout: 10000,
+      });
       const d = r.data;
       
-      // Transform backend data to match Planner interface
-      const fetchedPlanners: Planner[] = Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
+      console.log('[AllPlanners] Raw API response:', JSON.stringify(d).substring(0, 500));
       
-      setPlanners(fetchedPlanners.map((p: any) => ({
+      // Extract array from any possible backend structure
+      let rawList: any[] = [];
+      if (Array.isArray(d)) {
+        rawList = d;
+      } else if (d?.plans && Array.isArray(d.plans)) {
+        rawList = d.plans;
+      } else if (d?.data?.plans && Array.isArray(d.data.plans)) {
+        rawList = d.data.plans;
+      } else if (d?.results && Array.isArray(d.results)) {
+        rawList = d.results;
+      } else if (d?.data && Array.isArray(d.data)) {
+        rawList = d.data;
+      }
+      
+      console.log(`[AllPlanners] Extracted ${rawList.length} plans from response`);
+      
+      // Map REAL backend fields discovered from live API response
+      // Backend keys: id, title, plan_type, start_date, end_date, min_study_time_daily, created_at
+      setPlanners(rawList.map((p: any) => ({
         id: p.id,
-        name: p.plan_name || p.name,
-        duration: p.duration || `${p.duration_weeks || 12} weeks`,
-        subjects: p.subjects || ['General'],
+        name: p.title || p.plan_name || p.planner_name || p.name || 'N/A',
+        duration: p.duration || (p.duration_weeks ? `${p.duration_weeks} weeks` : (p.start_date && p.end_date ? `${p.start_date} → ${p.end_date}` : 'N/A')),
+        subjects: (() => {
+          // Backend returns subject_order as nested array like [["Physics"],["DSA"]]
+          if (p.subject_order && Array.isArray(p.subject_order)) {
+            const flat = p.subject_order.flat().filter(Boolean);
+            return flat.length > 0 ? flat : ['N/A'];
+          }
+          if (Array.isArray(p.subjects) && p.subjects.length > 0) return p.subjects;
+          if (p.subject_ids) return p.subject_ids.map(String);
+          return ['N/A'];
+        })(),
         topics: p.topics_count || p.topics || 0,
-        status: p.status || 'active',
-        createdDate: p.created_at?.split('T')[0] || p.createdDate || new Date().toISOString().split('T')[0],
-        examType: p.exam_type || p.examType || 'General',
-        startDate: p.start_date,
-        endDate: p.end_date,
-        dailyLimit: p.daily_limit_minutes?.toString(),
+        status: p.status || 'draft',
+        createdDate: p.created_at?.split('T')[0] || p.start_date || 'N/A',
+        examType: p.plan_type || p.exam_type || p.examType || 'N/A',
+        startDate: p.start_date || 'N/A',
+        endDate: p.end_date || 'N/A',
+        dailyLimit: (p.min_study_time_daily || p.daily_limit_minutes || p.daily_limit || '').toString(),
       })));
-    } catch {
+    } catch (err: any) {
+      console.error('[AllPlanners] Fetch failed:', err);
+      
+      let errorMsg = 'Network Error: Could not load planners.';
+      if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+        errorMsg = 'Request timed out. The server took too long to respond.';
+      } else if (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')) {
+        errorMsg = 'Network Error: Cannot reach the server. Please check your connection.';
+      } else if (err?.response?.status === 403) {
+        errorMsg = '403 Access Denied: You do not have permission to view planners.';
+        console.error(`[AllPlanners] 403 on GET /api/study-plans. Details:`, err?.response?.data);
+      } else if (err?.response?.status === 401) {
+        errorMsg = 'Session expired. Please log in again.';
+      } else if (err?.response?.status) {
+        errorMsg = `Server error (${err.response.status}). Please try again.`;
+      }
+      
+      setFetchError(errorMsg);
       setPlanners([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tenant?.schoolId, user?.school_id, isSuperAdmin]);
 
   useEffect(() => {
     fetchPlanners();
@@ -122,9 +186,19 @@ const AllPlanners: React.FC = () => {
     currentPage * itemsPerPage
   );
 
+  // Get base path for routing
+  const getBasePath = useCallback(() => {
+    if (isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') return '/admin/planners';
+    if (user?.role === 'SCHOOL_ADMIN' || user?.role === 'CAMPUS_ADMIN' || ((user?.role as string) === 'ADMIN' && tenant?.campusId)) {
+      return `/campus/${tenant?.campusId || localStorage.getItem('campus_id')}/planners`;
+    }
+    if (user?.role === 'SCHOOL') return '/school/planners';
+    return '/planners';
+  }, [isSuperAdmin, user?.role, tenant?.campusId]);
+
   // Action handlers
-  const handleView = (id: number) => navigate(`/planners/${id}`);
-  const handleEdit = (id: number) => navigate(`/planners/${id}/edit`);
+  const handleView = (id: number) => navigate(`${getBasePath()}/${id}`);
+  const handleEdit = (id: number) => navigate(`${getBasePath()}/${id}/edit`);
   const handleClone = async (id: number) => {
     const planner = planners.find(p => p.id === id);
     if (planner) {
@@ -170,7 +244,7 @@ const AllPlanners: React.FC = () => {
           />
         </div>
         <Button
-          onClick={() => navigate('/planners/create')}
+          onClick={() => navigate(`${getBasePath()}/create`)}
           leftIcon={<Plus size={18} />}
           size="md"
         >
@@ -181,12 +255,24 @@ const AllPlanners: React.FC = () => {
       {/* Content */}
       {loading ? (
         <TableSkeleton rows={6} />
+      ) : fetchError ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
+          <div className="text-red-500 text-4xl mb-3">⚠️</div>
+          <h3 className="text-lg font-bold text-red-700 mb-2">Failed to Load Planners</h3>
+          <p className="text-sm text-red-600 mb-4">{fetchError}</p>
+          <button
+            onClick={() => fetchPlanners()}
+            className="px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       ) : paginatedPlanners.length === 0 ? (
         <EmptyState
           type="data"
           title="No Planners Found"
-          description={searchQuery ? 'Try adjusting your search query.' : 'Create your first study planner to get started.'}
-          onAction={() => navigate('/planners/create')}
+          description={searchQuery ? 'Try adjusting your search query.' : 'No study planners exist yet. Create one to get started.'}
+          onAction={() => navigate(`${getBasePath()}/create`)}
           actionLabel="Create Planner"
         />
       ) : (

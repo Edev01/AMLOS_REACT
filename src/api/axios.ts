@@ -12,7 +12,7 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
-  timeout: 60000, // 60 second timeout for Render backend
+  timeout: 10000, // 10 second timeout to prevent ERR_CONNECTION_CLOSED
 });
 
 // Helper to manually set/clear the token on the axios defaults

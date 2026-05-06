@@ -147,12 +147,20 @@ export interface SLO {
 export interface StudyPlan {
   id: number;
   plan_name: string;
+  planner_name?: string;
+  exam_type?: string;
+  duration?: string;
+  duration_weeks?: number;
   start_date: string;
   end_date: string;
   daily_limit_minutes?: number;
+  description?: string;
+  subjects?: number[] | string[];
+  chapters?: number[];
   subject_ids?: number[];
   status?: string;
   created_at?: string;
+  school_id?: string | number;
 }
 
 // --- Auth ---

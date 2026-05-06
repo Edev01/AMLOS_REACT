@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/services/api';
 import { Subject } from '../types';
 import toast from 'react-hot-toast';
@@ -67,11 +68,12 @@ const getSubjectIcon = (name: string) => {
 
 const CreatePlanner: React.FC = () => {
   const navigate = useNavigate();
+  const { user, tenant, isSuperAdmin } = useAuth();
   const [step, setStep] = useState(1);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectsLoading, setSubjectsLoading] = useState(true);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
-  
+
   // Fetch subjects from backend on mount
   useEffect(() => {
     const fetchSubjects = async () => {
@@ -89,7 +91,7 @@ const CreatePlanner: React.FC = () => {
         setSubjectsLoading(false);
       }
     };
-    
+
     fetchSubjects();
   }, []);
   const [selectedChapters, setSelectedChapters] = useState<number[]>([]);
@@ -110,18 +112,18 @@ const CreatePlanner: React.FC = () => {
 
   // Safe subject toggle
   const toggleSubject = (id: number) => {
-    setSelectedSubjects(prev => 
-      prev.includes(id) 
-        ? prev.filter(x => x !== id) 
+    setSelectedSubjects(prev =>
+      prev.includes(id)
+        ? prev.filter(x => x !== id)
         : [...prev, id]
     );
   };
 
   // Safe chapter toggle
   const toggleChapter = (id: number) => {
-    setSelectedChapters(prev => 
-      prev.includes(id) 
-        ? prev.filter(x => x !== id) 
+    setSelectedChapters(prev =>
+      prev.includes(id)
+        ? prev.filter(x => x !== id)
         : [...prev, id]
     );
   };
@@ -150,13 +152,15 @@ const CreatePlanner: React.FC = () => {
       toast.error('Please select at least one subject.');
       return;
     }
-    
+
     setSubmitting(true);
-    
+
     // Build payload for backend
     const payload = {
+      planner_name: form.plan_name,
       plan_name: form.plan_name,
       exam_type: form.exam_type,
+      duration: form.duration,
       duration_weeks: parseInt(form.duration) || 12,
       start_date: form.start_date,
       end_date: form.end_date,
@@ -165,16 +169,32 @@ const CreatePlanner: React.FC = () => {
       subjects: selectedSubjects,
       chapters: selectedChapters,
       status: 'active',
+      school_id: tenant?.schoolId || user?.school_id || localStorage.getItem('school_id') || undefined,
     };
 
     try {
       // POST to backend API
       await api.post('/api/study-plans', payload);
-      
+
       toast.success('Planner created successfully!');
-      navigate('/planners');
-    } catch (err) {
+
+      // Determine destination path based on role to avoid 403 Unauthorized redirects
+      let destination = '/planners';
+      if (isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') {
+        destination = '/admin/planners';
+      } else if (user?.role === 'SCHOOL_ADMIN' || user?.role === 'CAMPUS_ADMIN' || ((user?.role as string) === 'ADMIN' && tenant?.campusId)) {
+        destination = `/campus/${tenant?.campusId || localStorage.getItem('campus_id')}/planners`;
+      } else if (user?.role === 'SCHOOL') {
+        destination = '/school/planners';
+      }
+
+      console.log(`Redirecting to: ${destination}`);
+      navigate(destination);
+    } catch (err: any) {
       console.error('Error creating planner:', err);
+      if (err?.response?.status === 403) {
+        console.error(`403 Access Denied on POST /api/study-plans. Details:`, err?.response?.data);
+      }
       toast.error('Failed to create planner. Please try again.');
     } finally {
       setSubmitting(false);
@@ -187,10 +207,10 @@ const CreatePlanner: React.FC = () => {
       <label className="mb-1.5 block text-sm font-medium text-gray-700">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
-      <input 
-        type={type} 
-        value={(form as any)[key] || ''} 
-        onChange={e => set(key, e.target.value)} 
+      <input
+        type={type}
+        value={(form as any)[key] || ''}
+        onChange={e => set(key, e.target.value)}
         placeholder={placeholder}
         className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
       />
@@ -238,10 +258,9 @@ const CreatePlanner: React.FC = () => {
           {(steps || []).map((s, i) => (
             <React.Fragment key={s?.n || i}>
               <div className="flex items-center gap-3">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
-                  step >= (s?.n || 0) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
-                }`}>
-                  {step > (s?.n || 0) ? <Check size={16}/> : (s?.n || i + 1)}
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${step >= (s?.n || 0) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                  }`}>
+                  {step > (s?.n || 0) ? <Check size={16} /> : (s?.n || i + 1)}
                 </div>
                 <div className="hidden sm:block">
                   <p className="text-sm font-semibold text-gray-900">{s?.title || ''}</p>
@@ -249,7 +268,7 @@ const CreatePlanner: React.FC = () => {
                 </div>
               </div>
               {i < (steps?.length || 0) - 1 && (
-                <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${step > (s?.n || 0) ? 'bg-blue-600' : 'bg-gray-200'}`}/>
+                <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${step > (s?.n || 0) ? 'bg-blue-600' : 'bg-gray-200'}`} />
               )}
             </React.Fragment>
           ))}
@@ -265,8 +284,8 @@ const CreatePlanner: React.FC = () => {
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">
                   Exam Type <span className="text-red-500">*</span>
                 </label>
-                <select 
-                  value={form.exam_type || ''} 
+                <select
+                  value={form.exam_type || ''}
                   onChange={e => set('exam_type', e.target.value)}
                   className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 >
@@ -298,15 +317,14 @@ const CreatePlanner: React.FC = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(subjects || []).map(s => (
-                  <button 
-                    key={s?.id || Math.random()} 
-                    type="button" 
+                  <button
+                    key={s?.id || Math.random()}
+                    type="button"
                     onClick={() => s?.id && toggleSubject(s.id)}
-                    className={`rounded-xl border p-4 text-left transition-all duration-200 ${
-                      selectedSubjects?.includes(s?.id || 0) 
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+                    className={`rounded-xl border p-4 text-left transition-all duration-200 ${selectedSubjects?.includes(s?.id || 0)
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
                         : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3 mb-2">
                       {getSubjectIcon(s?.name || '')}
@@ -337,9 +355,9 @@ const CreatePlanner: React.FC = () => {
                 const subject = (subjects || []).find(s => s?.id === subjectId);
                 const chapters = MOCK_CHAPTERS?.[subjectId] || [];
                 const isExpanded = expandedSubject === subjectId;
-                
+
                 if (!subject) return null;
-                
+
                 return (
                   <div key={subjectId} className="border border-gray-200 rounded-xl overflow-hidden">
                     <button
@@ -353,12 +371,12 @@ const CreatePlanner: React.FC = () => {
                           ({chapters?.length || 0} chapters)
                         </span>
                       </div>
-                      <ArrowRight 
-                        size={16} 
+                      <ArrowRight
+                        size={16}
                         className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                       />
                     </button>
-                    
+
                     {isExpanded && (
                       <div className="p-4 bg-white">
                         {(chapters || []).length === 0 ? (
@@ -369,17 +387,15 @@ const CreatePlanner: React.FC = () => {
                               <button
                                 key={chapter?.id || Math.random()}
                                 onClick={() => chapter?.id && toggleChapter(chapter.id)}
-                                className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-                                  selectedChapters?.includes(chapter?.id || 0)
+                                className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${selectedChapters?.includes(chapter?.id || 0)
                                     ? 'border-blue-500 bg-blue-50'
                                     : 'border-gray-200 hover:border-blue-300'
-                                }`}
+                                  }`}
                               >
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                                  selectedChapters?.includes(chapter?.id || 0)
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedChapters?.includes(chapter?.id || 0)
                                     ? 'bg-blue-500 border-blue-500'
                                     : 'border-gray-300'
-                                }`}>
+                                  }`}>
                                   {selectedChapters?.includes(chapter?.id || 0) && (
                                     <Check size={12} className="text-white" />
                                   )}
@@ -431,7 +447,7 @@ const CreatePlanner: React.FC = () => {
                   <p className="text-sm font-semibold text-gray-900">{form.end_date || '—'}</p>
                 </div>
               </div>
-              
+
               <div className="border-t border-gray-200 pt-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected Subjects</p>
                 <p className="text-sm font-semibold text-gray-900">{(selectedSubjects?.length || 0)} subjects</p>
@@ -446,7 +462,7 @@ const CreatePlanner: React.FC = () => {
                   })}
                 </div>
               </div>
-              
+
               <div className="border-t border-gray-200 pt-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected Chapters</p>
                 <p className="text-sm font-semibold text-gray-900">{(selectedChapters?.length || 0)} chapters</p>
@@ -457,31 +473,31 @@ const CreatePlanner: React.FC = () => {
 
         {/* Navigation buttons */}
         <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-100">
-          <button 
-            type="button" 
-            onClick={prevStep} 
+          <button
+            type="button"
+            onClick={prevStep}
             disabled={step === 1}
             className="inline-flex items-center gap-2 rounded-xl bg-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 disabled:opacity-40 hover:bg-gray-300 transition"
           >
-            <ArrowLeft size={16}/> Previous
+            <ArrowLeft size={16} /> Previous
           </button>
-          
+
           {step < 4 ? (
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={nextStep}
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition"
             >
-              Next <ArrowRight size={16}/>
+              Next <ArrowRight size={16} />
             </button>
           ) : (
-            <button 
-              type="button" 
-              onClick={handleSubmit} 
+            <button
+              type="button"
+              onClick={handleSubmit}
               disabled={submitting}
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-60 transition"
             >
-              {submitting ? 'Creating...' : 'Create Planner'} <Check size={16}/>
+              {submitting ? 'Creating...' : 'Create Planner'} <Check size={16} />
             </button>
           )}
         </div>
