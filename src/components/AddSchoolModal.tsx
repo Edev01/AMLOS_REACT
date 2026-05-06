@@ -15,19 +15,20 @@ const AddSchoolModal: React.FC<AddSchoolModalProps> = ({ isOpen, isSubmitting, e
   const [form, setForm] = useState({
     school_name:'', username:'', email:'', password:'',
     registration_number:'', address:'', website:'', established_year:'' as string|number,
+    principal_name:'',
   });
   const [fieldError, setFieldError] = useState('');
 
   useEffect(() => {
     if (!isOpen) {
-      setForm({ school_name:'',username:'',email:'',password:'',registration_number:'',address:'',website:'',established_year:'' });
+      setForm({ school_name:'',username:'',email:'',password:'',registration_number:'',address:'',website:'',established_year:'',principal_name:'' });
       setFieldError('');
     }
   }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.school_name || !form.username || !form.email || !form.password || !form.address) {
+    if (!form.school_name || !form.username || !form.email || !form.password || !form.address || !form.principal_name) {
       setFieldError('All required fields must be filled.'); return;
     }
     setFieldError('');
@@ -36,6 +37,7 @@ const AddSchoolModal: React.FC<AddSchoolModalProps> = ({ isOpen, isSubmitting, e
       password: form.password,
       email: form.email,
       school_name: form.school_name,
+      principal_name: form.principal_name,
       registration_number: form.registration_number || `REG-${Date.now()}`,
       address: form.address,
       website: form.website,
@@ -58,6 +60,7 @@ const AddSchoolModal: React.FC<AddSchoolModalProps> = ({ isOpen, isSubmitting, e
           ['Address','address','Full address',true],
           ['Website','website','https://www.example.com',false],
           ['Established Year','established_year','e.g. 1995',false],
+          ['Principal Name','principal_name','e.g. John Smith',true],
         ].map(([label, key, placeholder, required]) => (
           <div key={key as string}>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
