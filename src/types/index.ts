@@ -294,14 +294,18 @@ export interface Chapter {
   name: string;
   chapter_number: number;
   description?: string;
+  slos?: SLO[];
 }
 
 export interface SLO {
   id: number;
   chapter: number;
-  slo_text: string;
+  slo_text?: string;
+  name?: string;
   priority?: string;
+  difficulty_frequency?: string;
   suggested_time_minutes?: number;
+  timeline_time?: number;
 }
 
 // --- Study Plans ---
@@ -309,19 +313,25 @@ export interface StudyPlan {
   id: number;
   plan_name: string;
   planner_name?: string;
+  title?: string;
   exam_type?: string;
   duration?: string;
   duration_weeks?: number;
+  grade?: string;
   start_date: string;
   end_date: string;
   daily_limit_minutes?: number;
+  min_study_time_daily?: number;
+  max_study_time_daily?: number;
   description?: string;
   subjects?: number[] | string[];
   chapters?: number[];
   subject_ids?: number[];
+  slo_ids?: number[];
   status?: string;
   created_at?: string;
   school_id?: string | number;
+  plan_type?: string;
 }
 
 // --- Auth ---

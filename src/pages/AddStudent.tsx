@@ -100,7 +100,7 @@ interface FieldConfig {
   type?: string;
   icon: React.ReactNode;
   required?: boolean;
-  options?: string[];
+  options?: Array<{ value: string; label: string }>;
 }
 
 const stepFields: FieldConfig[][] = [
@@ -111,8 +111,18 @@ const stepFields: FieldConfig[][] = [
     { name: 'dateOfBirth', label: 'Date of Birth', placeholder: '', icon: <Calendar size={16} />, required: true, type: 'date' },
   ],
   [
-    { name: 'grade', label: 'Grade', placeholder: 'Select grade', icon: <BookOpen size={16} />, required: true, options: ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'] },
-    { name: 'section', label: 'Section', placeholder: 'Select section', icon: <Hash size={16} />, required: true, options: ['A', 'B', 'C', 'D'] },
+    { name: 'grade', label: 'Grade', placeholder: 'Select grade', icon: <BookOpen size={16} />, required: true, options: [
+      { value: '9', label: '9th' },
+      { value: '10', label: '10th' },
+      { value: '11', label: '11th' },
+      { value: '12', label: '12th' },
+    ] },
+    { name: 'section', label: 'Section', placeholder: 'Select section', icon: <Hash size={16} />, required: true, options: [
+      { value: 'A', label: 'A' },
+      { value: 'B', label: 'B' },
+      { value: 'C', label: 'C' },
+      { value: 'D', label: 'D' },
+    ] },
     { name: 'state', label: 'State', placeholder: 'Punjab / Sindh / etc.', icon: <Shield size={16} />, required: true },
     { name: 'rollNumber', label: 'Roll Number', placeholder: 'ROLL-2024-001', icon: <GraduationCap size={16} />, required: true },
   ],
@@ -320,7 +330,7 @@ const AddStudent: React.FC = () => {
                     >
                       <option value="" disabled>{f.placeholder}</option>
                       {f.options.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">

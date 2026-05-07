@@ -7,13 +7,14 @@ import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import api from '../api/services/api';
-import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Clock, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Planner Type Definition
 interface Planner {
   id: number;
   name: string;
+  grade?: string;
   duration: string;
   subjects: string[];
   topics: number;
@@ -23,6 +24,9 @@ interface Planner {
   startDate?: string;
   endDate?: string;
   dailyLimit?: string;
+  minStudyTime?: number;
+  maxStudyTime?: number;
+  sloCount?: number;
   selectedSubjects?: number[];
   selectedChapters?: number[];
 }
@@ -79,23 +83,11 @@ const AllPlanners: React.FC = () => {
       setLoading(true);
       setFetchError(null);
       
-      let url = '/api/study-plans';
-      const schoolId = tenant?.schoolId || user?.school_id || localStorage.getItem('school_id');
-      
-      if (!isSuperAdmin && schoolId) {
-        url += `?school_id=${schoolId}`;
-      }
-      
-      const token = localStorage.getItem('access_token');
+      const url = '/api/study-plans';
       
       console.log(`[AllPlanners] Fetching: ${url}`);
       
-      const r = await api.get(url, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : undefined
-        },
-        timeout: 10000,
-      });
+      const r = await api.get(url, { timeout: 10000 });
       const d = r.data;
       
       console.log('[AllPlanners] Raw API response:', JSON.stringify(d).substring(0, 500));
@@ -116,11 +108,26 @@ const AllPlanners: React.FC = () => {
       
       console.log(`[AllPlanners] Extracted ${rawList.length} plans from response`);
       
+      // Log what fields backend actually returns so we can verify mapping
+      if (rawList.length > 0) {
+        console.log('[AllPlanners] First plan raw fields:', Object.keys(rawList[0]));
+        console.log('[AllPlanners] First plan sample:', {
+          grade: rawList[0].grade,
+          slo_ids: rawList[0].slo_ids,
+          min_study_time: rawList[0].min_study_time_daily,
+          max_study_time: rawList[0].max_study_time_daily,
+          plan_type: rawList[0].plan_type,
+          title: rawList[0].title,
+          subject_order: rawList[0].subject_order,
+        });
+      }
+
       // Map REAL backend fields discovered from live API response
       // Backend keys: id, title, plan_type, start_date, end_date, min_study_time_daily, created_at
       setPlanners(rawList.map((p: any) => ({
         id: p.id,
         name: p.title || p.plan_name || p.planner_name || p.name || 'N/A',
+        grade: p.grade || '',
         duration: p.duration || (p.duration_weeks ? `${p.duration_weeks} weeks` : (p.start_date && p.end_date ? `${p.start_date} → ${p.end_date}` : 'N/A')),
         subjects: (() => {
           // Backend returns subject_order as nested array like [["Physics"],["DSA"]]
@@ -139,6 +146,14 @@ const AllPlanners: React.FC = () => {
         startDate: p.start_date || 'N/A',
         endDate: p.end_date || 'N/A',
         dailyLimit: (p.min_study_time_daily || p.daily_limit_minutes || p.daily_limit || '').toString(),
+        minStudyTime: p.min_study_time_daily || p.daily_limit_minutes || 0,
+        maxStudyTime: p.max_study_time_daily || 0,
+        sloCount: (() => {
+          if (Array.isArray(p.slo_ids)) return p.slo_ids.length;
+          if (Array.isArray(p.slos)) return p.slos.length;
+          if (typeof p.slo_count === 'number') return p.slo_count;
+          return p.topics_count || p.topics || 0;
+        })(),
       })));
     } catch (err: any) {
       console.error('[AllPlanners] Fetch failed:', err);
@@ -162,7 +177,7 @@ const AllPlanners: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [tenant?.schoolId, user?.school_id, isSuperAdmin]);
+  }, []);
 
   useEffect(() => {
     fetchPlanners();
@@ -287,9 +302,10 @@ const AllPlanners: React.FC = () => {
               <thead>
                 <tr className="bg-gradient-to-r from-accent-blue to-accent-indigo text-white">
                   <th className="px-6 py-4 text-left text-sm font-semibold">Planner Name</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Grade</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold">Duration</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold">Subjects</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold">Topics</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Plan Info</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold">Created Date</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold">Actions</th>
@@ -304,6 +320,7 @@ const AllPlanners: React.FC = () => {
                     transition={{ delay: index * 0.05 }}
                     className="group hover:bg-slate-50/80 transition-colors"
                   >
+                    {(() => { console.log('Single Plan Card Data:', planner); return null; })()}
                     {/* Planner Name */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -317,6 +334,17 @@ const AllPlanners: React.FC = () => {
                           <p className="text-xs text-slate-400">{planner.examType}</p>
                         </div>
                       </div>
+                    </td>
+
+                    {/* Grade */}
+                    <td className="px-6 py-4">
+                      {planner.grade ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200">
+                          Grade {planner.grade}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
 
                     {/* Duration */}
@@ -335,9 +363,20 @@ const AllPlanners: React.FC = () => {
                       </div>
                     </td>
 
-                    {/* Topics */}
-                    <td className="px-6 py-4 text-center">
-                      <TopicsBadge count={planner.topics} />
+                    {/* Plan Info: SLOs + Study Time */}
+                    <td className="px-6 py-4">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Layers size={13} className="text-accent-blue" />
+                          <span>{planner.sloCount || 0} SLO{planner.sloCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        {(planner.minStudyTime || planner.maxStudyTime) ? (
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <Clock size={13} className="text-emerald-500" />
+                            <span>{planner.minStudyTime || 0}m - {planner.maxStudyTime || 0}m daily</span>
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
 
                     {/* Status */}

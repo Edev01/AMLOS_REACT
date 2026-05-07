@@ -50,13 +50,14 @@ axiosInstance.interceptors.request.use(
       config.headers.set('Authorization', `Bearer ${token}`);
     }
     
-    // Multi-tenant: Attach campus_id to header if available
+    // Multi-tenant: Attach campus_id to header if available (skip for global curriculum)
+    const isCurriculumEndpoint = config.url?.startsWith('/api/curriculum/');
     const campusId = localStorage.getItem('campus_id');
-    if (campusId && campusId !== 'ALL' && config.headers) {
+    if (!isCurriculumEndpoint && campusId && campusId !== 'ALL' && config.headers) {
       config.headers.set('X-Campus-ID', campusId);
       config.headers.set('X-Tenant-ID', campusId);
     }
-    
+
     return config;
   },
   (error: AxiosError): Promise<AxiosError> => Promise.reject(error)
