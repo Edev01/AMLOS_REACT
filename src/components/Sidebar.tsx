@@ -126,21 +126,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
             { id: 'add-school', label: 'Add School', path: '/admin/schools/add' },
           ],
         },
-        { id: 'users', label: 'User Management', icon: <Users size={18} /> },
-        { id: 'academic', label: 'Academic Structure', icon: <BookOpen size={18} /> },
-        { id: 'content', label: 'Content Management', icon: <FileText size={18} /> },
-        { id: 'quiz', label: 'Quiz Management', icon: <ClipboardList size={18} /> },
         {
           id: 'planner',
           label: 'Planner Management',
           icon: <CalendarDays size={18} />,
           children: [
-            { id: 'create-planner', label: 'Create Planner', path: '/admin/planners/create' },
+            { id: 'create-planner', label: 'Add Planner', path: '/admin/planners/create' },
             { id: 'all-planner', label: 'All Planner', path: '/admin/planners' },
           ],
         },
-        { id: 'analytics', label: 'System Analytics', icon: <BarChart3 size={18} /> },
-        { id: 'settings', label: 'System Settings', icon: <Settings size={18} /> },
       ];
     }
 

@@ -19,6 +19,7 @@ import {
   Building2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useIsFetching } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import SchoolAdminSidebar from './SchoolAdminSidebar';
 
@@ -41,6 +42,7 @@ const searchItems = [
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage }) => {
   const { user, isSuperAdmin } = useAuth();
+  const isFetching = useIsFetching();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   
@@ -105,7 +107,23 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   };
 
   return (
-    <div className="min-h-screen bg-surface-light font-sans">
+    <div className="min-h-screen bg-surface-light font-sans relative">
+      {/* Global Top-Bar Progress Loader for Background Fetching */}
+      {isFetching > 0 && (
+        <div className="fixed top-0 left-0 w-full h-1 bg-blue-100 z-[100]">
+          <motion.div
+            className="h-full bg-blue-600"
+            initial={{ width: "0%" }}
+            animate={{ width: "100%" }}
+            transition={{
+              duration: 1.5,
+              ease: "easeInOut",
+              repeat: Infinity,
+            }}
+          />
+        </div>
+      )}
+
       {/* Mobile overlay */}
       <AnimatePresence>
         {mobileOpen && (

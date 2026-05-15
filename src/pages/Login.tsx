@@ -202,7 +202,8 @@ const Login: React.FC = () => {
       
       const campusName = responseData.user?.campus_name || (responseData.user as any)?.school_name || '';
       
-      // IMPORTANT: Call login FIRST to ensure tokens are stored before navigation
+      // IMPORTANT: login() is synchronous — it writes to localStorage and
+      // sets the axios token BEFORE returning. Safe to navigate immediately.
       login(response.data, emailValue);
       
       // Log for debugging
@@ -213,31 +214,23 @@ const Login: React.FC = () => {
         hasToken: !!responseData.tokens?.access,
       });
       
-      // Dynamic tenant-based routing
+      // ─── Imperative navigation — calculate dashboard path directly ───
       let dashboardPath: string;
       
-      if (receivedRole === 'SUPER_ADMIN') {
-        // Super admin goes to central dashboard
-        dashboardPath = '/super-admin/dashboard';
+      if (receivedRole === 'SUPER_ADMIN' || receivedRole === 'ADMIN') {
+        dashboardPath = '/admin/dashboard';
       } else if (receivedRole === 'SCHOOL') {
-        // SCHOOL role goes to their dedicated school dashboard
         dashboardPath = '/school/dashboard';
       } else if ((receivedRole === 'SCHOOL_ADMIN' || receivedRole === 'CAMPUS_ADMIN') && campusId) {
-        // Explicit School/Campus admin goes to their specific campus silo
         dashboardPath = `/campus/${campusId}/dashboard`;
-      } else if (receivedRole === 'ADMIN') {
-        // ADMIN navigates to /campus/dashboard
-        dashboardPath = '/campus/dashboard';
       } else {
-        // Fallback - if has campus_id, go to campus dashboard
         dashboardPath = campusId 
           ? `/campus/${campusId}/dashboard` 
-          : (ROLE_DASHBOARD_MAP[receivedRole] || '/unauthorized');
+          : (ROLE_DASHBOARD_MAP[receivedRole] || '/admin/dashboard');
       }
       
-      // Navigate to appropriate dashboard
-      navigate(dashboardPath, { replace: true });
-      
+      console.log('[Login] Navigating to:', dashboardPath);
+      navigate(dashboardPath, { replace: true });      
     } catch (err: unknown) {
       console.error('[Login] Error:', err);
       if (axios.isAxiosError(err)) {

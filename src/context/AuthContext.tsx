@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, AuthResponse, Role, ROLE_DASHBOARD_MAP, hasCrossTenantAccess } from '../types';
+import { setAuthToken, markLoginTimestamp } from '../api/axios';
 
 interface TenantContext {
   campusId: string | null;
@@ -71,9 +72,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     campusName: null,
     schoolId: null,
   });
+  // isLoading starts TRUE — prevents ProtectedRoute from redirecting
+  // until we've finished checking localStorage for an existing session.
   const [isLoading, setIsLoading] = useState(true);
 
-  // Hydrate auth state from localStorage on mount
+  // Hydrate auth state from localStorage on mount.
+  // All operations here are synchronous — React 18 batches the state
+  // updates so the very first committed render will have user+tenant+isLoading=false.
   useEffect(() => {
     const storedToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
@@ -84,6 +89,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (storedToken && storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
+        // Hydrate axios with the stored token immediately
+        setAuthToken(storedToken);
         setUser(parsedUser);
         setTenant({
           campusId: storedCampusId || parsedUser.campus_id || null,
@@ -92,14 +99,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       } catch {
         // Invalid stored data - clear everything
-        clearAllAuthData();
+        Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+        setAuthToken(null);
       }
     }
+
+    // Token check is complete — allow routing to proceed.
+    // No setTimeout: React 18 batches all the setUser/setTenant/setIsLoading
+    // updates into a single render, so ProtectedRoute will see the user
+    // and isLoading=false atomically.
     setIsLoading(false);
   }, []);
 
   const clearAllAuthData = useCallback(() => {
     Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+    setAuthToken(null);
     setUser(null);
     setTenant({ campusId: null, campusName: null, schoolId: null });
   }, []);
@@ -124,9 +138,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [clearAllAuthData]);
 
   /**
-   * Multi-tenant login with campus/school isolation
+   * Multi-tenant login with campus/school isolation.
+   *
+   * CRITICAL SEQUENCE:
+   *   1. Write token + user to localStorage (synchronous)
+   *   2. Set token on axios instance (synchronous)
+   *   3. Update React state (batched)
+   *
+   * After this function returns, localStorage and axios are guaranteed
+   * to have the token. The caller (Login.tsx) can safely navigate.
    */
   const login = useCallback((data: AuthResponse, loggedInUsername?: string) => {
+    // Mark login timestamp so axios interceptor won't redirect during grace window
+    markLoginTimestamp();
+
     // Extract tokens
     const accessToken = data.data?.tokens?.access || data.access_token || data.access || '';
     const refreshToken = data.data?.tokens?.refresh || data.refresh_token || data.refresh || '';
@@ -174,27 +199,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...(isUserObject ? rawUser : {}),
     };
 
-    // Persist to localStorage
+    // ─── STEP 1: Persist to localStorage SYNCHRONOUSLY ───
     if (accessToken) localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
     if (refreshToken) localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
     localStorage.setItem(STORAGE_KEYS.ROLE, role);
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(loggedInUser));
     if (campusId) localStorage.setItem(STORAGE_KEYS.CAMPUS_ID, campusId);
     if (campusName) localStorage.setItem(STORAGE_KEYS.CAMPUS_NAME, campusName);
-    // Always write school_id so we overwrite stale empty values
     localStorage.setItem(STORAGE_KEYS.SCHOOL_ID, schoolId);
 
+    // ─── STEP 2: Set token on axios instance SYNCHRONOUSLY ───
+    if (accessToken) setAuthToken(accessToken);
+
     if (import.meta.env.DEV) {
-      console.log('[AuthContext] login extracted:', { campusId, schoolId, campusName, role });
+      console.log('[AuthContext] login persisted:', { campusId, schoolId, campusName, role });
     }
 
-    // Update state
+    // ─── STEP 3: Update React state (batched by React 18) ───
     setUser(loggedInUser);
     setTenant({
       campusId: campusId || null,
       campusName: campusName || null,
       schoolId: schoolId || null,
     });
+    // Do NOT touch isLoading here — it's already false after hydration.
+    // Toggling it would cause ProtectedRoute to flash "Loading…" during navigation.
   }, []);
 
   /** UI-First mode: create a fake SUPER_ADMIN session for development */
@@ -237,15 +266,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getTenantDashboardPath = useCallback((): string | null => {
     if (!user?.role) return null;
     
-    // Super admins go to central dashboard
-    if (user.role === 'SUPER_ADMIN') {
+    // Super admins AND plain ADMIN go to central dashboard
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
       return '/admin/dashboard';
     }
     
-    // Tenant-isolated roles (CAMPUS_ADMIN, SCHOOL_ADMIN, ADMIN with campus_id)
+    // Tenant-isolated roles (CAMPUS_ADMIN, SCHOOL_ADMIN)
     const isTenantRole = user.role === 'CAMPUS_ADMIN' || 
-                         user.role === 'SCHOOL_ADMIN' || 
-                         (user.role === 'ADMIN' && tenant.campusId);
+                         user.role === 'SCHOOL_ADMIN';
     
     if (isTenantRole && tenant.campusId) {
       return `/campus/${tenant.campusId}/dashboard`;

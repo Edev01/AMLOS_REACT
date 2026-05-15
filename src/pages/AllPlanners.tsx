@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/DashboardLayout';
@@ -70,29 +71,17 @@ const TopicsBadge: React.FC<{ count: number }> = ({ count }) => (
 const AllPlanners: React.FC = () => {
   const navigate = useNavigate();
   const { user, tenant, isSuperAdmin } = useAuth();
-  const [planners, setPlanners] = useState<Planner[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  // Fetch planners from backend API - NO dummy/mock data
-  const fetchPlanners = useCallback(async () => {
-    try {
-      setLoading(true);
-      setFetchError(null);
-      
+  const { data: plannersData, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['planners'],
+    queryFn: async () => {
       const url = '/api/study-plans';
-      
-      console.log(`[AllPlanners] Fetching: ${url}`);
-      
       const r = await api.get(url, { timeout: 10000 });
       const d = r.data;
-      
-      console.log('[AllPlanners] Raw API response:', JSON.stringify(d).substring(0, 500));
-      
-      // Extract array from any possible backend structure
+
       let rawList: any[] = [];
       if (Array.isArray(d)) {
         rawList = d;
@@ -105,32 +94,13 @@ const AllPlanners: React.FC = () => {
       } else if (d?.data && Array.isArray(d.data)) {
         rawList = d.data;
       }
-      
-      console.log(`[AllPlanners] Extracted ${rawList.length} plans from response`);
-      
-      // Log what fields backend actually returns so we can verify mapping
-      if (rawList.length > 0) {
-        console.log('[AllPlanners] First plan raw fields:', Object.keys(rawList[0]));
-        console.log('[AllPlanners] First plan sample:', {
-          grade: rawList[0].grade,
-          slo_ids: rawList[0].slo_ids,
-          min_study_time: rawList[0].min_study_time_daily,
-          max_study_time: rawList[0].max_study_time_daily,
-          plan_type: rawList[0].plan_type,
-          title: rawList[0].title,
-          subject_order: rawList[0].subject_order,
-        });
-      }
 
-      // Map REAL backend fields discovered from live API response
-      // Backend keys: id, title, plan_type, start_date, end_date, min_study_time_daily, created_at
-      setPlanners(rawList.map((p: any) => ({
+      return rawList.map((p: any) => ({
         id: p.id,
         name: p.title || p.plan_name || p.planner_name || p.name || 'N/A',
         grade: p.grade || '',
         duration: p.duration || (p.duration_weeks ? `${p.duration_weeks} weeks` : (p.start_date && p.end_date ? `${p.start_date} → ${p.end_date}` : 'N/A')),
         subjects: (() => {
-          // Backend returns subject_order as nested array like [["Physics"],["DSA"]]
           if (p.subject_order && Array.isArray(p.subject_order)) {
             const flat = p.subject_order.flat().filter(Boolean);
             return flat.length > 0 ? flat : ['N/A'];
@@ -154,34 +124,29 @@ const AllPlanners: React.FC = () => {
           if (typeof p.slo_count === 'number') return p.slo_count;
           return p.topics_count || p.topics || 0;
         })(),
-      })));
-    } catch (err: any) {
-      console.error('[AllPlanners] Fetch failed:', err);
-      
-      let errorMsg = 'Network Error: Could not load planners.';
-      if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
-        errorMsg = 'Request timed out. The server took too long to respond.';
-      } else if (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')) {
-        errorMsg = 'Network Error: Cannot reach the server. Please check your connection.';
-      } else if (err?.response?.status === 403) {
-        errorMsg = '403 Access Denied: You do not have permission to view planners.';
-        console.error(`[AllPlanners] 403 on GET /api/study-plans. Details:`, err?.response?.data);
-      } else if (err?.response?.status === 401) {
-        errorMsg = 'Session expired. Please log in again.';
-      } else if (err?.response?.status) {
-        errorMsg = `Server error (${err.response.status}). Please try again.`;
-      }
-      
-      setFetchError(errorMsg);
-      setPlanners([]);
-    } finally {
-      setLoading(false);
+      })) as Planner[];
     }
-  }, []);
+  });
 
-  useEffect(() => {
-    fetchPlanners();
-  }, [fetchPlanners]);
+  const planners = plannersData || [];
+  const loading = isLoading;
+
+  let fetchError = null;
+  if (isError) {
+    const err = error as any;
+    fetchError = 'Network Error: Could not load planners.';
+    if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+      fetchError = 'Request timed out. The server took too long to respond.';
+    } else if (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')) {
+      fetchError = 'Network Error: Cannot reach the server. Please check your connection.';
+    } else if (err?.response?.status === 403) {
+      fetchError = '403 Access Denied: You do not have permission to view planners.';
+    } else if (err?.response?.status === 401) {
+      fetchError = 'Session expired. Please log in again.';
+    } else if (err?.response?.status) {
+      fetchError = `Server error (${err.response.status}). Please try again.`;
+    }
+  }
 
   // Filter planners based on search
   const filteredPlanners = useMemo(() => {
@@ -225,12 +190,13 @@ const AllPlanners: React.FC = () => {
       }
     }
   };
-  
+
+  const queryClient = useQueryClient();
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this planner?')) {
       try {
         await api.delete(`/api/study-plans/${id}`);
-        setPlanners(planners.filter(p => p.id !== id));
+        queryClient.invalidateQueries({ queryKey: ['planners'] });
         toast.success('Planner deleted successfully');
       } catch {
         toast.error('Failed to delete planner');
@@ -276,7 +242,7 @@ const AllPlanners: React.FC = () => {
           <h3 className="text-lg font-bold text-red-700 mb-2">Failed to Load Planners</h3>
           <p className="text-sm text-red-600 mb-4">{fetchError}</p>
           <button
-            onClick={() => fetchPlanners()}
+            onClick={() => refetch()}
             className="px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors"
           >
             Retry
@@ -320,7 +286,7 @@ const AllPlanners: React.FC = () => {
                     transition={{ delay: index * 0.05 }}
                     className="group hover:bg-slate-50/80 transition-colors"
                   >
-                    {(() => { console.log('Single Plan Card Data:', planner); return null; })()}
+
                     {/* Planner Name */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -454,11 +420,10 @@ const AllPlanners: React.FC = () => {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                      currentPage === page
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === page
                         ? 'bg-accent-blue text-white'
                         : 'text-slate-500 hover:bg-slate-50 hover:text-navy-800'
-                    }`}
+                      }`}
                   >
                     {page}
                   </button>
