@@ -47,16 +47,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
   const tenantId = params.tenantId || tenant.campusId;
   const isTenantContext = location.pathname.startsWith('/campus/');
   
-  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
-    school: true,
-    planner: false,
-  });
+  // Single-open accordion: only one menu expanded at a time
+  const [openMenu, setOpenMenu] = useState<string | null>('school');
   const [activeIndicator, setActiveIndicator] = useState({ top: 0, height: 0 });
   const navRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   const toggleMenu = (key: string) => {
-    setExpandedMenus((prev) => ({ ...prev, [key]: !prev[key] }));
+    setOpenMenu(prev => prev === key ? null : key);
   };
 
   const handleLogout = () => {
@@ -102,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
     updateIndicator();
     window.addEventListener('resize', updateIndicator);
     return () => window.removeEventListener('resize', updateIndicator);
-  }, [location.pathname, activePage, expandedMenus]);
+  }, [location.pathname, activePage, openMenu]);
 
   // Generate tenant-aware menu items based on role and context
   const getMenuItems = (): MenuItem[] => {
@@ -319,7 +317,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
 
         {menuItems.map((item, index) => {
           const hasChildren = !!item.children;
-          const isExpanded = expandedMenus[item.id] ?? false;
+          const isExpanded = openMenu === item.id;
           const parentActive = isParentActive(item);
           const itemActive = isActive(item.path, item.id);
 
@@ -381,7 +379,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
                     transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
                     className="overflow-hidden"
                   >
-                    <div className="mt-1 ml-4 space-y-1 border-l border-white/10 pl-3 py-1">
+                    <div className="ml-4 space-y-0.5 border-l border-white/10 pl-3 py-0.5">
                       {item.children!.map((child, childIndex) => {
                         const childActive = isActive(child.path, child.id);
                         return (

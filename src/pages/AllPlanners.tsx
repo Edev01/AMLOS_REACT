@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import api from '../api/services/api';
-import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Clock, Layers } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Clock, Layers, X, AlertTriangle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Planner Type Definition
@@ -68,11 +68,111 @@ const TopicsBadge: React.FC<{ count: number }> = ({ count }) => (
   </span>
 );
 
+/* ─── Edit Planner Modal ─────────────────────────────────────── */
+interface EditPlannerModalProps {
+  planner: Planner;
+  onClose: () => void;
+  onSave: (id: number, data: Record<string, any>) => void;
+  isSaving: boolean;
+}
+const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, onSave, isSaving }) => {
+  const [form, setForm] = useState({
+    title: planner.name || '',
+    plan_type: planner.examType || '',
+    grade: planner.grade || '',
+    mode: 'PARALLEL',
+    start_date: planner.startDate || '',
+    end_date: planner.endDate || '',
+    min_study_time_daily: planner.minStudyTime || 30,
+    max_study_time_daily: planner.maxStudyTime || 120,
+  });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: ['min_study_time_daily','max_study_time_daily'].includes(name) ? Number(value) : value }));
+  };
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(planner.id, form);
+  };
+  const fields = [
+    { name: 'title', label: 'Title', type: 'text' },
+    { name: 'plan_type', label: 'Plan Type', type: 'text' },
+    { name: 'grade', label: 'Grade', type: 'text' },
+    { name: 'mode', label: 'Mode', type: 'select', options: ['PARALLEL','SEQUENTIAL'] },
+    { name: 'start_date', label: 'Start Date', type: 'date' },
+    { name: 'end_date', label: 'End Date', type: 'date' },
+    { name: 'min_study_time_daily', label: 'Min Study Time (min)', type: 'number' },
+    { name: 'max_study_time_daily', label: 'Max Study Time (min)', type: 'number' },
+  ];
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-t-2xl">
+          <div className="flex items-center gap-3"><Edit size={18} className="text-white" /><h2 className="text-lg font-bold text-white">Edit Planner</h2></div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 text-white transition"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {fields.map(f => (
+            <div key={f.name}>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">{f.label}</label>
+              {f.type === 'select' ? (
+                <select name={f.name} value={(form as any)[f.name]} onChange={handleChange} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition">
+                  {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input name={f.name} type={f.type} value={(form as any)[f.name]} onChange={handleChange} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition" />
+              )}
+            </div>
+          ))}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+            <button type="submit" disabled={isSaving} className="px-5 py-2 rounded-xl bg-blue-600 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2">
+              {isSaving && <Loader2 size={14} className="animate-spin" />}
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+/* ─── Delete Confirmation Modal ──────────────────────────────── */
+interface DeletePlannerModalProps {
+  planner: Planner;
+  onClose: () => void;
+  onConfirm: () => void;
+  isDeleting: boolean;
+}
+const DeletePlannerModal: React.FC<DeletePlannerModalProps> = ({ planner, onClose, onConfirm, isDeleting }) => (
+  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+      <div className="flex flex-col items-center text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 mb-4"><AlertTriangle size={28} className="text-red-500" /></div>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">Delete Planner</h3>
+        <p className="text-sm text-gray-500 mb-1">Are you sure you want to delete</p>
+        <p className="text-sm font-bold text-gray-800 mb-4">"{planner.name}"?</p>
+        <p className="text-xs text-red-500 mb-6">This action cannot be undone.</p>
+        <div className="flex items-center gap-3 w-full">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+          <button onClick={onConfirm} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+            {isDeleting && <Loader2 size={14} className="animate-spin" />}
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  </motion.div>
+);
+
 const AllPlanners: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, tenant, isSuperAdmin } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [editingPlanner, setEditingPlanner] = useState<Planner | null>(null);
+  const [deletingPlanner, setDeletingPlanner] = useState<Planner | null>(null);
   const itemsPerPage = 6;
 
   const { data: plannersData, isLoading, isError, error, refetch } = useQuery({
@@ -176,33 +276,35 @@ const AllPlanners: React.FC = () => {
     return '/planners';
   }, [isSuperAdmin, user?.role, tenant?.campusId]);
 
-  // Action handlers
-  const handleView = (id: number) => navigate(`${getBasePath()}/${id}`);
-  const handleEdit = (id: number) => navigate(`${getBasePath()}/${id}/edit`);
-  const handleClone = async (id: number) => {
-    const planner = planners.find(p => p.id === id);
-    if (planner) {
-      try {
-        // Clone via API (if supported) or show message
-        toast.success(`Cloning feature requires backend support for: ${planner.name}`);
-      } catch {
-        toast.error('Failed to clone planner');
-      }
-    }
-  };
+  // ─── Delete Mutation ──────────────────────────────────────────
+  const deleteMutation = useMutation({
+    mutationFn: async (planId: number) => {
+      await api.delete(`/api/study-plans/${planId}/delete/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['planners'] });
+      toast.success('Planner deleted successfully! 🗑️');
+      setDeletingPlanner(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.response?.data?.message || 'Failed to delete planner.');
+    },
+  });
 
-  const queryClient = useQueryClient();
-  const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this planner?')) {
-      try {
-        await api.delete(`/api/study-plans/${id}`);
-        queryClient.invalidateQueries({ queryKey: ['planners'] });
-        toast.success('Planner deleted successfully');
-      } catch {
-        toast.error('Failed to delete planner');
-      }
-    }
-  };
+  // ─── Update Mutation ──────────────────────────────────────────
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
+      await api.patch(`/api/study-plans/${id}/update/`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['planners'] });
+      toast.success('Planner updated successfully! ✅');
+      setEditingPlanner(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.response?.data?.message || 'Failed to update planner.');
+    },
+  });
 
   return (
     <DashboardLayout activePage="all-planner">
@@ -224,13 +326,14 @@ const AllPlanners: React.FC = () => {
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20 transition-all"
           />
         </div>
-        <Button
+        {/* Create New Planner button commented out per requirements */}
+        {/* <Button
           onClick={() => navigate(`${getBasePath()}/create`)}
           leftIcon={<Plus size={18} />}
           size="md"
         >
           Create New Planner
-        </Button>
+        </Button> */}
       </div>
 
       {/* Content */}
@@ -361,16 +464,7 @@ const AllPlanners: React.FC = () => {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => handleView(planner.id)}
-                          className="p-2 text-cyan-500 hover:bg-cyan-50 rounded-lg transition-colors"
-                          title="View"
-                        >
-                          <Eye size={16} />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleEdit(planner.id)}
+                          onClick={() => setEditingPlanner(planner)}
                           className="p-2 text-accent-blue hover:bg-accent-blue/10 rounded-lg transition-colors"
                           title="Edit"
                         >
@@ -379,16 +473,7 @@ const AllPlanners: React.FC = () => {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => handleClone(planner.id)}
-                          className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"
-                          title="Clone"
-                        >
-                          <Copy size={16} />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleDelete(planner.id)}
+                          onClick={() => setDeletingPlanner(planner)}
                           className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                           title="Delete"
                         >
@@ -440,6 +525,28 @@ const AllPlanners: React.FC = () => {
           </div>
         </motion.div>
       )}
+
+      {/* ─── Modals ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {editingPlanner && (
+          <EditPlannerModal
+            planner={editingPlanner}
+            onClose={() => setEditingPlanner(null)}
+            onSave={(id, data) => updateMutation.mutate({ id, data })}
+            isSaving={updateMutation.isPending}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {deletingPlanner && (
+          <DeletePlannerModal
+            planner={deletingPlanner}
+            onClose={() => setDeletingPlanner(null)}
+            onConfirm={() => deleteMutation.mutate(deletingPlanner.id)}
+            isDeleting={deleteMutation.isPending}
+          />
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   );
 };

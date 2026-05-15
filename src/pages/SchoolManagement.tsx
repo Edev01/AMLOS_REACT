@@ -246,6 +246,21 @@ const SchoolManagement: React.FC = () => {
       }
       if (isSchoolRole && (isForbidden || mappedSchools.length === 0)) return { schools: [getMockSchool(user)], isForbidden };
       if (isForbidden) return { schools: [], isForbidden: true };
+
+      // Fetch real student counts per school (same approach as Dashboard)
+      if (mappedSchools.length > 0) {
+        const countPromises = mappedSchools.map((s) =>
+          api.get(`/api/auth/schools/${s.id}/students`)
+            .then(res => {
+              const data = res.data?.data?.students ?? res.data?.students ?? res.data?.data ?? res.data ?? [];
+              return Array.isArray(data) ? data.length : 0;
+            })
+            .catch(() => 0)
+        );
+        const counts = await Promise.all(countPromises);
+        mappedSchools = mappedSchools.map((s, i) => ({ ...s, students_count: counts[i] }));
+      }
+
       return { schools: mappedSchools, isForbidden: false };
     }
   });
@@ -253,7 +268,7 @@ const SchoolManagement: React.FC = () => {
   // ─── Delete Mutation ──────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: async (schoolId: number) => {
-      await api.delete(`/api/auth/schools/${schoolId}/delete`);
+      await api.delete(`/api/auth/schools/${schoolId}/delete/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schools'] });
@@ -270,7 +285,7 @@ const SchoolManagement: React.FC = () => {
   // ─── Update Mutation ──────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
-      await api.patch(`/api/auth/schools/${id}/update`, data);
+      await api.patch(`/api/auth/schools/${id}/update/`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schools'] });
@@ -357,13 +372,15 @@ const SchoolManagement: React.FC = () => {
               <div className="flex items-center gap-1.5 mb-3"><MapPin size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.address || 'N/A'}</p></div>
               <div className="flex items-center gap-1.5 mb-3"><Mail size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.email || 'N/A'}</p></div>
               <div className="flex items-center gap-2 mb-3">
-                <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{s.students_count ?? '—'}</span></div>
-                <div className="flex items-center gap-1.5 rounded-lg bg-pink-100 px-3 py-1.5"><GraduationCap size={12} className="text-pink-600" /><span className="text-xs font-bold text-pink-700">{s.teachers_count ?? '—'}</span></div>
+                <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{s.students_count ?? 0}</span></div>
+                {/* Teacher badge commented out per requirements */}
+                {/* <div className="flex items-center gap-1.5 rounded-lg bg-pink-100 px-3 py-1.5"><GraduationCap size={12} className="text-pink-600" /><span className="text-xs font-bold text-pink-700">{s.teachers_count ?? 0}</span></div> */}
               </div>
               <div className="flex items-center justify-between">
                 <span className="rounded-full bg-green-100 px-3 py-1 text-[10px] font-semibold text-green-700">Active</span>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => navigate(`/admin/schools/${s.id}`)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="View"><Eye size={15} /></button>
+                  {/* Eye (View) button commented out per requirements */}
+                  {/* <button onClick={() => navigate(`/admin/schools/${s.id}`)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="View"><Eye size={15} /></button> */}
                   <button onClick={() => setDeletingSchool(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition" title="Delete"><Trash2 size={15} /></button>
                   <button onClick={() => setEditingSchool(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition" title="Edit"><Pencil size={15} /></button>
                 </div>
