@@ -20,6 +20,7 @@ import SchoolAdminDashboard from './pages/SchoolAdminDashboard';
 import SchoolDashboard from './pages/SchoolDashboard';
 import AddStudent from './pages/AddStudent';
 import StudentManagement from './pages/StudentManagement';
+import MainLayout from './components/MainLayout';
 
 function App() {
   return (
@@ -81,16 +82,18 @@ function App() {
               SCHOOL ROLE ROUTES - School Admin Dashboard
               ============================================ */}
           <Route element={<ProtectedRoute allowedRoles={['SCHOOL']} />}>
-            <Route path="/school/dashboard" element={<SchoolDashboard />} />
-            <Route path="/school/students" element={<StudentManagement />} />
-            <Route path="/school/students/add" element={<AddStudent />} />
-            <Route path="/school/teachers" element={<div>Teachers Page</div>} />
-            <Route path="/school/teachers/add" element={<div>Add Teacher</div>} />
-            <Route path="/school/classes" element={<div>Classes Page</div>} />
-            <Route path="/school/planners" element={<AllPlanners />} />
-            <Route path="/school/planners/create" element={<CreatePlanner />} />
-            <Route path="/school/analytics" element={<div>Analytics Page</div>} />
-            <Route path="/school/settings" element={<div>Settings Page</div>} />
+            <Route element={<MainLayout />}>
+              <Route path="/school/dashboard" element={<SchoolDashboard />} />
+              <Route path="/school/students" element={<StudentManagement />} />
+              <Route path="/school/students/add" element={<AddStudent />} />
+              <Route path="/school/teachers" element={<div>Teachers Page</div>} />
+              <Route path="/school/teachers/add" element={<div>Add Teacher</div>} />
+              <Route path="/school/classes" element={<div>Classes Page</div>} />
+              <Route path="/school/planners" element={<AllPlanners />} />
+              <Route path="/school/planners/create" element={<CreatePlanner />} />
+              <Route path="/school/analytics" element={<div>Analytics Page</div>} />
+              <Route path="/school/settings" element={<div>Settings Page</div>} />
+            </Route>
           </Route>
 
           {/* ============================================

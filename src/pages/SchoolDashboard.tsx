@@ -30,7 +30,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import DashboardLayout from '../components/DashboardLayout';
+
 
 // Mock data for the School Admin Dashboard
 const enrollmentData = [
@@ -122,7 +122,7 @@ const SchoolDashboard: React.FC = () => {
   ];
 
   return (
-    <DashboardLayout>
+    <>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 p-6">
         {/* Header */}
         <motion.div
@@ -422,7 +422,7 @@ const SchoolDashboard: React.FC = () => {
           </motion.div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

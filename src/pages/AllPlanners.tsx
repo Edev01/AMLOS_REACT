@@ -27,6 +27,7 @@ interface Planner {
   dailyLimit?: string;
   minStudyTime?: number;
   maxStudyTime?: number;
+  mode?: string;
   sloCount?: number;
   selectedSubjects?: number[];
   selectedChapters?: number[];
@@ -80,25 +81,47 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
     title: planner.name || '',
     plan_type: planner.examType || '',
     grade: planner.grade || '',
-    mode: 'PARALLEL',
+    mode: planner.mode || 'PARALLEL',
     start_date: planner.startDate || '',
     end_date: planner.endDate || '',
-    min_study_time_daily: planner.minStudyTime || 30,
-    max_study_time_daily: planner.maxStudyTime || 120,
+    min_study_time_daily: planner.minStudyTime || '',
+    max_study_time_daily: planner.maxStudyTime || '',
   });
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: ['min_study_time_daily','max_study_time_daily'].includes(name) ? Number(value) : value }));
+    setForm(prev => {
+      if (['min_study_time_daily', 'max_study_time_daily'].includes(name)) {
+        return { ...prev, [name]: value === '' ? '' : Number(value) };
+      }
+      return { ...prev, [name]: value };
+    });
   };
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(planner.id, form);
+    const planId = planner.id || (planner as any)._id || (planner as any).plan_id;
+    if (!planId) {
+      console.error("Error: planId is missing before sending request!");
+      return;
+    }
+    const cleanPayload = {
+      title: form.title,
+      plan_type: form.plan_type || form.mode,
+      grade: form.grade,
+      mode: form.mode,
+      start_date: form.start_date,
+      end_date: form.end_date,
+      min_study_time_daily: !form.min_study_time_daily || Number(form.min_study_time_daily) === 0 ? null : Number(form.min_study_time_daily),
+      max_study_time_daily: !form.max_study_time_daily || Number(form.max_study_time_daily) === 0 ? null : Number(form.max_study_time_daily),
+      slo_ids: Array.isArray((form as any).slo_ids) ? (form as any).slo_ids.map(Number).filter((id: number) => id > 0) : []
+    };
+    console.log("Sending Payload:", cleanPayload);
+    onSave(planId, cleanPayload);
   };
   const fields = [
     { name: 'title', label: 'Title', type: 'text' },
     { name: 'plan_type', label: 'Plan Type', type: 'text' },
     { name: 'grade', label: 'Grade', type: 'text' },
-    { name: 'mode', label: 'Mode', type: 'select', options: ['PARALLEL','SEQUENTIAL'] },
+    { name: 'mode', label: 'Mode', type: 'select', options: ['PARALLEL','SEQUENTIAL','CUSTOM'] },
     { name: 'start_date', label: 'Start Date', type: 'date' },
     { name: 'end_date', label: 'End Date', type: 'date' },
     { name: 'min_study_time_daily', label: 'Min Study Time (min)', type: 'number' },
@@ -196,7 +219,7 @@ const AllPlanners: React.FC = () => {
       }
 
       return rawList.map((p: any) => ({
-        id: p.id,
+        id: p.id || p._id || p.plan_id || p.study_plan_id,
         name: p.title || p.plan_name || p.planner_name || p.name || 'N/A',
         grade: p.grade || '',
         duration: p.duration || (p.duration_weeks ? `${p.duration_weeks} weeks` : (p.start_date && p.end_date ? `${p.start_date} → ${p.end_date}` : 'N/A')),
@@ -218,6 +241,7 @@ const AllPlanners: React.FC = () => {
         dailyLimit: (p.min_study_time_daily || p.daily_limit_minutes || p.daily_limit || '').toString(),
         minStudyTime: p.min_study_time_daily || p.daily_limit_minutes || 0,
         maxStudyTime: p.max_study_time_daily || 0,
+        mode: p.mode || 'PARALLEL',
         sloCount: (() => {
           if (Array.isArray(p.slo_ids)) return p.slo_ids.length;
           if (Array.isArray(p.slos)) return p.slos.length;
@@ -279,7 +303,7 @@ const AllPlanners: React.FC = () => {
   // ─── Delete Mutation ──────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: async (planId: number) => {
-      await api.delete(`/api/study-plans/${planId}/delete/`);
+      await api.delete(`/api/study-plans/${planId}/delete`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planners'] });
@@ -294,7 +318,7 @@ const AllPlanners: React.FC = () => {
   // ─── Update Mutation ──────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
-      await api.patch(`/api/study-plans/${id}/update/`, data);
+      await api.patch(`/api/planner/update/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planners'] });

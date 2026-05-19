@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { studentService } from '../api/services/studentService';
 import { useAuth } from '../context/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { Student as StudentType, UpdateStudentPayload } from '../types';
 import Modal from '../components/Modal';
 import {
@@ -50,15 +51,16 @@ const normalizeStudent = (raw: any): StudentType => {
 const StudentManagement: React.FC = () => {
   const navigate = useNavigate();
   const { user, tenant } = useAuth();
+  const queryClient = useQueryClient();
   const [students, setStudents] = useState<StudentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('All');
   const [isForbidden, setIsForbidden] = useState(false);
 
   // Edit modal state
   const [editingStudent, setEditingStudent] = useState<StudentType | null>(null);
-  const [editForm, setEditForm] = useState<Partial<UpdateStudentPayload>>({});
+  const [editForm, setEditForm] = useState<Partial<UpdateStudentPayload> & { academic_year?: string }>({});
   const [editSaving, setEditSaving] = useState(false);
 
   const schoolId = tenant.schoolId || user?.school_id;
@@ -104,11 +106,13 @@ const StudentManagement: React.FC = () => {
     try {
       await studentService.deleteStudent(student.id);
       toast.success('Student deleted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['students'] });
       setStudents((prev) => prev.filter((s) => s.id !== student.id));
-    } catch {
-      toast.error('Failed to delete student. Please try again.');
+    } catch (error: any) {
+      console.error('[Student Delete Error]:', error.response?.data || error.message || error);
+      toast.error(error.response?.data?.message || 'Failed to delete student. Please check permissions and try again.');
     }
-  }, []);
+  }, [queryClient]);
 
   const openEdit = useCallback((student: StudentType) => {
     setEditingStudent(student);
@@ -118,6 +122,7 @@ const StudentManagement: React.FC = () => {
       last_name: student.last_name || '',
       grade: student.class_grade || student.grade || '',
       section: student.section || '',
+      academic_year: student.academic_year || new Date().getFullYear().toString(),
       roll_number: student.roll_number || student.student_id || '',
       state: student.state || '',
       guardian_name: student.guardian_name || student.parent_name || '',
@@ -136,34 +141,42 @@ const StudentManagement: React.FC = () => {
     if (!editingStudent) return;
     setEditSaving(true);
     try {
-      const payload: UpdateStudentPayload = {
-        student_id: editingStudent.id,
-        ...editForm,
+      const cleanStudentPayload = {
+        first_name: editForm.first_name?.trim() || undefined,
+        last_name: editForm.last_name?.trim() || undefined,
+        grade: !editForm.grade ? undefined : String(editForm.grade),
+        academic_year: editForm.academic_year || undefined,
+        section: editForm.section || undefined,
+        roll_number: editForm.roll_number?.trim() || undefined,
+        state: editForm.state?.trim() || undefined,
+        guardian_name: editForm.guardian_name?.trim() || undefined,
+        guardian_phone: editForm.guardian_phone?.trim() || undefined,
+        guardian_email: editForm.guardian_email?.trim() || undefined
       };
-      await studentService.updateStudent(payload);
+
+      await studentService.updateStudent(editingStudent.id, cleanStudentPayload);
+      
       toast.success('Student updated successfully.');
+      
+      // Explicitly fire data invalidate command
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      
       closeEdit();
       fetchStudents();
-    } catch {
-      toast.error('Failed to update student. Please try again.');
+    } catch (error: any) {
+      console.error('[Student Update Error]:', error.response?.data || error.message || error);
+      toast.error(error.response?.data?.message || 'Failed to update student. Please check the validation details.');
     } finally {
       setEditSaving(false);
     }
-  }, [editingStudent, editForm, fetchStudents, closeEdit]);
+  }, [editingStudent, editForm, fetchStudents, closeEdit, queryClient]);
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter((s) =>
-      (s.full_name?.toLowerCase().includes(q)) ||
-      (s.email?.toLowerCase().includes(q)) ||
-      (s.class_grade?.toLowerCase().includes(q)) ||
-      (s.student_id?.toString().toLowerCase().includes(q)) ||
-      (s.guardian_name?.toLowerCase().includes(q))
-    );
-  }, [students, search]);
+    if (filter === 'All') return students;
+    return students.filter((s) => s.class_grade === filter || s.class_grade?.includes(filter));
+  }, [students, filter]);
 
   if (loading) {
     return (
@@ -198,71 +211,19 @@ const StudentManagement: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50/50 px-4 py-6 sm:px-6 lg:px-8">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="mb-6"
-      >
-        <button
-          onClick={() => navigate(routePrefix + '/dashboard')}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 transition-colors mb-4"
+      <div className="mb-6">
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="w-full sm:max-w-xs rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm"
         >
-          <ChevronLeft size={16} />
-          Back to Dashboard
-        </button>
-
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex items-center justify-center w-10 h-10 rounded-xl"
-              style={{ background: 'linear-gradient(135deg, #0f2057 0%, #1e40af 100%)' }}
-            >
-              <Users size={20} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">All Students</h1>
-              <p className="text-sm text-gray-500">
-                {filtered.length} student{filtered.length !== 1 ? 's' : ''} enrolled
-              </p>
-            </div>
-          </div>
-
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate(routePrefix + '/students/add')}
-            className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all"
-            style={{
-              background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)',
-              boxShadow: '0 8px 20px -4px rgba(37, 99, 235, 0.45)',
-            }}
-          >
-            <Plus size={16} />
-            Add New Student
-          </motion.button>
-        </div>
-      </motion.div>
-
-      {/* Search */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.05 }}
-        className="mb-6"
-      >
-        <div className="relative max-w-md">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by name, email, class, ID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-gray-300 shadow-sm"
-          />
-        </div>
-      </motion.div>
+          <option value="All">All Students</option>
+          <option value="9">Grade 9</option>
+          <option value="10">Grade 10</option>
+          <option value="11">Grade 11</option>
+          <option value="12">Grade 12</option>
+        </select>
+      </div>
 
       {/* Error */}
       {error && (
@@ -372,25 +333,11 @@ const StudentManagement: React.FC = () => {
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-1">No students found</h3>
           <p className="text-sm text-gray-500 mb-6 max-w-xs">
-            {search.trim()
-              ? 'No students match your search. Try different keywords.'
+            {filter !== 'All'
+              ? 'No students match your filter. Try different grades.'
               : 'There are no students enrolled yet. Add your first student to get started.'}
           </p>
-          {!search.trim() && (
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate(routePrefix + '/students/add')}
-              className="flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold text-white shadow-lg"
-              style={{
-                background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)',
-                boxShadow: '0 8px 20px -4px rgba(37, 99, 235, 0.45)',
-              }}
-            >
-              <Plus size={16} />
-              Add New Student
-            </motion.button>
-          )}
+
         </motion.div>
       )}
 
@@ -447,15 +394,27 @@ const StudentManagement: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Roll Number</label>
-            <input
-              type="text"
-              value={editForm.roll_number || ''}
-              onChange={(e) => setEditForm((f) => ({ ...f, roll_number: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-              placeholder="e.g. ROLL-2024-001"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Academic Year</label>
+              <input
+                type="text"
+                value={editForm.academic_year || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, academic_year: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="e.g. 2026-2027"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Roll Number</label>
+              <input
+                type="text"
+                value={editForm.roll_number || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, roll_number: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="e.g. ROLL-2024-001"
+              />
+            </div>
           </div>
 
           <div>

@@ -26,15 +26,15 @@ export const getStudents = async (): Promise<Student[]> => {
   return rawList as Student[];
 };
 
-/** PATCH /api/auth/students/update */
-export const updateStudent = async (payload: UpdateStudentPayload): Promise<Student> => {
-  const response = await axiosInstance.patch('/api/auth/students/update', payload);
+/** PATCH /api/auth/students/{id} */
+export const updateStudent = async (studentId: string | number, payload: Partial<UpdateStudentPayload>): Promise<Student> => {
+  const response = await axiosInstance.patch(`/api/auth/students/${studentId}`, payload);
   return response.data as Student;
 };
 
-/** DELETE /api/auth/students/delete */
+/** DELETE /api/auth/students/{studentId}/delete */
 export const deleteStudent = async (studentId: string | number): Promise<void> => {
-  await axiosInstance.delete('/api/auth/students/delete', { data: { student_id: studentId } });
+  await axiosInstance.delete(`/api/auth/students/${studentId}/delete`);
 };
 
 // --- Curriculum (read-only) ---

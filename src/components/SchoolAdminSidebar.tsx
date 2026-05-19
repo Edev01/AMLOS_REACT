@@ -94,8 +94,7 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage }) => {
         icon: <GraduationCap size={20} />,
         children: [
           { id: 'all-students', label: 'All Students', path: `${basePath}/students` },
-          { id: 'add-student', label: 'Add Student', path: `${basePath}/students/add` },
-          { id: 'attendance', label: 'Attendance', path: `${basePath}/attendance` },
+          { id: 'add-student', label: 'Create Student', path: `${basePath}/students/add` },
         ],
       },
       {

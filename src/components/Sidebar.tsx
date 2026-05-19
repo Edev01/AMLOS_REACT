@@ -47,6 +47,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
   const tenantId = params.tenantId || tenant.campusId;
   const isTenantContext = location.pathname.startsWith('/campus/');
   
+  // Ensure this component re-renders when the user role changes
+  useEffect(() => {
+    // Logic to trigger re-render if needed
+  }, [user?.role]);
+
   // Single-open accordion: only one menu expanded at a time
   const [openMenu, setOpenMenu] = useState<string | null>('school');
   const [activeIndicator, setActiveIndicator] = useState({ top: 0, height: 0 });
@@ -104,134 +109,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
 
   // Generate tenant-aware menu items based on role and context
   const getMenuItems = (): MenuItem[] => {
-    const basePath = isTenantContext && tenantId ? `/campus/${tenantId}` : '/admin';
-    
-    // SUPER_ADMIN and ADMIN roles get full global access
-    if (isSuperAdmin || user?.role === 'ADMIN') {
-      return [
-        { 
-          id: 'dashboard', 
-          label: 'Central Dashboard', 
-          icon: <LayoutDashboard size={18} />, 
-          path: '/admin/central-dashboard' 
-        },
-        {
-          id: 'school',
-          label: 'Global School Management',
-          icon: <School size={18} />,
-          children: [
-            { id: 'all-schools', label: 'All Schools', path: '/admin/schools' },
-            { id: 'add-school', label: 'Add School', path: '/admin/schools/add' },
-          ],
-        },
-        {
-          id: 'planner',
-          label: 'Planner Management',
-          icon: <CalendarDays size={18} />,
-          children: [
-            { id: 'create-planner', label: 'Add Planner', path: '/admin/planners/create' },
-            { id: 'all-planner', label: 'All Planner', path: '/admin/planners' },
-          ],
-        },
-      ];
-    }
-
-    // SCHOOL role gets School Admin specific menu (from Figma design)
-    if (user?.role === 'SCHOOL') {
-      return [
-        { 
-          id: 'dashboard', 
-          label: 'Dashboard', 
-          icon: <LayoutDashboard size={18} />, 
-          path: '/school/dashboard' 
-        },
-        { 
-          id: 'students', 
-          label: 'Students', 
-          icon: <Users size={18} />,
-          children: [
-            { id: 'all-students', label: 'All Students', path: '/school/students' },
-            { id: 'add-student', label: 'Add Student', path: '/school/students/add' },
-          ],
-        },
-        { 
-          id: 'teachers', 
-          label: 'Teachers', 
-          icon: <GraduationCap size={18} />,
-          children: [
-            { id: 'all-teachers', label: 'All Teachers', path: '/school/teachers' },
-            { id: 'add-teacher', label: 'Add Teacher', path: '/school/teachers/add' },
-          ],
-        },
-        { 
-          id: 'academic', 
-          label: 'Academic', 
-          icon: <BookOpen size={18} />,
-          children: [
-            { id: 'classes', label: 'Classes', path: '/school/classes' },
-            { id: 'subjects', label: 'Subjects', path: '/school/subjects' },
-            { id: 'curriculum', label: 'Curriculum', path: '/school/curriculum' },
-          ],
-        },
-        { 
-          id: 'content', 
-          label: 'Content', 
-          icon: <FileText size={18} />,
-          children: [
-            { id: 'lessons', label: 'Lessons', path: '/school/lessons' },
-            { id: 'resources', label: 'Resources', path: '/school/resources' },
-          ],
-        },
-        { 
-          id: 'quiz', 
-          label: 'Quiz', 
-          icon: <ClipboardList size={18} />,
-          children: [
-            { id: 'all-quizzes', label: 'All Quizzes', path: '/school/quizzes' },
-            { id: 'create-quiz', label: 'Create Quiz', path: '/school/quizzes/create' },
-          ],
-        },
-        { 
-          id: 'analytics', 
-          label: 'Analytics', 
-          icon: <BarChart3 size={18} />,
-          path: '/school/analytics'
-        },
-        { 
-          id: 'settings', 
-          label: 'Settings', 
-          icon: <Settings size={18} />,
-          path: '/school/settings'
-        },
-      ];
-    }
-    
-    // CAMPUS_ADMIN gets restricted tenant-only access
     return [
       { 
-        id: 'dashboard', 
-        label: 'Campus Dashboard', 
-        icon: <LayoutDashboard size={18} />, 
-        path: `${basePath}/dashboard` 
-      },
-      { 
-        id: 'school', 
-        label: 'My Campus', 
-        icon: <Building2 size={18} />,
-        path: `${basePath}/schools`
-      },
-      { 
-        id: 'planner',
-        label: 'Study Planners',
-        icon: <CalendarDays size={18} />,
+        id: 'students', 
+        label: 'Students', 
+        icon: <Users size={18} />,
         children: [
-          { id: 'create-planner', label: 'Create Planner', path: `${basePath}/planners/create` },
-          { id: 'all-planner', label: 'All Planners', path: `${basePath}/planners` },
+          { id: 'all-students', label: 'All Students', path: '/school/students' },
+          { id: 'add-student', label: 'Create Student', path: '/school/students/add' },
         ],
       },
-      { id: 'users', label: 'Campus Staff', icon: <Users size={18} /> },
-      { id: 'analytics', label: 'Campus Reports', icon: <BarChart3 size={18} /> },
-      { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
     ];
   };
 
