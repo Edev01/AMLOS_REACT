@@ -109,6 +109,61 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
 
   // Generate tenant-aware menu items based on role and context
   const getMenuItems = (): MenuItem[] => {
+    const basePath = isTenantContext && tenantId ? `/campus/${tenantId}` : '/admin';
+    
+    // SUPER_ADMIN and ADMIN roles get full global access
+    if (isSuperAdmin || user?.role === 'ADMIN') {
+      return [
+        { 
+          id: 'dashboard', 
+          label: 'Central Dashboard', 
+          icon: <LayoutDashboard size={18} />, 
+          path: '/admin/central-dashboard' 
+        },
+        {
+          id: 'school',
+          label: 'Global School Management',
+          icon: <School size={18} />,
+          children: [
+            { id: 'all-schools', label: 'All Schools', path: '/admin/schools' },
+            { id: 'add-school', label: 'Add School', path: '/admin/schools/add' },
+          ],
+        },
+        {
+          id: 'planner',
+          label: 'Planner Management',
+          icon: <CalendarDays size={18} />,
+          children: [
+            { id: 'create-planner', label: 'Add Planner', path: '/admin/planners/create' },
+            { id: 'all-planner', label: 'All Planner', path: '/admin/planners' },
+          ],
+        },
+      ];
+    }
+
+    // SCHOOL role gets School Admin specific menu (from Figma design)
+    if (user?.role === 'SCHOOL') {
+      return [
+        { 
+          id: 'dashboard', 
+          label: 'Dashboard', 
+          icon: <LayoutDashboard size={18} />, 
+          path: '/school/dashboard' 
+        },
+        { 
+          id: 'students', 
+          label: 'Students', 
+          icon: <Users size={18} />,
+          children: [
+            { id: 'all-students', label: 'All Students', path: '/school/students' },
+            { id: 'add-student', label: 'Add Student', path: '/school/students/add' },
+          ],
+        },
+        // Strict Sidebar Minimization: Removed Teachers, Quizzes, Content, Academic/Curriculum, Analytics, and Settings per requirements.
+      ];
+    }
+    
+    // CAMPUS_ADMIN gets restricted tenant-only access
     return [
       { 
         id: 'students', 

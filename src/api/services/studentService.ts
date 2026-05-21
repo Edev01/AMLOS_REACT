@@ -26,13 +26,13 @@ export const getStudents = async (): Promise<Student[]> => {
   return rawList as Student[];
 };
 
-/** PATCH /api/auth/students/{id} */
-export const updateStudent = async (studentId: string | number, payload: Partial<UpdateStudentPayload>): Promise<Student> => {
-  const response = await axiosInstance.patch(`/api/auth/students/${studentId}`, payload);
+/** POST /api/auth/students/{id}/update */
+export const updateStudent = async (studentId: string | number, payload: any): Promise<Student> => {
+  const response = await axiosInstance.post(`/api/auth/students/${studentId}/update`, payload);
   return response.data as Student;
 };
 
-/** DELETE /api/auth/students/{studentId}/delete */
+/** DELETE /api/auth/students/{id}/delete */
 export const deleteStudent = async (studentId: string | number): Promise<void> => {
   await axiosInstance.delete(`/api/auth/students/${studentId}/delete`);
 };

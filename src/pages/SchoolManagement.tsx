@@ -68,7 +68,18 @@ interface EditModalProps {
 }
 
 const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, isSaving }) => {
-  const [form, setForm] = useState({
+  // Safe helper to extract flat primitive string if reg_id is returned as an object
+  const getRegIdString = (val: any): string => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object') {
+      return val.reg_id || val.registration_id || val.id || '';
+    }
+    return String(val);
+  };
+
+  const [editFormData, setEditFormData] = useState({
+    reg_id: getRegIdString((school as any).reg_id),
     school_name: school.school_name || '',
     principal_name: school.principal_name || '',
     email: school.email || '',
@@ -79,15 +90,15 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
     state: (school as any).state || '',
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (e: React.ChangeEvent<any>) => {
+    setEditFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Only send fields that changed
     const payload: Record<string, any> = {};
-    Object.entries(form).forEach(([key, val]) => {
+    Object.entries(editFormData).forEach(([key, val]) => {
       if (val && val !== (school as any)[key]) {
         payload[key] = val;
       }
@@ -136,18 +147,53 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {fields.map(f => (
-            <div key={f.name}>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">{f.label}</label>
-              <input
-                name={f.name}
-                type={f.type || 'text'}
-                value={(form as any)[f.name]}
-                onChange={handleChange}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-              />
-            </div>
-          ))}
+          {/* Registration ID — read-only, sourced from school.reg_id */}
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Registration ID</label>
+            <input
+              type="text"
+              value={editFormData.reg_id || ''}
+              readOnly
+              disabled
+              className="w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-2.5 text-sm text-gray-600 outline-none cursor-not-allowed"
+              placeholder="Registration ID"
+            />
+          </div>
+          {fields.map(f => {
+            if (f.name === 'state') {
+              return (
+                <div key={f.name}>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">{f.label}</label>
+                  <select
+                    name={f.name}
+                    value={(editFormData as any)[f.name]}
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                  >
+                    <option value="">Select State</option>
+                    <option value="Sindh">Sindh</option>
+                    <option value="Punjab">Punjab</option>
+                    <option value="Khyber Pakhtunkhwa">Khyber Pakhtunkhwa</option>
+                    <option value="Balochistan">Balochistan</option>
+                    <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+                    <option value="Azad Kashmir">Azad Kashmir</option>
+                  </select>
+                </div>
+              );
+            }
+            return (
+              <div key={f.name}>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">{f.label}</label>
+                <input
+                  name={f.name}
+                  type={f.type || 'text'}
+                  value={(editFormData as any)[f.name]}
+                  onChange={handleChange}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                />
+              </div>
+            );
+          })}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
             <button
@@ -268,7 +314,7 @@ const SchoolManagement: React.FC = () => {
   // ─── Delete Mutation ──────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: async (schoolId: number) => {
-      await api.delete(`/api/auth/schools/${schoolId}/delete/`);
+      await api.delete(`/api/auth/schools/${schoolId}/delete`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schools'] });
@@ -285,7 +331,7 @@ const SchoolManagement: React.FC = () => {
   // ─── Update Mutation ──────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
-      await api.patch(`/api/auth/schools/${id}/update/`, data);
+      await api.patch(`/api/auth/schools/${id}/update`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schools'] });

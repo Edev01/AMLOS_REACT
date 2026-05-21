@@ -134,20 +134,33 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
           <div className="flex items-center gap-3"><Edit size={18} className="text-white" /><h2 className="text-lg font-bold text-white">Edit Planner</h2></div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 text-white transition"><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {fields.map(f => (
-            <div key={f.name}>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">{f.label}</label>
-              {f.type === 'select' ? (
-                <select name={f.name} value={(form as any)[f.name]} onChange={handleChange} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition">
-                  {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ) : (
-                <input name={f.name} type={f.type} value={(form as any)[f.name]} onChange={handleChange} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition" />
-              )}
-            </div>
-          ))}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+            {fields.map(f => (
+              <div key={f.name} className={`flex flex-col w-full ${f.name === 'title' ? 'md:col-span-2' : ''}`}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
+                {f.type === 'select' ? (
+                  <select
+                    name={f.name}
+                    value={(form as any)[f.name]}
+                    onChange={handleChange}
+                    className="block w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                  >
+                    {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    name={f.name}
+                    type={f.type}
+                    value={(form as any)[f.name]}
+                    onChange={handleChange}
+                    className="block w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-4 mt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
             <button type="submit" disabled={isSaving} className="px-5 py-2 rounded-xl bg-blue-600 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2">
               {isSaving && <Loader2 size={14} className="animate-spin" />}
@@ -318,7 +331,19 @@ const AllPlanners: React.FC = () => {
   // ─── Update Mutation ──────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
-      await api.patch(`/api/planner/update/${id}`, data);
+      const finalPayload = {
+        title: data.title,
+        plan_type: data.plan_type,
+        grade: data.grade,
+        mode: data.mode,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        min_study_time: Number(data.min_study_time_daily || data.min_study_time),
+        max_study_time: Number(data.max_study_time_daily || data.max_study_time),
+        min_study_time_daily: Number(data.min_study_time_daily || data.min_study_time),
+        max_study_time_daily: Number(data.max_study_time_daily || data.max_study_time),
+      };
+      await api.post(`/api/study-plans/${id}/update`, finalPayload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planners'] });

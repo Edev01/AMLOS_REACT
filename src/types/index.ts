@@ -261,6 +261,8 @@ export interface CreateStudentPayload {
 /** Payload for PATCH /api/auth/students/update */
 export interface UpdateStudentPayload {
   student_id: string | number;
+  reg_id?: string;
+  registration_id?: string;
   grade?: string;
   section?: string;
   roll_number?: string;

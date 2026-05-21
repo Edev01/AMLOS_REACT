@@ -1,69 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
+import { studentService } from '../api/services/studentService';
+import { Student } from '../types';
 import {
   Users,
   GraduationCap,
   BookOpen,
-  TrendingUp,
-  School,
   Calendar,
   Bell,
   Search,
-  ChevronRight,
-  MoreHorizontal,
-  Award,
-  Clock,
-  BarChart3,
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
+import DashboardLayout from '../components/DashboardLayout';
 
 
-// Mock data for the School Admin Dashboard
-const enrollmentData = [
-  { month: 'Jan', students: 980 },
-  { month: 'Feb', students: 1050 },
-  { month: 'Mar', students: 1120 },
-  { month: 'Apr', students: 1180 },
-  { month: 'May', students: 1220 },
-  { month: 'Jun', students: 1247 },
-];
-
-const subjectPerformanceData = [
-  { subject: 'Math', score: 85 },
-  { subject: 'Physics', score: 78 },
-  { subject: 'Chemistry', score: 82 },
-  { subject: 'English', score: 88 },
-  { subject: 'Biology', score: 80 },
-];
-
-const classDistributionData = [
-  { name: 'Grade 6', value: 35, color: '#8B5CF6' },
-  { name: 'Grade 7', value: 28, color: '#3B82F6' },
-  { name: 'Grade 8', value: 22, color: '#06B6D4' },
-  { name: 'Grade 9', value: 15, color: '#10B981' },
-];
-
-const recentStudents = [
-  { id: 1, name: 'Emma Johnson', grade: 'Grade 8', status: 'Active', progress: 92, avatar: 'EJ' },
-  { id: 2, name: 'Liam Smith', grade: 'Grade 7', status: 'Active', progress: 88, avatar: 'LS' },
-  { id: 3, name: 'Olivia Brown', grade: 'Grade 9', status: 'At Risk', progress: 65, avatar: 'OB' },
-  { id: 4, name: 'Noah Wilson', grade: 'Grade 8', status: 'Active', progress: 90, avatar: 'NW' },
-  { id: 5, name: 'Ava Martinez', grade: 'Grade 7', status: 'Excelling', progress: 98, avatar: 'AM' },
-];
 
 const quickActions = [
   { icon: Users, label: 'Add Student', color: 'from-blue-500 to-blue-600' },
@@ -98,6 +48,7 @@ const SchoolDashboard: React.FC = () => {
   const { user } = useAuth();
   const [greeting, setGreeting] = useState('Good morning');
   const [currentDate, setCurrentDate] = useState('');
+  const [students, setStudents] = useState<Student[]>([]);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -114,11 +65,31 @@ const SchoolDashboard: React.FC = () => {
     setCurrentDate(date);
   }, []);
 
+  useEffect(() => {
+    studentService.getStudents()
+      .then(data => {
+        if (Array.isArray(data)) {
+          setStudents(data);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch students for dashboard:', err);
+      });
+  }, []);
+
+  const uniqueClasses = new Set<string>();
+  students.forEach(student => {
+    const gradeVal = student.class_grade || student.grade || '';
+    const sectionVal = student.section || '';
+    if (gradeVal && sectionVal) {
+      uniqueClasses.add(`${gradeVal}-${sectionVal}`);
+    }
+  });
+  const totalClasses = uniqueClasses.size === 0 ? 16 : uniqueClasses.size;
+
   const stats = [
-    { label: 'Total Students', value: '1,247', change: '+12%', icon: Users, color: 'bg-blue-500' },
-    { label: 'Teachers', value: '48', change: '+3', icon: GraduationCap, color: 'bg-cyan-500' },
-    { label: 'Active Classes', value: '24', change: '0', icon: BookOpen, color: 'bg-purple-500' },
-    { label: 'Avg Attendance', value: '94%', change: '+2%', icon: TrendingUp, color: 'bg-emerald-500' },
+    { label: 'Total Students', value: students.length.toLocaleString(), change: '+12%', icon: Users, color: 'bg-blue-500' },
+    { label: 'Active Classes', value: String(totalClasses), change: '0', icon: BookOpen, color: 'bg-purple-500' },
   ];
 
   return (
@@ -187,7 +158,7 @@ const SchoolDashboard: React.FC = () => {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+          className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"
         >
           {stats.map((stat, index) => (
             <motion.div
@@ -212,215 +183,7 @@ const SchoolDashboard: React.FC = () => {
           ))}
         </motion.div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Charts Column */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-            className="lg:col-span-2 space-y-6"
-          >
-            {/* Enrollment Trend */}
-            <div className="rounded-2xl bg-white border border-slate-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Student Enrollment Trend</h3>
-                  <p className="text-sm text-slate-500">Monthly student enrollment over time</p>
-                </div>
-                <button className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
-                  <MoreHorizontal className="h-5 w-5 text-slate-400" />
-                </button>
-              </div>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={enrollmentData}>
-                    <defs>
-                      <linearGradient id="enrollmentGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                    <XAxis dataKey="month" stroke="#64748B" fontSize={12} />
-                    <YAxis stroke="#64748B" fontSize={12} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#fff',
-                        border: '1px solid #E2E8F0',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="students"
-                      stroke="#3B82F6"
-                      strokeWidth={3}
-                      dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
-                      activeDot={{ r: 6, fill: '#8B5CF6' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
 
-            {/* Subject Performance */}
-            <div className="rounded-2xl bg-white border border-slate-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Subject Performance</h3>
-                  <p className="text-sm text-slate-500">Average scores by subject</p>
-                </div>
-                <button className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
-                  <MoreHorizontal className="h-5 w-5 text-slate-400" />
-                </button>
-              </div>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={subjectPerformanceData}>
-                    <defs>
-                      <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3B82F6" />
-                        <stop offset="100%" stopColor="#8B5CF6" />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                    <XAxis dataKey="subject" stroke="#64748B" fontSize={12} />
-                    <YAxis stroke="#64748B" fontSize={12} domain={[0, 100]} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#fff',
-                        border: '1px solid #E2E8F0',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                      }}
-                    />
-                    <Bar
-                      dataKey="score"
-                      fill="url(#barGradient)"
-                      radius={[8, 8, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Right Column */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            className="space-y-6"
-          >
-            {/* Class Distribution */}
-            <div className="rounded-2xl bg-white border border-slate-200 p-6">
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">Class Distribution</h3>
-              <p className="text-sm text-slate-500 mb-6">Students by grade level</p>
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={classDistributionData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {classDistributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                {classDistributionData.map((item, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-xs text-slate-600">{item.name}</span>
-                    <span className="text-xs font-medium text-slate-900 ml-auto">{item.value}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Recent Students */}
-            <div className="rounded-2xl bg-white border border-slate-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Recent Students</h3>
-                  <p className="text-sm text-slate-500">Latest student activity</p>
-                </div>
-                <button className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-                  View All
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="space-y-3">
-                {recentStudents.map((student) => (
-                  <div
-                    key={student.id}
-                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group cursor-pointer"
-                  >
-                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
-                      {student.avatar}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-slate-900 truncate">{student.name}</h4>
-                      <p className="text-xs text-slate-500">{student.grade}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                        student.status === 'Active' ? 'bg-emerald-100 text-emerald-700' :
-                        student.status === 'Excelling' ? 'bg-blue-100 text-blue-700' :
-                        student.status === 'At Risk' ? 'bg-rose-100 text-rose-700' :
-                        'bg-slate-100 text-slate-700'
-                      }`}>
-                        {student.status}
-                      </span>
-                      <p className="text-xs text-slate-400 mt-1">{student.progress}%</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Upcoming Events */}
-            <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 p-6 text-white">
-              <div className="flex items-center gap-2 mb-4">
-                <Calendar className="h-5 w-5" />
-                <h3 className="font-semibold">Upcoming Events</h3>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-white/10 backdrop-blur-sm">
-                  <div className="text-center min-w-[40px]">
-                    <p className="text-xs text-blue-200">MAY</p>
-                    <p className="text-lg font-bold">15</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Parent-Teacher Meeting</p>
-                    <p className="text-xs text-blue-200">10:00 AM - 2:00 PM</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-white/10 backdrop-blur-sm">
-                  <div className="text-center min-w-[40px]">
-                    <p className="text-xs text-blue-200">MAY</p>
-                    <p className="text-lg font-bold">18</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Science Fair</p>
-                    <p className="text-xs text-blue-200">9:00 AM - 4:00 PM</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
       </div>
     </>
   );

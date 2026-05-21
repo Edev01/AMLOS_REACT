@@ -112,10 +112,10 @@ const stepFields: FieldConfig[][] = [
   ],
   [
     { name: 'grade', label: 'Grade', placeholder: 'Select grade', icon: <BookOpen size={16} />, required: true, options: [
-      { value: '9', label: '9th' },
-      { value: '10', label: '10th' },
-      { value: '11', label: '11th' },
-      { value: '12', label: '12th' },
+      { value: '9th', label: '9th' },
+      { value: '10th', label: '10th' },
+      { value: '11th', label: '11th' },
+      { value: '12th', label: '12th' },
     ] },
     { name: 'section', label: 'Section', placeholder: 'Select section', icon: <Hash size={16} />, required: true, options: [
       { value: 'A', label: 'A' },
@@ -123,7 +123,14 @@ const stepFields: FieldConfig[][] = [
       { value: 'C', label: 'C' },
       { value: 'D', label: 'D' },
     ] },
-    { name: 'state', label: 'State', placeholder: 'Punjab / Sindh / etc.', icon: <Shield size={16} />, required: true },
+    { name: 'state', label: 'State', placeholder: 'Select State', icon: <Shield size={16} />, required: true, options: [
+      { value: 'Balochistan', label: 'Balochistan' },
+      { value: 'Khyber Pakhtunkhwa (KPK)', label: 'Khyber Pakhtunkhwa (KPK)' },
+      { value: 'Punjab', label: 'Punjab' },
+      { value: 'Sindh', label: 'Sindh' },
+      { value: 'Gilgit-Baltistan', label: 'Gilgit-Baltistan' },
+      { value: 'Azad Kashmir', label: 'Azad Kashmir' },
+    ] },
     { name: 'rollNumber', label: 'Roll Number', placeholder: 'ROLL-2024-001', icon: <GraduationCap size={16} />, required: true },
   ],
   [
