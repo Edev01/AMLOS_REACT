@@ -95,40 +95,9 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage }) => {
         children: [
           { id: 'all-students', label: 'All Students', path: `${basePath}/students` },
           { id: 'add-student', label: 'Add Student', path: `${basePath}/students/add` },
-          { id: 'attendance', label: 'Attendance', path: `${basePath}/attendance` },
         ],
       },
-      {
-        id: 'teachers',
-        label: isCollapsed ? '' : 'Teachers',
-        icon: <Users size={20} />,
-        children: [
-          { id: 'all-teachers', label: 'All Teachers', path: `${basePath}/teachers` },
-          { id: 'add-teacher', label: 'Add Teacher', path: `${basePath}/teachers/add` },
-        ],
-      },
-      {
-        id: 'academic',
-        label: isCollapsed ? '' : 'Academic',
-        icon: <BookOpen size={20} />,
-        children: [
-          { id: 'classes', label: 'Classes', path: `${basePath}/classes` },
-          { id: 'subjects', label: 'Subjects', path: `${basePath}/subjects` },
-          { id: 'curriculum', label: 'Curriculum', path: `${basePath}/curriculum` },
-        ],
-      },
-      { 
-        id: 'content', 
-        label: isCollapsed ? '' : 'Content', 
-        icon: <FileText size={20} />,
-        path: `${basePath}/content`
-      },
-      { 
-        id: 'quiz', 
-        label: isCollapsed ? '' : 'Quiz', 
-        icon: <ClipboardList size={20} />,
-        path: `${basePath}/quizzes`
-      },
+      // Strict Sidebar Minimization: Removed Teachers, Quizzes, Content, Academic/Curriculum, Analytics, and Settings per requirements.
       ...(isSuperAdmin ? [{
         id: 'planner' as const,
         label: isCollapsed ? '' : 'Planner',
@@ -138,24 +107,6 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage }) => {
           { id: 'all-planner', label: 'All Planners', path: `${basePath}/planners` },
         ],
       }] : []),
-      { 
-        id: 'analytics', 
-        label: isCollapsed ? '' : 'Analytics', 
-        icon: <BarChart3 size={20} />,
-        path: `${basePath}/analytics`
-      },
-      { 
-        id: 'notifications', 
-        label: isCollapsed ? '' : 'Notifications', 
-        icon: <Bell size={20} />,
-        path: `${basePath}/notifications`
-      },
-      { 
-        id: 'settings', 
-        label: isCollapsed ? '' : 'Settings', 
-        icon: <Settings size={20} />,
-        path: `${basePath}/settings`
-      },
     ];
   };
 

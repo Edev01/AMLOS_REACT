@@ -44,6 +44,7 @@ const normalizeStudent = (raw: any): StudentType => {
     guardian_contact: raw.guardian_phone ?? raw.guardian_contact ?? raw.parent_contact ?? raw.phone ?? undefined,
     guardian_phone: raw.guardian_phone ?? undefined,
     student_id: raw.student_id ?? raw.roll_number ?? raw.id ?? undefined,
+    reg_id: raw.reg_id ?? raw.registration_id ?? undefined,
   };
 };
 
@@ -112,11 +113,19 @@ const StudentManagement: React.FC = () => {
 
   const openEdit = useCallback((student: StudentType) => {
     setEditingStudent(student);
+    let gradeVal = student.class_grade || student.grade || '';
+    if (gradeVal === '9') gradeVal = '9th';
+    if (gradeVal === '10') gradeVal = '10th';
+    if (gradeVal === '11') gradeVal = '11th';
+    if (gradeVal === '12') gradeVal = '12th';
+
     setEditForm({
       student_id: student.id,
+      reg_id: student.reg_id || student.registration_id || '',
+      registration_id: student.reg_id || student.registration_id || '',
       first_name: student.first_name || '',
       last_name: student.last_name || '',
-      grade: student.class_grade || student.grade || '',
+      grade: gradeVal,
       section: student.section || '',
       roll_number: student.roll_number || student.student_id || '',
       state: student.state || '',
@@ -136,11 +145,30 @@ const StudentManagement: React.FC = () => {
     if (!editingStudent) return;
     setEditSaving(true);
     try {
-      const payload: UpdateStudentPayload = {
-        student_id: editingStudent.id,
-        ...editForm,
+      const editFormData = {
+        fullName: `${editForm.first_name || ''} ${editForm.last_name || ''}`.trim() || editingStudent.full_name || '',
+        full_name: `${editForm.first_name || ''} ${editForm.last_name || ''}`.trim() || editingStudent.full_name || '',
+        guardianName: editForm.guardian_name || editingStudent.guardian_name || '',
+        guardian_name: editForm.guardian_name || editingStudent.guardian_name || '',
+        email: editingStudent.email || editForm.guardian_email || '',
+        phoneNumber: editForm.guardian_phone || editingStudent.guardian_phone || editingStudent.guardian_contact || '',
+        phone_number: editForm.guardian_phone || editingStudent.guardian_phone || editingStudent.guardian_contact || '',
+        grade: editForm.grade || '',
+        section: editForm.section || '',
+        state: editForm.state || '',
       };
-      await studentService.updateStudent(payload);
+
+      const finalizedStudentPayload = {
+        full_name: editFormData.fullName || editFormData.full_name,
+        guardian_name: editFormData.guardianName || editFormData.guardian_name,
+        email: editFormData.email,
+        phone_number: editFormData.phoneNumber || editFormData.phone_number,
+        grade: editFormData.grade,     // Options are '9th', '10th', '11th', '12th' via dropdown
+        section: editFormData.section, // Options are 'A', 'B', 'C', 'D' via dropdown
+        state: editFormData.state      // Options are 'Punjab', 'Sindh', etc. via dropdown
+      };
+
+      await studentService.updateStudent(editingStudent.id, finalizedStudentPayload);
       toast.success('Student updated successfully.');
       closeEdit();
       fetchStudents();
@@ -427,46 +455,61 @@ const StudentManagement: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">Grade</label>
-              <input
-                type="text"
+              <select
                 value={editForm.grade || ''}
                 onChange={(e) => setEditForm((f) => ({ ...f, grade: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                placeholder="e.g. Grade 10"
-              />
+              >
+                <option value="" disabled>Select grade</option>
+                <option value="9th">9th</option>
+                <option value="10th">10th</option>
+                <option value="11th">11th</option>
+                <option value="12th">12th</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">Section</label>
-              <input
-                type="text"
+              <select
                 value={editForm.section || ''}
                 onChange={(e) => setEditForm((f) => ({ ...f, section: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                placeholder="e.g. A"
-              />
+              >
+                <option value="" disabled>Select section</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+              </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Roll Number</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Registration ID</label>
             <input
               type="text"
-              value={editForm.roll_number || ''}
-              onChange={(e) => setEditForm((f) => ({ ...f, roll_number: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-              placeholder="e.g. ROLL-2024-001"
+              value={editForm.reg_id || editForm.registration_id || ''}
+              readOnly
+              disabled
+              className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-600 outline-none cursor-not-allowed"
+              placeholder="Registration ID"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">State</label>
-            <input
-              type="text"
+            <select
               value={editForm.state || ''}
               onChange={(e) => setEditForm((f) => ({ ...f, state: e.target.value }))}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-              placeholder="e.g. Punjab"
-            />
+            >
+              <option value="" disabled>Select state</option>
+              <option value="Balochistan">Balochistan</option>
+              <option value="Khyber Pakhtunkhwa (KPK)">Khyber Pakhtunkhwa (KPK)</option>
+              <option value="Punjab">Punjab</option>
+              <option value="Sindh">Sindh</option>
+              <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+              <option value="Azad Kashmir">Azad Kashmir</option>
+            </select>
           </div>
 
           <div>

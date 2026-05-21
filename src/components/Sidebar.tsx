@@ -154,55 +154,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
             { id: 'add-student', label: 'Add Student', path: '/school/students/add' },
           ],
         },
-        { 
-          id: 'teachers', 
-          label: 'Teachers', 
-          icon: <GraduationCap size={18} />,
-          children: [
-            { id: 'all-teachers', label: 'All Teachers', path: '/school/teachers' },
-            { id: 'add-teacher', label: 'Add Teacher', path: '/school/teachers/add' },
-          ],
-        },
-        { 
-          id: 'academic', 
-          label: 'Academic', 
-          icon: <BookOpen size={18} />,
-          children: [
-            { id: 'classes', label: 'Classes', path: '/school/classes' },
-            { id: 'subjects', label: 'Subjects', path: '/school/subjects' },
-            { id: 'curriculum', label: 'Curriculum', path: '/school/curriculum' },
-          ],
-        },
-        { 
-          id: 'content', 
-          label: 'Content', 
-          icon: <FileText size={18} />,
-          children: [
-            { id: 'lessons', label: 'Lessons', path: '/school/lessons' },
-            { id: 'resources', label: 'Resources', path: '/school/resources' },
-          ],
-        },
-        { 
-          id: 'quiz', 
-          label: 'Quiz', 
-          icon: <ClipboardList size={18} />,
-          children: [
-            { id: 'all-quizzes', label: 'All Quizzes', path: '/school/quizzes' },
-            { id: 'create-quiz', label: 'Create Quiz', path: '/school/quizzes/create' },
-          ],
-        },
-        { 
-          id: 'analytics', 
-          label: 'Analytics', 
-          icon: <BarChart3 size={18} />,
-          path: '/school/analytics'
-        },
-        { 
-          id: 'settings', 
-          label: 'Settings', 
-          icon: <Settings size={18} />,
-          path: '/school/settings'
-        },
+        // Strict Sidebar Minimization: Removed Teachers, Quizzes, Content, Academic/Curriculum, Analytics, and Settings per requirements.
       ];
     }
     
