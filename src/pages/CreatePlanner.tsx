@@ -169,7 +169,7 @@ const CreatePlanner: React.FC = () => {
     };
 
     loadChapters();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, selectedSubjects.join(',')]);
 
   const toggleSubjectExpand = (subjectId: number) => {
@@ -242,6 +242,94 @@ const CreatePlanner: React.FC = () => {
     });
   };
 
+  const toggleSelectAllSubjects = () => {
+    const filteredIds = filteredSubjects.map(s => s.id).filter((id): id is number => typeof id === 'number');
+    const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedSubjects.includes(id));
+
+    if (allSelected) {
+      // Deselect all filtered subjects
+      setSelectedSubjects(prev => {
+        const next = prev.filter(id => !filteredIds.includes(id));
+        // Sync subject order for sequential mode
+        setSubjectOrder(so => so.filter(sid => next.includes(sid)));
+        // Sync custom pattern for custom mode
+        setCustomPattern(cp => {
+          const nextCp: Record<string, number[]> = {};
+          for (const [day, subjects] of Object.entries(cp)) {
+            const filtered = subjects.filter(sid => next.includes(sid));
+            if (filtered.length > 0) nextCp[day] = filtered;
+          }
+          return nextCp;
+        });
+        return next;
+      });
+      setExpandedSubjects(prev => {
+        const next = new Set(prev);
+        filteredIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      // Select all filtered subjects
+      setSelectedSubjects(prev => {
+        const next = Array.from(new Set([...prev, ...filteredIds]));
+        // Sync subject order for sequential mode
+        setSubjectOrder(so => {
+          const filtered = so.filter(sid => next.includes(sid));
+          const added = next.filter(sid => !so.includes(sid));
+          return [...filtered, ...added];
+        });
+        return next;
+      });
+    }
+  };
+
+  // Study planning metrics and validation check
+  const getSloMetrics = () => {
+    if (!form.start_date || !form.end_date) return null;
+
+    const start = new Date(form.start_date);
+    const end = new Date(form.end_date);
+    const diffTime = end.getTime() - start.getTime();
+    const days = diffTime >= 0 ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1 : 0;
+
+    const selectedSlos: SLO[] = [];
+    Object.values(chaptersBySubject).forEach(chapters => {
+      (chapters || []).forEach(chapter => {
+        (chapter.slos || []).forEach(slo => {
+          if (selectedSloIds.includes(slo.id)) {
+            selectedSlos.push(slo);
+          }
+        });
+      });
+    });
+
+    const totalMinutes = selectedSlos.reduce((sum, slo) => {
+      return sum + (slo.suggested_time_minutes || slo.timeline_time || 45);
+    }, 0);
+
+    const totalHours = totalMinutes / 60;
+    const requiredHoursPerDay = days > 0 ? totalHours / days : 0;
+    const limitHoursPerDay = (Number(form.max_study_time_daily) || 120) / 60;
+    const isExceeded = requiredHoursPerDay > limitHoursPerDay;
+
+    // Suggest solutions
+    const neededDays = limitHoursPerDay > 0 ? Math.ceil(totalHours / limitHoursPerDay) : 1;
+    const suggestedEndDate = new Date(start.getTime() + (neededDays - 1) * 24 * 60 * 60 * 1000);
+    const suggestedEndDateString = isNaN(suggestedEndDate.getTime()) ? '' : suggestedEndDate.toISOString().split('T')[0];
+    const suggestedMaxMinutes = Math.ceil(requiredHoursPerDay * 60);
+
+    return {
+      days,
+      totalMinutes,
+      totalHours,
+      requiredHoursPerDay,
+      limitHoursPerDay,
+      isExceeded,
+      suggestedEndDateString,
+      suggestedMaxMinutes,
+    };
+  };
+
   const setFormField = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
   // SEQUENTIAL mode helpers
@@ -282,6 +370,12 @@ const CreatePlanner: React.FC = () => {
     }
     if (selectedSloIds.length === 0) {
       toast.error('Please select at least one SLO.');
+      return;
+    }
+
+    const metrics = getSloMetrics();
+    if (metrics && metrics.isExceeded) {
+      toast.error(`Your plan requires ${metrics.requiredHoursPerDay.toFixed(2)} hours/day but your limit is ${metrics.limitHoursPerDay.toFixed(2)} hours. Please increase the daily limit or extend the end date.`, { duration: 6000 });
       return;
     }
 
@@ -347,8 +441,42 @@ const CreatePlanner: React.FC = () => {
       console.error('Server Error Detail:', err.response?.data);
       console.error('Server Error Status:', err.response?.status);
       console.error('Server Error Config:', err.config?.url, err.config?.method);
-      const serverMsg = err.response?.data?.detail || err.response?.data?.message || err.response?.data?.error;
-      toast.error(serverMsg || 'Failed to create study plan. Please try again.');
+      
+      let serverMsg = '';
+      const data = err.response?.data;
+      if (data) {
+        if (typeof data === 'string') {
+          serverMsg = data;
+        } else if (data.detail) {
+          serverMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+        } else if (data.non_field_errors) {
+          serverMsg = Array.isArray(data.non_field_errors)
+            ? data.non_field_errors.map((v: any) => typeof v === 'object' && v?.string ? v.string : String(v)).join(' ')
+            : String(data.non_field_errors);
+        } else if (typeof data === 'object') {
+          const messages: string[] = [];
+          Object.entries(data).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+              value.forEach((v: any) => {
+                if (typeof v === 'object' && v !== null) {
+                  messages.push(v.string || v.message || JSON.stringify(v));
+                } else {
+                  messages.push(String(v));
+                }
+              });
+            } else if (typeof value === 'object' && value !== null) {
+              messages.push((value as any).string || (value as any).message || JSON.stringify(value));
+            } else {
+              messages.push(String(value));
+            }
+          });
+          if (messages.length > 0) {
+            serverMsg = messages.join('\n');
+          }
+        }
+      }
+      
+      toast.error(serverMsg || 'Failed to create study plan. Please try again.', { duration: 6000 });
     } finally {
       setSubmitting(false);
     }
@@ -492,18 +620,17 @@ const CreatePlanner: React.FC = () => {
                   {STUDY_MODES.map(m => {
                     const isActive = form.mode === m.value;
                     const icon = m.value === 'PARALLEL' ? <RefreshCw size={22} /> :
-                                 m.value === 'SEQUENTIAL' ? <LayoutList size={22} /> :
-                                 <SlidersHorizontal size={22} />;
+                      m.value === 'SEQUENTIAL' ? <LayoutList size={22} /> :
+                        <SlidersHorizontal size={22} />;
                     return (
                       <button
                         key={m.value}
                         type="button"
                         onClick={() => setFormField('mode', m.value)}
-                        className={`relative flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${
-                          isActive
-                            ? 'border-blue-500 bg-blue-50/60 shadow-sm'
-                            : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50'
-                        }`}
+                        className={`relative flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${isActive
+                          ? 'border-blue-500 bg-blue-50/60 shadow-sm'
+                          : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50'
+                          }`}
                       >
                         <div className={`mt-0.5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
                           {icon}
@@ -540,10 +667,34 @@ const CreatePlanner: React.FC = () => {
         {/* Step 2: Select Subjects */}
         {step === 2 && (
           <div className="animate-fadeIn">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Select Subjects</h2>
+            <div className='flex justify-between' >
+              <div className="left">
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Select Subjects</h2>
             <p className="text-sm text-gray-500 mb-6">
               Grade {form.grade ? `${form.grade}th` : ''} — Selected: {selectedSubjects?.length || 0} subjects
             </p>
+              </div>
+              <div className="right flex items-start">
+                {filteredSubjects.length > 0 && !subjectsLoading && (
+                  <label className="flex items-center gap-2 text-sm text-blue-600 cursor-pointer hover:text-blue-700 select-none bg-blue-50/50 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredSubjects.length > 0 &&
+                        filteredSubjects.every(s => selectedSubjects.includes(s.id))
+                      }
+                      onChange={toggleSelectAllSubjects}
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="font-medium">
+                      {filteredSubjects.every(s => selectedSubjects.includes(s.id))
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </span>
+                  </label>
+                )}
+              </div>
+            </div>
             {subjectsLoading ? (
               <div className="flex items-center justify-center h-40">
                 <Loader2 className="animate-spin text-blue-500 mr-2" size={24} />
@@ -563,8 +714,8 @@ const CreatePlanner: React.FC = () => {
                     type="button"
                     onClick={() => s?.id && toggleSubject(s.id)}
                     className={`rounded-xl border p-4 text-left transition-all duration-200 ${selectedSubjects?.includes(s?.id || 0)
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                        : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                      : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
                       }`}
                   >
                     <div className="flex items-center gap-3 mb-2">
@@ -706,17 +857,33 @@ const CreatePlanner: React.FC = () => {
 
                 if (!subject) return null;
 
+                const subjectSlos = chapters.flatMap((ch: Chapter) => ch.slos || []);
+                const totalSubjectSlos = subjectSlos.length;
+                const selectedSubjectSlos = subjectSlos.filter((s: SLO) => selectedSloIds.includes(s.id)).length;
+                const subjectSloIds = subjectSlos.map((s: SLO) => s.id);
+
                 return (
                   <div key={subjectId} className="border border-gray-200 rounded-xl overflow-hidden">
-                    <button
+                    <div
                       onClick={() => toggleSubjectExpand(subjectId)}
-                      className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                      className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer select-none"
                     >
                       <div className="flex items-center gap-3">
+                        {!isChaptersLoading && totalSubjectSlos > 0 && (
+                          <div className="flex items-center" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={subjectSloIds.every(id => selectedSloIds.includes(id))}
+                              onChange={() => toggleSelectAllSlos(subjectSloIds)}
+                              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                              title="Select/Deselect all SLOs for this subject"
+                            />
+                          </div>
+                        )}
                         {getSubjectIcon(subject.name || '')}
                         <span className="font-semibold text-gray-900">{subject.name || ''}</span>
                         <span className="text-xs text-gray-500">
-                          {isChaptersLoading ? 'Loading...' : `(${chapters?.length || 0} chapters)`}
+                          {isChaptersLoading ? 'Loading...' : `(${chapters?.length || 0} chapters${totalSubjectSlos > 0 ? `, ${selectedSubjectSlos}/${totalSubjectSlos} SLOs selected` : ''})`}
                         </span>
                       </div>
                       {isChaptersLoading ? (
@@ -727,7 +894,7 @@ const CreatePlanner: React.FC = () => {
                           className={`text-gray-400 transition-transform ${isSubjectExpanded ? 'rotate-180' : ''}`}
                         />
                       )}
-                    </button>
+                    </div>
 
                     {isSubjectExpanded && (
                       <div className="p-4 bg-white space-y-3">
@@ -775,8 +942,8 @@ const CreatePlanner: React.FC = () => {
                                       <label
                                         key={slo.id}
                                         className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-all ${selectedSloIds.includes(slo.id)
-                                            ? 'border-blue-500 bg-blue-50'
-                                            : 'border-gray-100 hover:border-blue-200'
+                                          ? 'border-blue-500 bg-blue-50'
+                                          : 'border-gray-100 hover:border-blue-200'
                                           }`}
                                       >
                                         <input
@@ -811,112 +978,171 @@ const CreatePlanner: React.FC = () => {
         )}
 
         {/* Step 4: Preview */}
-        {step === 4 && (
-          <div className="animate-fadeIn">
-            <h2 className="text-lg font-bold text-gray-900 mb-6">Planner Preview</h2>
-            <div className="bg-gray-50 rounded-xl p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Planner Name</p>
-                  <p className="text-sm font-semibold text-gray-900">{form.plan_name || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Grade</p>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {(GRADES || []).find(g => g?.value === form.grade)?.label || form.grade || '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Exam Type</p>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {(EXAM_TYPES || []).find(et => et?.value === form.exam_type)?.label || form.exam_type || '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Plan Type</p>
-                  <p className="text-sm font-semibold text-gray-900">
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
-                      (isSuperAdmin || user?.role === 'SUPER_ADMIN') ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {(isSuperAdmin || user?.role === 'SUPER_ADMIN') ? 'RECOMMENDED (Global)' : 'CUSTOM'}
-                    </span>
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Study Time</p>
-                  <p className="text-sm font-semibold text-gray-900">{form.min_study_time_daily || '30'} - {form.max_study_time_daily || '120'} min/day</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Start Date</p>
-                  <p className="text-sm font-semibold text-gray-900">{form.start_date || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">End Date</p>
-                  <p className="text-sm font-semibold text-gray-900">{form.end_date || '—'}</p>
-                </div>
-              </div>
+        {step === 4 && (() => {
+          const metrics = getSloMetrics();
+          return (
+            <div className="animate-fadeIn">
+              <h2 className="text-lg font-bold text-gray-900 mb-6">Planner Preview</h2>
 
-              <div className="border-t border-gray-200 pt-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Study Mode</p>
-                <p className="text-sm font-semibold text-gray-900">
-                  {(STUDY_MODES || []).find(m => m.value === form.mode)?.label || form.mode}
-                </p>
-                {form.mode === 'SEQUENTIAL' && subjectOrder.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {subjectOrder.map((id, i) => {
-                      const sub = allSubjects.find(s => s.id === id);
-                      return sub ? (
-                        <div key={id} className="flex items-center gap-2 text-xs text-gray-600">
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-[10px]">{i + 1}</span>
-                          {sub.name}
+              {metrics && metrics.isExceeded && (
+                <div className="mb-6 p-5 border border-red-200 bg-red-50/50 rounded-2xl flex flex-col md:flex-row items-start gap-4">
+                  <div className="p-2 rounded-xl bg-red-100 text-red-600 shrink-0">
+                    <SlidersHorizontal size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-bold text-red-800">Daily Study Time Limit Exceeded</h3>
+                    <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                      The selected SLOs require an estimated <strong>{metrics.totalHours.toFixed(1)} hours</strong> of study.
+                      Over the plan duration of <strong>{metrics.days} days</strong>, this requires <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>.
+                      However, your defined maximum limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
+                    </p>
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+                      <div>
+                        <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                          Increase Daily Limit (minutes)
+                        </label>
+                        <input
+                          type="number"
+                          value={form.max_study_time_daily}
+                          onChange={e => setFormField('max_study_time_daily', e.target.value)}
+                          placeholder="e.g. 384"
+                          className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                        />
+                        <p className="text-[10px] text-red-600 mt-1">
+                          Suggested: Set to at least <strong>{metrics.suggestedMaxMinutes} min</strong>
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                          Extend End Date
+                        </label>
+                        <input
+                          type="date"
+                          value={form.end_date}
+                          onChange={e => setFormField('end_date', e.target.value)}
+                          className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                        />
+                        <p className="text-[10px] text-red-600 mt-1">
+                          Suggested: Set to <strong>{metrics.suggestedEndDateString}</strong> or later
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {metrics && !metrics.isExceeded && (
+                <div className="mb-6 p-4 border border-emerald-100 bg-emerald-50/30 rounded-xl flex items-center gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">✓</span>
+                  <p className="text-xs text-emerald-800">
+                    Based on selected SLOs, students will study about <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>. This is within your daily limit of <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
+                  </p>
+                </div>
+              )}
+
+              <div className="bg-gray-50 rounded-xl p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Planner Name</p>
+                    <p className="text-sm font-semibold text-gray-900">{form.plan_name || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Grade</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {(GRADES || []).find(g => g?.value === form.grade)?.label || form.grade || '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Exam Type</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {(EXAM_TYPES || []).find(et => et?.value === form.exam_type)?.label || form.exam_type || '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Plan Type</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${(isSuperAdmin || user?.role === 'SUPER_ADMIN') ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                        {(isSuperAdmin || user?.role === 'SUPER_ADMIN') ? 'RECOMMENDED (Global)' : 'CUSTOM'}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Study Time</p>
+                    <p className="text-sm font-semibold text-gray-900">{form.min_study_time_daily || '30'} - {form.max_study_time_daily || '120'} min/day</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Start Date</p>
+                    <p className="text-sm font-semibold text-gray-900">{form.start_date || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">End Date</p>
+                    <p className="text-sm font-semibold text-gray-900">{form.end_date || '—'}</p>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 pt-4">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Study Mode</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {(STUDY_MODES || []).find(m => m.value === form.mode)?.label || form.mode}
+                  </p>
+                  {form.mode === 'SEQUENTIAL' && subjectOrder.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {subjectOrder.map((id, i) => {
+                        const sub = allSubjects.find(s => s.id === id);
+                        return sub ? (
+                          <div key={id} className="flex items-center gap-2 text-xs text-gray-600">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-[10px]">{i + 1}</span>
+                            {sub.name}
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
+                  {form.mode === 'CUSTOM' && Object.keys(customPattern).length > 0 && (
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {Object.entries(customPattern).map(([day, ids]) => (
+                        <div key={day} className="bg-purple-50 rounded-md p-2">
+                          <p className="text-[10px] font-bold text-purple-700 uppercase">{day}</p>
+                          <p className="text-xs text-gray-600">
+                            {ids.map(id => allSubjects.find(s => s.id === id)?.name).filter(Boolean).join(', ')}
+                          </p>
                         </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-gray-200 pt-4">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected Subjects</p>
+                  <p className="text-sm font-semibold text-gray-900">{(selectedSubjects?.length || 0)} subjects hello</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {(selectedSubjects || []).map(id => {
+                      const sub = (allSubjects || []).find((s: Subject) => s?.id === id);
+                      return sub ? (
+                        <span key={id} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-md">
+                          {sub.name}
+                        </span>
                       ) : null;
                     })}
                   </div>
-                )}
-                {form.mode === 'CUSTOM' && Object.keys(customPattern).length > 0 && (
-                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {Object.entries(customPattern).map(([day, ids]) => (
-                      <div key={day} className="bg-purple-50 rounded-md p-2">
-                        <p className="text-[10px] font-bold text-purple-700 uppercase">{day}</p>
-                        <p className="text-xs text-gray-600">
-                          {ids.map(id => allSubjects.find(s => s.id === id)?.name).filter(Boolean).join(', ')}
-                        </p>
-                      </div>
+                </div>
+
+                <div className="border-t border-gray-200 pt-4">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected SLOs</p>
+                  <p className="text-sm font-semibold text-gray-900">{(selectedSloIds?.length || 0)} SLOs</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {(selectedSloIds || []).map(sloId => (
+                      <span key={sloId} className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-md">
+                        SLO #{sloId}
+                      </span>
                     ))}
                   </div>
-                )}
-              </div>
-
-              <div className="border-t border-gray-200 pt-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected Subjects</p>
-                <p className="text-sm font-semibold text-gray-900">{(selectedSubjects?.length || 0)} subjects</p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {(selectedSubjects || []).map(id => {
-                    const sub = (allSubjects || []).find((s: Subject) => s?.id === id);
-                    return sub ? (
-                      <span key={id} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-md">
-                        {sub.name}
-                      </span>
-                    ) : null;
-                  })}
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected SLOs</p>
-                <p className="text-sm font-semibold text-gray-900">{(selectedSloIds?.length || 0)} SLOs</p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {(selectedSloIds || []).map(sloId => (
-                    <span key={sloId} className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-md">
-                      SLO #{sloId}
-                    </span>
-                  ))}
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Navigation buttons */}
         <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-100">
