@@ -13,6 +13,7 @@ import AddSchool from './pages/AddSchool';
 import SchoolDetail from './pages/SchoolDetail';
 import CreatePlanner from './pages/CreatePlanner';
 import AllPlanners from './pages/AllPlanners';
+import ViewPlanner from './pages/ViewPlanner';
 import SchoolPortal from './pages/SchoolPortal';
 import TeacherDashboard from './pages/TeacherDashboard';
 import CampusDashboard from './pages/CampusDashboard';
@@ -53,6 +54,7 @@ function App() {
             <Route path="/admin/schools/:id" element={<SchoolDetail />} />
             <Route path="/admin/planners" element={<AllPlanners />} />
             <Route path="/admin/planners/create" element={<CreatePlanner />} />
+            <Route path="/admin/planners/:id" element={<ViewPlanner />} />
             {/* Legacy route redirects */}
             <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/super-admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
@@ -72,6 +74,7 @@ function App() {
             <Route path="/campus/:tenantId/classes" element={<div>Classes Page</div>} />
             <Route path="/campus/:tenantId/planners" element={<AllPlanners />} />
             <Route path="/campus/:tenantId/planners/create" element={<CreatePlanner />} />
+            <Route path="/campus/:tenantId/planners/:id" element={<ViewPlanner />} />
             <Route path="/campus/:tenantId/analytics" element={<div>Analytics Page</div>} />
             <Route path="/campus/:tenantId/settings" element={<div>Settings Page</div>} />
             {/* Legacy route redirect for school admins */}
@@ -91,6 +94,7 @@ function App() {
               <Route path="/school/classes" element={<div>Classes Page</div>} />
               <Route path="/school/planners" element={<AllPlanners />} />
               <Route path="/school/planners/create" element={<CreatePlanner />} />
+              <Route path="/school/planners/:id" element={<ViewPlanner />} />
               <Route path="/school/analytics" element={<div>Analytics Page</div>} />
               <Route path="/school/settings" element={<div>Settings Page</div>} />
             </Route>

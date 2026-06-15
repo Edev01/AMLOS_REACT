@@ -525,6 +525,13 @@ const CreatePlanner: React.FC = () => {
       toast.error('Please select at least one SLO');
       return;
     }
+    if (step === 3) {
+      const metrics = getSloMetrics();
+      if (metrics && metrics.isExceeded) {
+        toast.error('Daily study time limit exceeded. Please adjust limit or duration.');
+        return;
+      }
+    }
     if (step < 4) setStep(step + 1);
   };
 
@@ -835,12 +842,85 @@ const CreatePlanner: React.FC = () => {
         )}
 
         {/* Step 3: Chapters & SLOs */}
-        {step === 3 && (
+        {step === 3 && (() => {
+          const metrics = getSloMetrics();
+          return (
           <div className="animate-fadeIn">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Select Chapters & SLOs</h2>
-            <p className="text-sm text-gray-500 mb-6">
-              Selected: {selectedSloIds?.length || 0} SLOs
-            </p>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Select Chapters & SLOs</h2>
+                <p className="text-sm text-gray-500">
+                  Selected: {selectedSloIds?.length || 0} SLOs
+                </p>
+              </div>
+              {selectedSubjects.length > 1 && (() => {
+                const allSloIds = selectedSubjects.flatMap(id => 
+                  (chaptersBySubject[id] || []).flatMap(ch => (ch.slos || []).map(slo => slo.id))
+                );
+                const isAllGlobalSelected = allSloIds.length > 0 && allSloIds.every(id => selectedSloIds.includes(id));
+                return (
+                  <label className="flex items-center gap-2 text-sm text-blue-600 cursor-pointer hover:text-blue-700 select-none bg-blue-50/50 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isAllGlobalSelected}
+                      onChange={() => toggleSelectAllSlos(allSloIds)}
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="font-medium">
+                      {isAllGlobalSelected ? 'Deselect All' : 'Select All'}
+                    </span>
+                  </label>
+                );
+              })()}
+            </div>
+
+            {metrics && metrics.isExceeded && (
+              <div className="mb-6 p-5 border border-red-200 bg-red-50/50 rounded-2xl flex flex-col md:flex-row items-start gap-4">
+                <div className="p-2 rounded-xl bg-red-100 text-red-600 shrink-0">
+                  <SlidersHorizontal size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-red-800">Daily Study Time Limit Exceeded</h3>
+                  <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                    The selected SLOs require an estimated <strong>{metrics.totalHours.toFixed(1)} hours</strong> of study.
+                    Over the plan duration of <strong>{metrics.days} days</strong>, this requires <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>.
+                    However, your defined maximum limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
+                  </p>
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+                    <div>
+                      <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                        Increase Daily Limit (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        value={form.max_study_time_daily}
+                        onChange={e => setFormField('max_study_time_daily', e.target.value)}
+                        placeholder="e.g. 384"
+                        className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                      />
+                      <p className="text-[10px] text-red-600 mt-1">
+                        Suggested: Set to at least <strong>{metrics.suggestedMaxMinutes} min</strong>
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                        Extend End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={form.end_date}
+                        onChange={e => setFormField('end_date', e.target.value)}
+                        className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                      />
+                      <p className="text-[10px] text-red-600 mt-1">
+                        Suggested: Set to <strong>{metrics.suggestedEndDateString}</strong> or later
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {step3Loading && (
               <div className="flex items-center justify-center h-32 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 mb-6">
                 <Loader2 className="animate-spin text-blue-500 mr-2" size={24} />
@@ -909,11 +989,22 @@ const CreatePlanner: React.FC = () => {
 
                             return (
                               <div key={chapter.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                <button
+                                <div
                                   onClick={() => toggleChapterExpand(chapter.id)}
-                                  className="w-full flex items-center justify-between p-3 bg-gray-50/80 hover:bg-gray-100 transition-colors"
+                                  className="w-full flex items-center justify-between p-3 bg-gray-50/80 hover:bg-gray-100 transition-colors cursor-pointer select-none"
                                 >
                                   <div className="flex items-center gap-3">
+                                    {sloCount > 0 && (
+                                      <div className="flex items-center" onClick={e => e.stopPropagation()}>
+                                        <input
+                                          type="checkbox"
+                                          checked={chapterSlos.every((s: SLO) => selectedSloIds.includes(s.id))}
+                                          onChange={() => toggleSelectAllSlos(chapterSlos.map((s: SLO) => s.id))}
+                                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                          title="Select/Deselect all SLOs for this chapter"
+                                        />
+                                      </div>
+                                    )}
                                     <span className="text-sm font-medium text-gray-800">{chapter.name || ''}</span>
                                     <span className="text-xs text-gray-500">
                                       {sloCount === 0 ? 'No SLOs' : `${selectedCount}/${sloCount} SLO${sloCount > 1 ? 's' : ''} selected`}
@@ -925,35 +1016,20 @@ const CreatePlanner: React.FC = () => {
                                       className={`text-gray-400 transition-transform ${isChapterExpanded ? 'rotate-180' : ''}`}
                                     />
                                   )}
-                                </button>
+                                </div>
 
                                 {isChapterExpanded && sloCount > 0 && (
                                   <div className="p-3 bg-white space-y-2">
-                                    <label className="flex items-center gap-1.5 text-xs text-blue-600 cursor-pointer hover:text-blue-700 mb-1">
-                                      <input
-                                        type="checkbox"
-                                        checked={chapterSlos.every((s: SLO) => selectedSloIds.includes(s.id))}
-                                        onChange={() => toggleSelectAllSlos(chapterSlos.map((s: SLO) => s.id))}
-                                        className="w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                      />
-                                      Select All
-                                    </label>
                                     {chapterSlos.map((slo: SLO) => (
-                                      <label
+                                      <div
                                         key={slo.id}
-                                        className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-all ${selectedSloIds.includes(slo.id)
+                                        className={`flex items-center gap-3 p-2 rounded-md border transition-all ${selectedSloIds.includes(slo.id)
                                           ? 'border-blue-500 bg-blue-50'
-                                          : 'border-gray-100 hover:border-blue-200'
+                                          : 'border-gray-100'
                                           }`}
                                       >
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedSloIds.includes(slo.id)}
-                                          onChange={() => toggleSlo(slo.id)}
-                                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                        />
                                         <span className="text-sm text-gray-700">{slo.slo_text || slo.name || ''}</span>
-                                      </label>
+                                      </div>
                                     ))}
                                   </div>
                                 )}
@@ -975,7 +1051,8 @@ const CreatePlanner: React.FC = () => {
             </div>
 
           </div>
-        )}
+          );
+        })()}
 
         {/* Step 4: Preview */}
         {step === 4 && (() => {
@@ -1159,7 +1236,8 @@ const CreatePlanner: React.FC = () => {
             <button
               type="button"
               onClick={nextStep}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition"
+              disabled={step === 3 && (() => { const m = getSloMetrics(); return m ? m.isExceeded : false; })()}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-60 transition"
             >
               Next <ArrowRight size={16} />
             </button>

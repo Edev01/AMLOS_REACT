@@ -251,14 +251,15 @@ const AllPlanners: React.FC = () => {
         examType: p.plan_type || p.exam_type || p.examType || 'N/A',
         startDate: p.start_date || 'N/A',
         endDate: p.end_date || 'N/A',
-        dailyLimit: (p.min_study_time_daily || p.daily_limit_minutes || p.daily_limit || '').toString(),
-        minStudyTime: p.min_study_time_daily || p.daily_limit_minutes || 0,
-        maxStudyTime: p.max_study_time_daily || 0,
+        minStudyTime: p.min_study_time_daily || p.min_study_time || p.daily_limit_minutes || 0,
+        maxStudyTime: p.max_study_time_daily || p.max_study_time || 0,
         mode: p.mode || 'PARALLEL',
         sloCount: (() => {
           if (Array.isArray(p.slo_ids)) return p.slo_ids.length;
+          if (typeof p.slo_ids === 'string') return p.slo_ids.split(',').filter(Boolean).length;
           if (Array.isArray(p.slos)) return p.slos.length;
           if (typeof p.slo_count === 'number') return p.slo_count;
+          if (typeof p.total_slos === 'number') return p.total_slos;
           return p.topics_count || p.topics || 0;
         })(),
       })) as Planner[];
@@ -510,6 +511,15 @@ const AllPlanners: React.FC = () => {
                     {/* Actions */}
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1">
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => navigate(`${getBasePath()}/${planner.id}`)}
+                          className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="View"
+                        >
+                          <Eye size={16} />
+                        </motion.button>
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.95 }}
