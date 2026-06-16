@@ -281,10 +281,10 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-7xl overflow-hidden rounded-3xl bg-white shadow-[0_25px_80px_rgba(11,17,32,0.15)] font-['Inter']">
+    <div className="h-screen w-screen bg-[#F8FAFC] p-4 sm:p-6 lg:p-8 flex items-center justify-center overflow-hidden">
+      <div className="flex h-full w-full max-w-7xl max-h-[90vh] lg:max-h-[800px] overflow-hidden rounded-3xl bg-white shadow-[0_25px_80px_rgba(11,17,32,0.15)] font-['Inter']">
         {/* Left panel — Branding (hidden on mobile) */}
-        <div className="relative hidden lg:flex lg:w-[45%] flex-col justify-between bg-[#0B1120] p-10 xl:p-14 overflow-hidden">
+        <div className="relative hidden lg:flex lg:w-[45%] flex-col justify-between bg-[#0B1120] p-10 xl:p-14 overflow-hidden h-full">
           {/* Geometric mesh gradient background */}
           <div className="absolute inset-0 opacity-40">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,#1E3A5F_0%,transparent_50%)]" />
@@ -319,19 +319,21 @@ const Login: React.FC = () => {
           </div>
 
           {/* Main content with illustration */}
-          <div className="relative z-10 flex-1 flex flex-col justify-center my-8">
-            <div className="w-full max-w-sm mx-auto">
-              <EducationIllustration />
+          <div className="relative z-10 flex-1 flex flex-col justify-center my-2">
+            <div className="w-full max-w-[260px] xl:max-w-[320px] mx-auto">
+              <div className="max-h-[150px] xl:max-h-[200px] overflow-hidden flex items-center justify-center">
+                <EducationIllustration />
+              </div>
             </div>
             
-            <div className="mt-8 text-center">
-              <h2 className="text-3xl xl:text-4xl font-bold text-white tracking-tight">
+            <div className="mt-4 text-center">
+              <h2 className="text-2xl xl:text-3xl font-bold text-white tracking-tight">
                 Empowering{' '}
                 <span className="bg-gradient-to-r from-[#60A5FA] to-[#A78BFA] bg-clip-text text-transparent">
                   Educational Excellence
                 </span>
               </h2>
-              <p className="mt-4 text-[#94A3B8] text-sm xl:text-base leading-relaxed max-w-sm mx-auto">
+              <p className="mt-3 text-[#94A3B8] text-xs xl:text-sm leading-relaxed max-w-sm mx-auto">
                 One platform to manage your entire academic ecosystem. Connect schools, track progress, and drive success.
               </p>
             </div>
@@ -351,10 +353,10 @@ const Login: React.FC = () => {
         </div>
 
         {/* Right panel — Login Form */}
-        <div className="flex w-full lg:w-[55%] items-center justify-center bg-[#F8FAFC] px-6 py-8 sm:px-10 lg:px-12 xl:px-16">
-          <div className="w-full max-w-md">
+        <div className="w-full lg:w-[55%] bg-[#F8FAFC] overflow-y-auto h-full flex flex-col items-center px-6 py-8 sm:px-10 lg:px-12 xl:px-16">
+          <div className="w-full max-w-md my-auto">
             {/* Mobile-only logo */}
-            <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
+            <div className="lg:hidden flex items-center justify-center gap-3 mb-6">
               <div className="grid h-10 w-10 place-content-center rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6]">
                 <svg viewBox="0 0 24 24" className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -368,17 +370,17 @@ const Login: React.FC = () => {
               </div>
             </div>
 
-            <div className="text-center lg:text-left mb-8">
-              <h1 className="text-3xl sm:text-4xl font-bold text-[#0F172A] tracking-tight">
+            <div className="text-center lg:text-left mb-6">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">
                 Sign in to your Account
               </h1>
-              <p className="mt-2 text-[#64748B]">
+              <p className="mt-1 text-sm text-[#64748B]">
                 Enter your credentials to access your portal
               </p>
             </div>
 
             {error && (
-              <div className="mb-6 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600 flex items-center gap-2">
+              <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-2.5 text-sm text-red-600 flex items-center gap-2">
                 <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 8v4" />
@@ -388,10 +390,10 @@ const Login: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} noValidate className="space-y-6">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
               {/* Email field - Label above input */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-[#475569] mb-2">
+                <label htmlFor="email" className="block text-xs font-semibold text-[#475569] mb-1.5">
                   Email / Username
                 </label>
                 <div className="relative">
@@ -411,7 +413,7 @@ const Login: React.FC = () => {
                       if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
                     }}
                     placeholder="e.g. admin@school.com"
-                    className={`w-full rounded-xl border bg-white pl-12 pr-4 py-3.5 text-base text-[#0F172A] outline-none transition-all duration-200 placeholder:text-[#94A3B8] ${
+                    className={`w-full rounded-xl border bg-white pl-12 pr-4 py-2.5 text-sm text-[#0F172A] outline-none transition-all duration-200 placeholder:text-[#94A3B8] ${
                       submitted && fieldErrors.email
                         ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-100'
                         : 'border-slate-200 focus:border-[#3B82F6] focus:ring-4 focus:ring-[#3B82F6]/10 hover:border-slate-300'
@@ -419,13 +421,13 @@ const Login: React.FC = () => {
                   />
                 </div>
                 {submitted && fieldErrors.email && (
-                  <p className="mt-1.5 text-xs text-red-500">{fieldErrors.email}</p>
+                  <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>
                 )}
               </div>
 
               {/* Password field - Label above input */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-[#475569] mb-2">
+                <label htmlFor="password" className="block text-xs font-semibold text-[#475569] mb-1.5">
                   Password
                 </label>
                 <div className="relative">
@@ -445,7 +447,7 @@ const Login: React.FC = () => {
                       if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
                     }}
                     placeholder="Enter your password"
-                    className={`w-full rounded-xl border bg-white pl-12 pr-12 py-3.5 text-base text-[#0F172A] outline-none transition-all duration-200 placeholder:text-[#94A3B8] ${
+                    className={`w-full rounded-xl border bg-white pl-12 pr-12 py-2.5 text-sm text-[#0F172A] outline-none transition-all duration-200 placeholder:text-[#94A3B8] ${
                       submitted && fieldErrors.password
                         ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-100'
                         : 'border-slate-200 focus:border-[#3B82F6] focus:ring-4 focus:ring-[#3B82F6]/10 hover:border-slate-300'
@@ -473,13 +475,13 @@ const Login: React.FC = () => {
                   </button>
                 </div>
                 {submitted && fieldErrors.password && (
-                  <p className="mt-1.5 text-xs text-red-500">{fieldErrors.password}</p>
+                  <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
                 )}
               </div>
 
               {/* Remember me + Forgot password */}
-              <div className="flex items-center justify-between pt-2">
-                <label className="flex cursor-pointer items-center gap-2.5 text-sm text-[#475569]">
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-[#475569]">
                   <div className="relative">
                     <input
                       type="checkbox"
@@ -487,9 +489,9 @@ const Login: React.FC = () => {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="peer sr-only"
                     />
-                    <div className="h-5 w-5 rounded border border-slate-300 bg-white peer-checked:border-[#3B82F6] peer-checked:bg-[#3B82F6] transition-all" />
+                    <div className="h-4.5 w-4.5 rounded border border-slate-300 bg-white peer-checked:border-[#3B82F6] peer-checked:bg-[#3B82F6] transition-all" />
                     <svg 
-                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-3 w-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity" 
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" 
                       viewBox="0 0 24 24" 
                       fill="none" 
                       stroke="currentColor" 
@@ -502,7 +504,7 @@ const Login: React.FC = () => {
                 </label>
                 <Link 
                   to="/forgot-password" 
-                  className="text-sm font-medium text-[#3B82F6] hover:text-[#2563EB] transition-colors"
+                  className="text-xs font-semibold text-[#3B82F6] hover:text-[#2563EB] transition-colors"
                 >
                   Forgot password?
                 </Link>
@@ -512,12 +514,12 @@ const Login: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-[#1E40AF] via-[#3B82F6] to-[#1E40AF] px-6 py-4 text-base font-semibold text-white shadow-[0_4px_20px_rgba(59,130,246,0.4)] transition-all duration-300 hover:shadow-[0_8px_30px_rgba(59,130,246,0.6)] hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100 disabled:hover:shadow-[0_4px_20px_rgba(59,130,246,0.4)]"
+                className="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-[#1E40AF] via-[#3B82F6] to-[#1E40AF] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_4px_20px_rgba(59,130,246,0.4)] transition-all duration-300 hover:shadow-[0_8px_30px_rgba(59,130,246,0.6)] hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100 disabled:hover:shadow-[0_4px_20px_rgba(59,130,246,0.4)]"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   {isLoading ? (
                     <>
-                      <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
@@ -526,7 +528,7 @@ const Login: React.FC = () => {
                   ) : (
                     <>
                       Sign In
-                      <svg className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M5 12h14" />
                         <path d="M12 5l7 7-7 7" />
                       </svg>
@@ -539,7 +541,7 @@ const Login: React.FC = () => {
             </form>
 
             {/* Sign up link - increased margin top */}
-            <p className="mt-10 text-center text-sm text-[#64748B]">
+            <p className="mt-8 text-center text-sm text-[#64748B]">
               Don't have an account?{' '}
               <Link to="/signup" className="font-semibold text-[#3B82F6] hover:text-[#2563EB] transition-colors">
                 Create an Account
@@ -547,7 +549,7 @@ const Login: React.FC = () => {
             </p>
 
             {/* Role indicator for enterprise feel */}
-            <div className="mt-8 pt-6 border-t border-slate-200">
+            <div className="mt-6 pt-5 border-t border-slate-200">
               <div className="flex items-center justify-center gap-4 text-xs text-[#94A3B8]">
                 <span className="flex items-center gap-1.5">
                   <div className="h-1.5 w-1.5 rounded-full bg-[#3B82F6]" />
