@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Search, 
   Bell, 
@@ -16,7 +16,13 @@ import {
   Settings,
   ArrowUpRight,
   Sparkles,
-  Building2
+  Building2,
+  LogOut,
+  ChevronDown,
+  Shield,
+  User,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useIsFetching } from '@tanstack/react-query';
@@ -28,31 +34,74 @@ interface DashboardLayoutProps {
   activePage?: string;
 }
 
-// Search items for Command+K
-const searchItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, path: '/dashboard', shortcut: 'D' },
-  { id: 'schools', label: 'All Schools', icon: <School size={16} />, path: '/schools', shortcut: 'S' },
-  { id: 'add-school', label: 'Add School', icon: <School size={16} />, path: '/schools/add', shortcut: 'A' },
-  { id: 'users', label: 'User Management', icon: <Users size={16} />, path: '#', shortcut: 'U' },
-  { id: 'planners', label: 'All Planners', icon: <CalendarDays size={16} />, path: '/planners', shortcut: 'P' },
-  { id: 'create-planner', label: 'Create Planner', icon: <ClipboardList size={16} />, path: '/planners/create', shortcut: 'C' },
-  { id: 'content', label: 'Content Management', icon: <FileText size={16} />, path: '#', shortcut: 'M' },
-  { id: 'settings', label: 'Settings', icon: <Settings size={16} />, path: '#', shortcut: ',' },
-];
+// Search items builder — paths depend on user role
+const buildSearchItems = (role: string | undefined, campusId?: string | null) => {
+  const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN';
+  const isSchoolAdmin = role === 'SCHOOL_ADMIN' || role === 'CAMPUS_ADMIN';
+  const isSchool = role === 'SCHOOL';
+
+  const dashPath = isAdmin
+    ? '/admin/dashboard'
+    : isSchoolAdmin
+    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/dashboard`
+    : isSchool
+    ? '/school/dashboard'
+    : '/admin/dashboard';
+
+  const plannersPath = isAdmin
+    ? '/admin/planners'
+    : isSchoolAdmin
+    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/planners`
+    : isSchool
+    ? '/school/planners'
+    : '/admin/planners';
+
+  const items = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, path: dashPath, roles: ['all'] },
+    { id: 'schools', label: 'All Schools', icon: <School size={16} />, path: '/admin/schools', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'add-school', label: 'Add School', icon: <School size={16} />, path: '/admin/schools/add', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'users', label: 'User Management', icon: <Users size={16} />, path: '#', roles: ['all'] },
+    { id: 'planners', label: 'All Planners', icon: <CalendarDays size={16} />, path: plannersPath, roles: ['all'] },
+    { id: 'create-planner', label: 'Create Planner', icon: <ClipboardList size={16} />, path: `${plannersPath}/create`, roles: ['all'] },
+    { id: 'content', label: 'Content Management', icon: <FileText size={16} />, path: '#', roles: ['all'] },
+    { id: 'settings', label: 'Settings', icon: <Settings size={16} />, path: '#', roles: ['all'] },
+  ];
+
+  return items.filter(item =>
+    item.roles.includes('all') || item.roles.includes(role || '')
+  );
+};
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage }) => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, tenant, logout } = useAuth();
+  const navigate = useNavigate();
   const isFetching = useIsFetching();
   const location = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => { if (window.innerWidth < 1024) setSidebarCollapsed(true); }, [location.pathname]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 1024);
+  
+  // Handle responsive sidebar collapse
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setSidebarCollapsed(true);
+      } else {
+        setSidebarCollapsed(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Determine which sidebar to show based on route
   const isSchoolAdminRoute = location.pathname.startsWith('/campus/');
   const useSchoolAdminSidebar = isSchoolAdminRoute && !isSuperAdmin;
   const [commandOpen, setCommandOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [scrolled, setScrolled] = useState(false);
   const commandInputRef = useRef<HTMLInputElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
   
   const initials = (user?.username || user?.email || 'AK')
     .split(/[@.\s]/)
@@ -92,19 +141,47 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
     }
   }, [commandOpen]);
 
-  const filteredItems = searchItems
-    .filter(item => item.label.toLowerCase().includes(searchQuery.toLowerCase()))
-    .filter(item => {
-      const isPlannerItem = item.id === 'planners' || item.id === 'create-planner';
-      return !isPlannerItem || isSuperAdmin;
-    });
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
-  const handleNavigate = (path: string) => {
-    if (path !== '#') {
-      window.location.href = path;
-    }
-    setCommandOpen(false);
+  const handleLogout = useCallback(() => {
+    logout();
+    navigate('/login');
+  }, [logout, navigate]);
+
+  const roleLabelMap: Record<string, string> = {
+    SUPER_ADMIN: 'Super Admin',
+    ADMIN: 'Admin',
+    SCHOOL_ADMIN: 'School Admin',
+    CAMPUS_ADMIN: 'Campus Admin',
+    SCHOOL: 'School',
+    TEACHER: 'Teacher',
   };
+  const roleLabel = roleLabelMap[user?.role || ''] || 'Admin';
+
+  const searchItems = buildSearchItems(
+    user?.role,
+    (tenant as any)?.campusId || localStorage.getItem('campus_id')
+  );
+
+  const filteredItems = searchItems
+    .filter(item => item.label.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const handleNavigate = useCallback((path: string) => {
+    setCommandOpen(false);
+    setSearchQuery('');
+    if (path !== '#') {
+      navigate(path);
+    }
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-surface-light font-sans relative">
@@ -126,13 +203,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
 
       {/* Mobile overlay */}
       <AnimatePresence>
-        {mobileOpen && (
+        {!sidebarCollapsed && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden" 
-            onClick={() => setMobileOpen(false)} 
+            onClick={() => setSidebarCollapsed(true)} 
           />
         )}
       </AnimatePresence>
@@ -227,21 +304,21 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
         )}
       </AnimatePresence>
 
-      {/* Sidebar — always visible on lg+, slide-in on mobile */}
+      {/* Sidebar — always visible */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 lg:translate-x-0 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-40 transform transition-all duration-300 translate-x-0 ${
+          sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
         }`}
       >
         {useSchoolAdminSidebar ? (
-          <SchoolAdminSidebar activePage={activePage} />
+          <SchoolAdminSidebar activePage={activePage} collapsed={sidebarCollapsed} />
         ) : (
-          <Sidebar activePage={activePage} />
+          <Sidebar activePage={activePage} collapsed={sidebarCollapsed} />
         )}
       </div>
 
       {/* Main content area */}
-      <div className="lg:ml-[260px]">
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-[72px]' : 'ml-[72px] lg:ml-[260px]'}`}>
         {/* Top navigation bar with Glassmorphism */}
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
@@ -253,16 +330,20 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               : 'bg-white/50 backdrop-blur-sm border-b border-transparent'
           }`}
         >
-          {/* Mobile hamburger */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            type="button"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="rounded-xl p-2.5 text-slate-500 hover:bg-slate-100 lg:hidden transition-colors"
-          >
-            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-          </motion.button>
+          {/* Left — Mobile hamburger + Desktop collapse toggle */}
+          <div className="flex items-center gap-2">
+            {/* Toggle sidebar button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={() => setSidebarCollapsed(p => !p)}
+              className="rounded-xl p-2.5 text-slate-500 hover:bg-slate-100 transition-colors"
+            >
+              {sidebarCollapsed ? <Menu size={20} className="lg:hidden" /> : <X size={20} className="lg:hidden" />}
+              {sidebarCollapsed ? <ChevronsRight size={18} className="hidden lg:block" /> : <ChevronsLeft size={18} className="hidden lg:block" />}
+            </motion.button>
+          </div>
 
           {/* Command+K Search */}
           <div className="hidden sm:flex flex-1 max-w-md mx-4">
@@ -287,8 +368,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
             </motion.button>
           </div>
 
-          {/* Right section — notifications + user */}
-          <div className="flex items-center gap-3">
+          {/* Right section — notifications + profile dropdown */}
+          <div className="flex items-center gap-2">
+            {/* Bell */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -299,20 +381,81 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             </motion.button>
 
-            {/* User avatar & info */}
-            <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
-              <div className="hidden sm:block text-right">
-                <p className="text-sm font-semibold text-slate-800">
-                  {isSuperAdmin ? 'Super Admin' : user?.role === 'SCHOOL_ADMIN' ? 'School Admin' : 'Admin'}
-                </p>
-                <p className="text-[11px] text-slate-400">{user?.email || 'admin@eduadmin.com'}</p>
-              </div>
-              <motion.div 
-                whileHover={{ scale: 1.05 }}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue cursor-pointer"
+            {/* Profile Dropdown */}
+            <div ref={profileRef} className="relative pl-2 border-l border-slate-200">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setProfileOpen(p => !p)}
+                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                {initials || 'AK'}
-              </motion.div>
+                {/* Text (hidden on xs) */}
+                <div className="hidden sm:block text-right">
+                  <p className="text-sm font-semibold text-slate-800 leading-tight">{roleLabel}</p>
+                  <p className="text-[11px] text-slate-400 leading-tight">{user?.email || 'admin@eduadmin.com'}</p>
+                </div>
+                {/* Avatar */}
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue">
+                  {initials || 'AK'}
+                </div>
+                <ChevronDown
+                  size={14}
+                  className={`hidden sm:block text-slate-400 transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`}
+                />
+              </motion.button>
+
+              {/* Dropdown Panel */}
+              <AnimatePresence>
+                {profileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    className="absolute right-0 top-[calc(100%+8px)] w-72 rounded-2xl bg-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-200/80 overflow-hidden z-50"
+                  >
+                    {/* Header */}
+                    <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-accent-blue/5 to-accent-indigo/5 border-b border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-sm font-bold text-white shadow-glow-blue">
+                          {initials || 'AK'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 truncate">
+                            {user?.username || roleLabel}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate mt-0.5">{user?.email || 'admin@eduadmin.com'}</p>
+                          <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent-blue/10 text-accent-blue">
+                            {isSuperAdmin ? <Shield size={9} /> : <User size={9} />}
+                            {roleLabel}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-1.5">
+                      {/* Settings removed per user request */}
+                    </div>
+
+                    {/* Logout */}
+                    <div className="py-1.5">
+                      <button
+                        onClick={() => { setProfileOpen(false); handleLogout(); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 transition-colors group"
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-500 group-hover:bg-rose-100 transition-colors">
+                          <LogOut size={15} />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-left">Sign out</p>
+                          <p className="text-[11px] text-rose-400">Log out of your account</p>
+                        </div>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </motion.header>

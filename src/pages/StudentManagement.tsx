@@ -23,6 +23,7 @@ import {
   Save,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import DashboardLayout from '../components/DashboardLayout';
 
 const icons = ['🎓', '📚', '🌟', '🏆', '📖', '🎯'];
 const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
@@ -228,7 +229,7 @@ const StudentManagement: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50 px-4 py-6 sm:px-6 lg:px-8">
+    <DashboardLayout activePage="students">
       <div className="mb-6">
         <select
           value={filter}
@@ -502,7 +503,7 @@ const StudentManagement: React.FC = () => {
           </div>
         </div>
       </Modal>
-    </div>
+    </DashboardLayout>
   );
 };
 

@@ -85,19 +85,17 @@ function App() {
               SCHOOL ROLE ROUTES - School Admin Dashboard
               ============================================ */}
           <Route element={<ProtectedRoute allowedRoles={['SCHOOL']} />}>
-            <Route element={<MainLayout />}>
-              <Route path="/school/dashboard" element={<SchoolDashboard />} />
-              <Route path="/school/students" element={<StudentManagement />} />
-              <Route path="/school/students/add" element={<AddStudent />} />
-              <Route path="/school/teachers" element={<div>Teachers Page</div>} />
-              <Route path="/school/teachers/add" element={<div>Add Teacher</div>} />
-              <Route path="/school/classes" element={<div>Classes Page</div>} />
-              <Route path="/school/planners" element={<AllPlanners />} />
-              <Route path="/school/planners/create" element={<CreatePlanner />} />
-              <Route path="/school/planners/:id" element={<ViewPlanner />} />
-              <Route path="/school/analytics" element={<div>Analytics Page</div>} />
-              <Route path="/school/settings" element={<div>Settings Page</div>} />
-            </Route>
+            <Route path="/school/dashboard" element={<SchoolDashboard />} />
+            <Route path="/school/students" element={<StudentManagement />} />
+            <Route path="/school/students/add" element={<AddStudent />} />
+            <Route path="/school/teachers" element={<div>Teachers Page</div>} />
+            <Route path="/school/teachers/add" element={<div>Add Teacher</div>} />
+            <Route path="/school/classes" element={<div>Classes Page</div>} />
+            <Route path="/school/planners" element={<AllPlanners />} />
+            <Route path="/school/planners/create" element={<CreatePlanner />} />
+            <Route path="/school/planners/:id" element={<ViewPlanner />} />
+            <Route path="/school/analytics" element={<div>Analytics Page</div>} />
+            <Route path="/school/settings" element={<div>Settings Page</div>} />
           </Route>
 
           {/* ============================================

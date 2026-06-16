@@ -27,6 +27,7 @@ import {
 
 interface SidebarProps {
   activePage?: string;
+  collapsed?: boolean;
 }
 
 interface MenuItem {
@@ -37,7 +38,7 @@ interface MenuItem {
   children?: { id: string; label: string; path: string }[];
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
   const { user, logout, tenant, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,7 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
   }, [user?.role]);
 
   // Single-open accordion: only one menu expanded at a time
-  const [openMenu, setOpenMenu] = useState<string | null>('school');
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [activeIndicator, setActiveIndicator] = useState({ top: 0, height: 0 });
   const navRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -87,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
       
       itemRefs.current.forEach((ref, key) => {
         const item = menuItems.find(m => m.id === key);
-        if (item && (isActive(item.path, item.id) || isParentActive(item))) {
+        if (item && (isActive(item.path, item.id) || isParentActive(item) || openMenu === key)) {
           activeItem = ref;
         }
       });
@@ -179,8 +180,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
 
   const menuItems = getMenuItems();
 
+  useEffect(() => {
+    const activeParent = menuItems.find(item => isParentActive(item) || isActive(item.path, item.id));
+    if (activeParent && activeParent.id) {
+      setOpenMenu(activeParent.id);
+    }
+  }, [location.pathname, activePage]);
+
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-navy-800 text-white overflow-hidden">
+    <aside className={`flex h-full flex-col bg-navy-800 text-white overflow-hidden transition-all duration-300 ${collapsed ? 'w-[72px]' : 'w-[260px]'}`}>
       {/* Subtle gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-accent-blue/5 via-transparent to-transparent pointer-events-none" />
       
@@ -191,23 +199,25 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
         transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="relative flex items-center gap-3 px-6 py-5 border-b border-white/5"
       >
-        <div className={`flex h-10 w-10 items-center justify-center rounded-xl shadow-glow-blue ${
+        <div className={`flex items-center justify-center rounded-xl shadow-glow-blue flex-shrink-0 ${collapsed ? 'h-8 w-8' : 'h-10 w-10'} ${
           isSuperAdmin 
             ? 'bg-gradient-to-br from-purple-500 to-purple-700' 
             : 'bg-gradient-to-br from-accent-blue to-accent-indigo'
         }`}>
           {isSuperAdmin ? <Shield size={20} className="text-white" /> : <Sparkles size={20} className="text-white" />}
         </div>
-        <div>
-          <h1 className="text-lg font-bold leading-tight text-white">AMLOS</h1>
-          <p className="text-[11px] text-slate-400 font-medium tracking-wide">
-            {isSuperAdmin ? 'SUPER ADMIN' : isTenantContext ? tenant.campusName?.toUpperCase() || 'CAMPUS' : 'ADMIN PORTAL'}
-          </p>
-        </div>
+        {!collapsed && (
+          <div className="overflow-hidden">
+            <h1 className="text-lg font-bold leading-tight text-white truncate">AMLOS</h1>
+            <p className="text-[11px] text-slate-400 font-medium tracking-wide truncate">
+              {isSuperAdmin ? 'SUPER ADMIN' : isTenantContext ? tenant.campusName?.toUpperCase() || 'CAMPUS' : 'ADMIN PORTAL'}
+            </p>
+          </div>
+        )}
       </motion.div>
 
       {/* Tenant Context Banner (for Campus Admins) */}
-      {isTenantContext && tenant.campusName && (
+      {!collapsed && isTenantContext && tenant.campusName && (
         <div className="mx-4 mt-4 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
           <div className="flex items-center gap-2">
             <Building2 size={14} className="text-blue-400" />
@@ -286,21 +296,22 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
                     navigate(item.path);
                   }
                 }}
-                className={`relative flex w-full items-center justify-between rounded-lg px-4 py-2.5 text-[13px] font-medium transition-all duration-200 z-10 ${
+                className={`relative flex w-full items-center justify-between rounded-lg py-2.5 text-[13px] font-medium transition-all duration-200 z-10 ${
                   itemActive || parentActive
                     ? 'text-white'
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
+                } ${collapsed ? 'px-0 justify-center' : 'px-4'}`}
+                title={collapsed ? item.label : undefined}
               >
-                <div className="flex items-center gap-3">
+                <div className={`flex items-center ${collapsed ? 'justify-center w-full' : 'gap-3'}`}>
                   <span className={`transition-colors duration-200 ${
                     itemActive || parentActive ? 'text-accent-blue' : ''
                   }`}>
                     {item.icon}
                   </span>
-                  <span>{item.label}</span>
+                  {!collapsed && <span>{item.label}</span>}
                 </div>
-                {hasChildren && (
+                {!collapsed && hasChildren && (
                   <motion.span 
                     animate={{ rotate: isExpanded ? 180 : 0 }}
                     transition={{ duration: 0.2 }}
@@ -313,7 +324,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
 
               {/* Sub-items with Animation */}
               <AnimatePresence>
-                {hasChildren && isExpanded && (
+                {!collapsed && hasChildren && isExpanded && (
                   <motion.div 
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -362,37 +373,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
         })}
       </nav>
 
-      {/* User Info Card */}
-      <motion.div 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.3 }}
-        className="mx-3 mb-3 p-3 rounded-xl bg-white/5 border border-white/10"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white">
-            {(user?.username || user?.email || 'AK').split(/[@.\s]/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('')}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">{user?.username || 'Super Admin'}</p>
-            <p className="text-[10px] text-slate-400 truncate">{user?.email || 'admin@eduadmin.com'}</p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Logout */}
-      <div className="border-t border-white/10 px-3 py-3">
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          type="button"
-          onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-[13px] font-medium text-slate-400 transition-all duration-200 hover:bg-rose-500/10 hover:text-rose-400"
-        >
-          <LogOut size={18} />
-          <span>Logout</span>
-        </motion.button>
-      </div>
     </aside>
   );
 };

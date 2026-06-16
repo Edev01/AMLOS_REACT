@@ -416,6 +416,7 @@ const AddStudent: React.FC = () => {
 
   return (
     <DashboardLayout activePage="add-student">
+      <div className="max-w-4xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -569,6 +570,7 @@ const AddStudent: React.FC = () => {
           </div>
         </motion.div>
       </form>
+      </div>
     </DashboardLayout>
   );
 };

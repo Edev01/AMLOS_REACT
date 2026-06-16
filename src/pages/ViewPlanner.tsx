@@ -15,7 +15,17 @@ const ViewPlanner: React.FC = () => {
       // First try to fetch the specific planner
       try {
         const response = await api.get(`/api/study-plans/${id}`);
-        return response.data;
+        let p = response.data;
+        if (p?.data && typeof p.data === 'object' && !Array.isArray(p.data)) {
+          p = p.data;
+        } else if (p?.plan && typeof p.plan === 'object') {
+          p = p.plan;
+        } else if (p?.study_plan && typeof p.study_plan === 'object') {
+          p = p.study_plan;
+        } else if (p?.results && typeof p.results === 'object' && !Array.isArray(p.results)) {
+          p = p.results;
+        }
+        return p;
       } catch (err) {
         // Fallback: fetch all and find the one
         const response = await api.get('/api/study-plans');
@@ -66,31 +76,47 @@ const ViewPlanner: React.FC = () => {
     );
   }
 
-  // Safe data extraction
-  const name = planner.title || planner.plan_name || planner.name || 'Untitled Planner';
-  const grade = planner.grade || 'N/A';
-  const examType = planner.plan_type || planner.exam_type || 'N/A';
-  const startDate = planner.start_date || 'N/A';
-  const endDate = planner.end_date || 'N/A';
-  const mode = planner.mode || 'PARALLEL';
-  const minTime = planner.min_study_time_daily || planner.min_study_time || 0;
-  const maxTime = planner.max_study_time_daily || planner.max_study_time || 0;
+  // Safe data extraction with aggressive fallbacks
+  const name = planner.title || planner.plan_name || planner.name || planner.planner_name || 'Untitled Planner';
+  const grade = planner.grade || planner.grade_level || 'N/A';
+  const examType = planner.plan_type || planner.exam_type || planner.examType || 'N/A';
+  const startDate = planner.start_date || planner.startDate || 'N/A';
+  const endDate = planner.end_date || planner.endDate || 'N/A';
+  const mode = planner.mode || planner.study_mode || 'PARALLEL';
+  const minTime = planner.min_study_time_daily || planner.min_study_time || planner.daily_limit_minutes || planner.minStudyTimeDaily || 0;
+  const maxTime = planner.max_study_time_daily || planner.max_study_time || planner.maxStudyTimeDaily || 0;
   
   const subjects = (() => {
     if (planner.subject_order && Array.isArray(planner.subject_order)) {
       return planner.subject_order.flat().filter(Boolean);
     }
     if (Array.isArray(planner.subjects) && planner.subjects.length > 0) return planner.subjects;
+    if (planner.subject_names && Array.isArray(planner.subject_names)) return planner.subject_names;
     return [];
   })();
 
   const sloCount = (() => {
     if (Array.isArray(planner.slo_ids)) return planner.slo_ids.length;
-    if (typeof planner.slo_ids === 'string') return planner.slo_ids.split(',').filter(Boolean).length;
+    if (typeof planner.slo_ids === 'string') {
+      try { const arr = JSON.parse(planner.slo_ids); if (Array.isArray(arr)) return arr.length; } catch(e) {}
+      return planner.slo_ids.split(',').filter(Boolean).length;
+    }
     if (Array.isArray(planner.slos)) return planner.slos.length;
+    if (Array.isArray(planner.sloIds)) return planner.sloIds.length;
     if (typeof planner.slo_count === 'number') return planner.slo_count;
+    if (typeof planner.sloCount === 'number') return planner.sloCount;
     if (typeof planner.total_slos === 'number') return planner.total_slos;
-    return planner.topics_count || planner.topics || 0;
+    if (typeof planner.totalSlos === 'number') return planner.totalSlos;
+    
+    // Aggressive fallback: search through all keys for SLO
+    for (const key of Object.keys(planner)) {
+      const k = key.toLowerCase();
+      if (k.includes('slo') && Array.isArray(planner[key])) return planner[key].length;
+      if (k.includes('slo') && typeof planner[key] === 'string' && planner[key].includes(',')) return planner[key].split(',').filter(Boolean).length;
+      if ((k === 'slocount' || k === 'totalslos' || k === 'assignedslos' || k === 'slo_count') && typeof planner[key] === 'number') return planner[key];
+    }
+    
+    return planner.topics_count || planner.topics || planner.topicsCount || 0;
   })();
 
   return (
@@ -222,6 +248,17 @@ const ViewPlanner: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      {/* Hidden debug view for developers to see raw data format if needed. 
+          Uncomment the below block if data is still not mapping correctly. */}
+      {/* 
+      <div className="mt-8 p-4 bg-gray-900 rounded-xl overflow-x-auto">
+        <h4 className="text-white font-bold mb-2">Raw API Data:</h4>
+        <pre className="text-green-400 text-xs">
+          {JSON.stringify(planner, null, 2)}
+        </pre>
+      </div> 
+      */}
     </DashboardLayout>
   );
 };
