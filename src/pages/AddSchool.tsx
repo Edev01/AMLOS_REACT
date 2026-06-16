@@ -278,7 +278,7 @@ const AddSchool: React.FC = () => {
 
   return (
     <DashboardLayout activePage="add-school">
-      <div className="max-w-5xl mx-auto">
+      <div className="w-full">
       {/* Page Header */}
       <motion.div
         initial={{ opacity: 0, y: -16 }}

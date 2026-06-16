@@ -416,7 +416,7 @@ const AddStudent: React.FC = () => {
 
   return (
     <DashboardLayout activePage="add-student">
-      <div className="max-w-4xl mx-auto">
+      <div className="w-full">
       <motion.div
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
