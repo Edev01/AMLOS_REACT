@@ -293,20 +293,6 @@ const SchoolManagement: React.FC = () => {
       if (isSchoolRole && (isForbidden || mappedSchools.length === 0)) return { schools: [getMockSchool(user)], isForbidden };
       if (isForbidden) return { schools: [], isForbidden: true };
 
-      // Fetch real student counts per school (same approach as Dashboard)
-      if (mappedSchools.length > 0) {
-        const countPromises = mappedSchools.map((s) =>
-          api.get(`/api/auth/schools/${s.id}/students`)
-            .then(res => {
-              const data = res.data?.data?.students ?? res.data?.students ?? res.data?.data ?? res.data ?? [];
-              return Array.isArray(data) ? data.length : 0;
-            })
-            .catch(() => 0)
-        );
-        const counts = await Promise.all(countPromises);
-        mappedSchools = mappedSchools.map((s, i) => ({ ...s, students_count: counts[i] }));
-      }
-
       return { schools: mappedSchools, isForbidden: false };
     }
   });
@@ -425,8 +411,7 @@ const SchoolManagement: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="rounded-full bg-green-100 px-3 py-1 text-[10px] font-semibold text-green-700">Active</span>
                 <div className="flex items-center gap-1">
-                  {/* Eye (View) button commented out per requirements */}
-                  {/* <button onClick={() => navigate(`/admin/schools/${s.id}`)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="View"><Eye size={15} /></button> */}
+                  <button onClick={() => navigate(`/admin/schools/${s.id}`)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="View"><Eye size={15} /></button>
                   <button onClick={() => setDeletingSchool(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition" title="Delete"><Trash2 size={15} /></button>
                   <button onClick={() => setEditingSchool(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition" title="Edit"><Pencil size={15} /></button>
                 </div>

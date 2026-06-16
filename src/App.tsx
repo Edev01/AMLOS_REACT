@@ -21,6 +21,8 @@ import SchoolAdminDashboard from './pages/SchoolAdminDashboard';
 import SchoolDashboard from './pages/SchoolDashboard';
 import AddStudent from './pages/AddStudent';
 import StudentManagement from './pages/StudentManagement';
+import TeacherManagement from './pages/TeacherManagement';
+import AddTeacher from './pages/AddTeacher';
 import MainLayout from './components/MainLayout';
 
 function App() {
@@ -70,7 +72,8 @@ function App() {
             <Route path="/campus/:tenantId/dashboard" element={<SchoolAdminDashboard />} />
             <Route path="/campus/:tenantId/students" element={<StudentManagement />} />
             <Route path="/campus/:tenantId/students/add" element={<AddStudent />} />
-            <Route path="/campus/:tenantId/teachers" element={<div>Teachers Page</div>} />
+            <Route path="/campus/:tenantId/teachers" element={<TeacherManagement />} />
+            <Route path="/campus/:tenantId/teachers/add" element={<AddTeacher />} />
             <Route path="/campus/:tenantId/classes" element={<div>Classes Page</div>} />
             <Route path="/campus/:tenantId/planners" element={<AllPlanners />} />
             <Route path="/campus/:tenantId/planners/create" element={<CreatePlanner />} />
@@ -88,8 +91,8 @@ function App() {
             <Route path="/school/dashboard" element={<SchoolDashboard />} />
             <Route path="/school/students" element={<StudentManagement />} />
             <Route path="/school/students/add" element={<AddStudent />} />
-            <Route path="/school/teachers" element={<div>Teachers Page</div>} />
-            <Route path="/school/teachers/add" element={<div>Add Teacher</div>} />
+            <Route path="/school/teachers" element={<TeacherManagement />} />
+            <Route path="/school/teachers/add" element={<AddTeacher />} />
             <Route path="/school/classes" element={<div>Classes Page</div>} />
             <Route path="/school/planners" element={<AllPlanners />} />
             <Route path="/school/planners/create" element={<CreatePlanner />} />

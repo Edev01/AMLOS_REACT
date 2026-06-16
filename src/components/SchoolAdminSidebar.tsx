@@ -94,7 +94,16 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
           { id: 'add-student', label: 'Add Student', path: `${basePath}/students/add` },
         ],
       },
-      // Strict Sidebar Minimization: Removed Teachers, Quizzes, Content, Academic/Curriculum, Analytics, and Settings per requirements.
+      {
+        id: 'teachers',
+        label: collapsed ? '' : 'Teachers',
+        icon: <BookOpen size={20} />,
+        children: [
+          { id: 'all-teachers', label: 'All Teachers', path: `${basePath}/teachers` },
+          { id: 'add-teacher', label: 'Add Teacher', path: `${basePath}/teachers/add` },
+        ],
+      },
+      // Strict Sidebar Minimization: Removed Quizzes, Content, Academic/Curriculum, Analytics, and Settings per requirements.
       ...(isSuperAdmin ? [{
         id: 'planner' as const,
         label: collapsed ? '' : 'Planner',
@@ -136,9 +145,9 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
           </div>
           {!collapsed && (
             <div className="overflow-hidden">
-              <h1 className="text-lg font-bold leading-tight text-white truncate">EduPortal</h1>
+              <h1 className="text-lg font-bold leading-tight text-white truncate">AMLOS</h1>
               <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase truncate">
-                {isSuperAdmin ? 'Super Admin' : 'School Admin'}
+                {isSuperAdmin ? 'SUPER ADMIN' : user?.role === 'SCHOOL' ? 'SCHOOL PORTAL' : 'ADMIN PORTAL'}
               </p>
             </div>
           )}

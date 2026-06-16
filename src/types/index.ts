@@ -278,8 +278,27 @@ export interface UpdateStudentPayload {
 export interface Teacher {
   id: string | number;
   username: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  subject?: string;
+  qualification?: string;
+  experience_years?: string | number;
+  salary?: string | number;
   school_id?: string;
   created_at?: string;
+}
+
+export interface CreateTeacherPayload {
+  username: string;
+  email: string;
+  password?: string;
+  subject?: string;
+  qualification?: string;
+  first_name: string;
+  last_name: string;
+  experience_years?: string | number;
+  salary?: string | number;
 }
 
 // --- Curriculum ---

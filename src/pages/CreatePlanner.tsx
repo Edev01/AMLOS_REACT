@@ -8,6 +8,8 @@ import { Subject, Chapter, SLO } from '../types';
 import EmptyState from '../components/EmptyState';
 import toast from 'react-hot-toast';
 import { ArrowLeft, ArrowRight, Check, BookOpen, Calculator, FlaskConical, Globe, Loader2, ChevronDown, Calendar, RefreshCw, LayoutList, SlidersHorizontal, CheckCircle2 } from 'lucide-react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const steps = [
   { n: 1, title: 'Planner Basic Info', sub: 'Set basic details' },
@@ -68,6 +70,7 @@ const CreatePlanner: React.FC = () => {
     max_study_time_daily: '120',
     grade: '',
     mode: 'PARALLEL',
+    weekends_off: false,
   });
 
   // Subjects
@@ -330,7 +333,36 @@ const CreatePlanner: React.FC = () => {
     };
   };
 
-  const setFormField = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+  const setFormField = (k: string, v: any) => {
+    if (k === 'start_date' || k === 'end_date') {
+      if (v && (form as any).weekends_off) {
+        const day = new Date(v as string).getDay();
+        if (day === 0 || day === 6) {
+          toast.error('Weekends are disabled. Please select a weekday.', { id: 'weekend-error' });
+          return;
+        }
+      }
+    }
+    
+    if (k === 'weekends_off' && v === true) {
+      if (form.start_date) {
+        const sd = new Date(form.start_date).getDay();
+        if (sd === 0 || sd === 6) {
+          toast.error('Start Date is a weekend. Please select a weekday.', { id: 'weekend-error-sd' });
+          setForm(p => ({ ...p, start_date: '' }));
+        }
+      }
+      if (form.end_date) {
+        const ed = new Date(form.end_date).getDay();
+        if (ed === 0 || ed === 6) {
+          toast.error('End Date is a weekend. Please select a weekday.', { id: 'weekend-error-ed' });
+          setForm(p => ({ ...p, end_date: '' }));
+        }
+      }
+    }
+    
+    setForm(p => ({ ...p, [k]: v }));
+  };
 
   // SEQUENTIAL mode helpers
   const moveSubjectOrder = (index: number, direction: 'up' | 'down') => {
@@ -615,8 +647,72 @@ const CreatePlanner: React.FC = () => {
                   ))}
                 </select>
               </div>
-              {field('Start Date', 'start_date', '', 'date')}
-              {field('End Date', 'end_date', '', 'date')}
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex w-full">
+                  <DatePicker
+                    wrapperClassName="w-full"
+                    selected={form.start_date ? new Date(form.start_date) : null}
+                    onChange={(date) => {
+                      const localDate = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0] : '';
+                      setFormField('start_date', localDate);
+                    }}
+                    filterDate={(form as any).weekends_off ? (date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    placeholderText="Select start date"
+                    dateFormat="yyyy-MM-dd"
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  End Date <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex w-full">
+                  <DatePicker
+                    wrapperClassName="w-full"
+                    selected={form.end_date ? new Date(form.end_date) : null}
+                    onChange={(date) => {
+                      const localDate = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0] : '';
+                      setFormField('end_date', localDate);
+                    }}
+                    filterDate={(form as any).weekends_off ? (date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
+                    minDate={form.start_date ? new Date(form.start_date) : undefined}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    placeholderText="Select end date"
+                    dateFormat="yyyy-MM-dd"
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-transparent select-none">
+                  Spacer
+                </label>
+                <div className="flex items-center justify-between w-full rounded-lg border border-gray-200 bg-white px-4 h-[42px]">
+                  <h3 className="text-sm text-gray-700">Weekends Off</h3>
+                  <button
+                    type="button"
+                    onClick={() => setFormField('weekends_off', !(form as any).weekends_off)}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      (form as any).weekends_off ? 'bg-blue-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        (form as any).weekends_off ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
               {field('Min Study Time Daily (min)', 'min_study_time_daily', '30', 'number')}
               {field('Max Study Time Daily (min)', 'max_study_time_daily', '120', 'number')}
               <div className="md:col-span-2 lg:col-span-3">

@@ -56,15 +56,24 @@ const buildSearchItems = (role: string | undefined, campusId?: string | null) =>
     ? '/school/planners'
     : '/admin/planners';
 
+  const studentsPath = isSchoolAdmin
+    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/students`
+    : '/school/students';
+
+  const teachersPath = isSchoolAdmin
+    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/teachers`
+    : '/school/teachers';
+
   const items = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, path: dashPath, roles: ['all'] },
     { id: 'schools', label: 'All Schools', icon: <School size={16} />, path: '/admin/schools', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'add-school', label: 'Add School', icon: <School size={16} />, path: '/admin/schools/add', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { id: 'users', label: 'User Management', icon: <Users size={16} />, path: '#', roles: ['all'] },
-    { id: 'planners', label: 'All Planners', icon: <CalendarDays size={16} />, path: plannersPath, roles: ['all'] },
-    { id: 'create-planner', label: 'Create Planner', icon: <ClipboardList size={16} />, path: `${plannersPath}/create`, roles: ['all'] },
-    { id: 'content', label: 'Content Management', icon: <FileText size={16} />, path: '#', roles: ['all'] },
-    { id: 'settings', label: 'Settings', icon: <Settings size={16} />, path: '#', roles: ['all'] },
+    { id: 'planners', label: 'All Planners', icon: <CalendarDays size={16} />, path: plannersPath, roles: ['SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'create-planner', label: 'Create Planner', icon: <ClipboardList size={16} />, path: `${plannersPath}/create`, roles: ['SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'all-students', label: 'All Students', icon: <Users size={16} />, path: studentsPath, roles: ['SCHOOL', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'add-student', label: 'Add Student', icon: <Users size={16} />, path: `${studentsPath}/add`, roles: ['SCHOOL', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'all-teachers', label: 'All Teachers', icon: <Users size={16} />, path: teachersPath, roles: ['SCHOOL', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'add-teacher', label: 'Add Teacher', icon: <Users size={16} />, path: `${teachersPath}/add`, roles: ['SCHOOL', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
   ];
 
   return items.filter(item =>

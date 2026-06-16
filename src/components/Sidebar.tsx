@@ -160,6 +160,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
             { id: 'add-student', label: 'Add Student', path: '/school/students/add' },
           ],
         },
+        { 
+          id: 'teachers', 
+          label: 'Teachers', 
+          icon: <BookOpen size={18} />,
+          children: [
+            { id: 'all-teachers', label: 'All Teachers', path: '/school/teachers' },
+            { id: 'add-teacher', label: 'Add Teacher', path: '/school/teachers/add' },
+          ],
+        },
         // Strict Sidebar Minimization: Removed Teachers, Quizzes, Content, Academic/Curriculum, Analytics, and Settings per requirements.
       ];
     }
@@ -173,6 +182,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
         children: [
           { id: 'all-students', label: 'All Students', path: '/school/students' },
           { id: 'add-student', label: 'Create Student', path: '/school/students/add' },
+        ],
+      },
+      { 
+        id: 'teachers', 
+        label: 'Teachers', 
+        icon: <BookOpen size={18} />,
+        children: [
+          { id: 'all-teachers', label: 'All Teachers', path: '/school/teachers' },
+          { id: 'add-teacher', label: 'Add Teacher', path: '/school/teachers/add' },
         ],
       },
     ];
@@ -210,7 +228,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           <div className="overflow-hidden">
             <h1 className="text-lg font-bold leading-tight text-white truncate">AMLOS</h1>
             <p className="text-[11px] text-slate-400 font-medium tracking-wide truncate">
-              {isSuperAdmin ? 'SUPER ADMIN' : isTenantContext ? tenant.campusName?.toUpperCase() || 'CAMPUS' : 'ADMIN PORTAL'}
+              {isSuperAdmin ? 'SUPER ADMIN' : user?.role === 'SCHOOL' ? 'SCHOOL PORTAL' : isTenantContext ? tenant.campusName?.toUpperCase() || 'CAMPUS' : 'ADMIN PORTAL'}
             </p>
           </div>
         )}
