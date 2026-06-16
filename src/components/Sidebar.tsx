@@ -47,6 +47,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
   // Detect if we're in tenant context
   const tenantId = params.tenantId || tenant.campusId;
   const isTenantContext = location.pathname.startsWith('/campus/');
+  const role = user?.role;
+  const portalLabel = isSuperAdmin
+    ? 'SUPER ADMIN'
+    : role === 'SCHOOL'
+      ? 'SCHOOL PORTAL'
+      : role === 'TEACHER'
+        ? 'TEACHER PORTAL'
+        : isTenantContext
+          ? tenant.campusName?.toUpperCase() || 'CAMPUS'
+          : 'ADMIN PORTAL';
   
   // Ensure this component re-renders when the user role changes
   useEffect(() => {
@@ -228,7 +238,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           <div className="overflow-hidden">
             <h1 className="text-lg font-bold leading-tight text-white truncate">AMLOS</h1>
             <p className="text-[11px] text-slate-400 font-medium tracking-wide truncate">
-              {isSuperAdmin ? 'SUPER ADMIN' : user?.role === 'SCHOOL' ? 'SCHOOL PORTAL' : isTenantContext ? tenant.campusName?.toUpperCase() || 'CAMPUS' : 'ADMIN PORTAL'}
+              {portalLabel}
             </p>
           </div>
         )}

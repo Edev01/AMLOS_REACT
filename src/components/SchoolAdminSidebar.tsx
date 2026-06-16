@@ -43,6 +43,14 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
   
   // Get tenant ID from URL
   const tenantId = params.tenantId || tenant.campusId || '';
+  const role = user?.role;
+  const portalLabel = isSuperAdmin
+    ? 'SUPER ADMIN'
+    : role === 'SCHOOL'
+      ? 'SCHOOL PORTAL'
+      : role === 'TEACHER'
+        ? 'TEACHER PORTAL'
+        : 'ADMIN PORTAL';
   
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     students: false,
@@ -147,7 +155,7 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
             <div className="overflow-hidden">
               <h1 className="text-lg font-bold leading-tight text-white truncate">AMLOS</h1>
               <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase truncate">
-                {isSuperAdmin ? 'SUPER ADMIN' : user?.role === 'SCHOOL' ? 'SCHOOL PORTAL' : 'ADMIN PORTAL'}
+                {portalLabel}
               </p>
             </div>
           )}
