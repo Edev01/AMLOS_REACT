@@ -279,14 +279,20 @@ export interface Teacher {
   id: string | number;
   username: string;
   email?: string;
+  full_name?: string;
+  name?: string;
   first_name?: string;
   last_name?: string;
+  phone?: string;
+  teacher_id?: string | number;
+  dob?: string;
   subject?: string;
   qualification?: string;
   experience_years?: string | number;
   salary?: string | number;
   school_id?: string;
   created_at?: string;
+  [key: string]: any;
 }
 
 export interface CreateTeacherPayload {
@@ -297,6 +303,18 @@ export interface CreateTeacherPayload {
   qualification?: string;
   first_name: string;
   last_name: string;
+  experience_years?: string | number;
+  salary?: string | number;
+}
+
+export interface UpdateTeacherPayload {
+  teacher_id?: string | number;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  subject?: string;
+  qualification?: string;
   experience_years?: string | number;
   salary?: string | number;
 }

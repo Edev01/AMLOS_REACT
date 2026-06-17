@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useEffect, useRef, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '../components/DashboardLayout';
@@ -11,6 +11,15 @@ import toast from 'react-hot-toast';
 
 const icons = ['🏫', '🎓', '🌿', '📚', '🏛️', '🎒'];
 const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
+const SCHOOLS_PAGE_SIZE = 9;
+
+interface SchoolsPage {
+  schools: SchoolType[];
+  isForbidden: boolean;
+  isServerPaginated: boolean;
+  nextPage?: number;
+  totalCount?: number;
+}
 
 const flattenObject = (obj: any, prefix = ''): Record<string, any> => {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {};
@@ -49,6 +58,70 @@ const normalizeSchool = (raw: any): SchoolType => {
   const emailFromDeepScan = Object.values(flat).find((v) => typeof v === 'string' && EMAIL_RE_STRICT.test(v)) as string | undefined;
   const addressEmail = typeof raw.address === 'string' ? raw.address.match(EMAIL_RE_LOOSE)?.[0] : undefined;
   return { ...raw, principal_name: principal, email: emailFromKeys || emailFromDeepScan || addressEmail };
+};
+
+const getNumber = (...values: any[]): number | undefined => {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return undefined;
+};
+
+const parseSchoolsResponse = (payload: any, currentPage: number) => {
+  let rawList: any[] = [];
+  let meta: any = null;
+
+  if (Array.isArray(payload)) {
+    rawList = payload;
+  } else if (Array.isArray(payload?.results)) {
+    rawList = payload.results;
+    meta = payload;
+  } else if (Array.isArray(payload?.data?.results)) {
+    rawList = payload.data.results;
+    meta = payload.data;
+  } else if (Array.isArray(payload?.data?.schools)) {
+    rawList = payload.data.schools;
+    meta = payload.data;
+  } else if (Array.isArray(payload?.schools)) {
+    rawList = payload.schools;
+    meta = payload;
+  } else if (Array.isArray(payload?.data)) {
+    rawList = payload.data;
+    meta = payload;
+  }
+
+  const hasPaginationMeta = Boolean(
+    meta &&
+      ('next' in meta ||
+        'previous' in meta ||
+        'count' in meta ||
+        'total' in meta ||
+        'total_count' in meta ||
+        'total_pages' in meta ||
+        'last_page' in meta)
+  );
+  const isServerPaginated = hasPaginationMeta && rawList.length <= SCHOOLS_PAGE_SIZE;
+  const total = getNumber(meta?.count, meta?.total, meta?.total_count);
+
+  if (!isServerPaginated) {
+    return {
+      rawList,
+      isServerPaginated: false,
+      nextPage: undefined,
+      totalCount: rawList.length,
+    };
+  }
+
+  const explicitNextPage = getNumber(meta.next_page, meta.nextPage);
+  const totalPages = getNumber(meta.total_pages, meta.last_page);
+  let nextPage = explicitNextPage;
+
+  if (!nextPage && meta.next) nextPage = currentPage + 1;
+  if (!nextPage && totalPages && currentPage < totalPages) nextPage = currentPage + 1;
+  if (!nextPage && total && currentPage * SCHOOLS_PAGE_SIZE < total) nextPage = currentPage + 1;
+
+  return { rawList, isServerPaginated: true, nextPage, totalCount: total };
 };
 
 const getMockSchool = (user: any): SchoolType => ({
@@ -265,36 +338,91 @@ const SchoolManagement: React.FC = () => {
   const [filter, setFilter] = useState<'active' | 'inactive'>('active');
   const [editingSchool, setEditingSchool] = useState<SchoolType | null>(null);
   const [deletingSchool, setDeletingSchool] = useState<SchoolType | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [visibleCount, setVisibleCount] = useState(SCHOOLS_PAGE_SIZE);
 
   const isSchoolRole = user?.role === 'SCHOOL';
+  const trimmedSearch = search.trim();
 
-  const { data: queryData, isLoading } = useQuery({
-    queryKey: ['schools', isSchoolRole],
-    queryFn: async () => {
+  const {
+    data: queryData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery<SchoolsPage>({
+    queryKey: ['schools', isSchoolRole, trimmedSearch],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const page = Number(pageParam) || 1;
       let isForbidden = false;
-      let mappedSchools: SchoolType[] = [];
+
       if (isSchoolRole) {
         try {
           const profileRes = await api.get('/api/auth/school/profile');
-          if (profileRes.data) return { schools: [normalizeSchool(profileRes.data)], isForbidden: false };
+          if (profileRes.data) {
+            return {
+              schools: [normalizeSchool(profileRes.data)],
+              isForbidden: false,
+              isServerPaginated: false,
+              totalCount: 1,
+            };
+          }
         } catch (err: any) {
           if (err?.response?.status === 403) isForbidden = true;
         }
       }
+
       try {
-        const r = await api.get('/api/auth/schools');
-        const d = r.data;
-        const rawList = Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
-        mappedSchools = rawList.map(normalizeSchool);
+        const response = await api.get('/api/auth/schools', {
+          params: {
+            page,
+            page_size: SCHOOLS_PAGE_SIZE,
+            limit: SCHOOLS_PAGE_SIZE,
+            offset: (page - 1) * SCHOOLS_PAGE_SIZE,
+            search: trimmedSearch || undefined,
+            q: trimmedSearch || undefined,
+          },
+        });
+        const parsed = parseSchoolsResponse(response.data, page);
+
+        return {
+          schools: parsed.rawList.map(normalizeSchool),
+          isForbidden: false,
+          isServerPaginated: parsed.isServerPaginated,
+          nextPage: parsed.nextPage,
+          totalCount: parsed.totalCount,
+        };
       } catch (err: any) {
         if (err?.response?.status === 403) isForbidden = true;
         else throw err;
       }
-      if (isSchoolRole && (isForbidden || mappedSchools.length === 0)) return { schools: [getMockSchool(user)], isForbidden };
-      if (isForbidden) return { schools: [], isForbidden: true };
 
-      return { schools: mappedSchools, isForbidden: false };
-    }
+      if (isSchoolRole && isForbidden) {
+        return {
+          schools: [getMockSchool(user)],
+          isForbidden,
+          isServerPaginated: false,
+          totalCount: 1,
+        };
+      }
+      if (isForbidden) {
+        return {
+          schools: [],
+          isForbidden: true,
+          isServerPaginated: false,
+          totalCount: 0,
+        };
+      }
+
+      return {
+        schools: [],
+        isForbidden: false,
+        isServerPaginated: false,
+        totalCount: 0,
+      };
+    },
+    getNextPageParam: (lastPage) => lastPage.nextPage,
   });
 
   // ─── Delete Mutation ──────────────────────────────────────────
@@ -304,7 +432,6 @@ const SchoolManagement: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schools'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
       toast.success('School deleted successfully! 🗑️');
       setDeletingSchool(null);
     },
@@ -321,7 +448,6 @@ const SchoolManagement: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schools'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
       toast.success('School updated successfully! ✅');
       setEditingSchool(null);
     },
@@ -331,14 +457,59 @@ const SchoolManagement: React.FC = () => {
     },
   });
 
-  const schools = queryData?.schools || [];
-  const isForbidden = queryData?.isForbidden || false;
+  const schoolMap = new Map<string | number, SchoolType>();
+  queryData?.pages.forEach((page) => {
+    page.schools.forEach((school) => {
+      if (school?.id !== undefined && school?.id !== null) schoolMap.set(school.id, school);
+    });
+  });
+
+  const schools = Array.from(schoolMap.values());
+  const isForbidden = queryData?.pages.some((page) => page.isForbidden) || false;
+  const isServerPaginated = queryData?.pages.some((page) => page.isServerPaginated) || false;
   const loading = isLoading;
 
   const filtered = schools.filter(s => {
     const q = search.toLowerCase();
     return !q || (s.school_name || '').toLowerCase().includes(q) || (s.principal_name || '').toLowerCase().includes(q) || String(s.id).includes(q);
   });
+  const visibleSchools = isServerPaginated ? filtered : filtered.slice(0, visibleCount);
+  const canLoadMore = isServerPaginated ? Boolean(hasNextPage) : visibleCount < filtered.length;
+
+  useEffect(() => {
+    setVisibleCount(SCHOOLS_PAGE_SIZE);
+  }, [trimmedSearch, filter, isSchoolRole]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || loading || isForbidden || !canLoadMore) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+
+        if (isServerPaginated) {
+          if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+          return;
+        }
+
+        setVisibleCount((current) => Math.min(current + SCHOOLS_PAGE_SIZE, filtered.length));
+      },
+      { rootMargin: '600px 0px' }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [
+    canLoadMore,
+    fetchNextPage,
+    filtered.length,
+    hasNextPage,
+    isFetchingNextPage,
+    isForbidden,
+    isServerPaginated,
+    loading,
+  ]);
 
   return (
     <DashboardLayout activePage="all-schools">
@@ -391,34 +562,39 @@ const SchoolManagement: React.FC = () => {
       ) : filtered.length === 0 && !isForbidden ? (
         <div className="rounded-2xl border bg-white p-12 text-center text-gray-500">No schools found.</div>
       ) : !isForbidden && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {filtered.map((s, i) => (
-            <div key={s.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-              <div className="flex items-start gap-3 mb-3">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${bgs[i % bgs.length]}`}>{icons[i % icons.length]}</div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-bold text-gray-900 truncate">{s.school_name || 'Unnamed'}</h3>
-                  <p className="text-xs text-gray-400 truncate">Principal Name: {s.principal_name || 'N/A'}</p>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {visibleSchools.map((s, i) => (
+              <div key={s.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${bgs[i % bgs.length]}`}>{icons[i % icons.length]}</div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base font-bold text-gray-900 truncate">{s.school_name || 'Unnamed'}</h3>
+                    <p className="text-xs text-gray-400 truncate">Principal Name: {s.principal_name || 'N/A'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 mb-3"><MapPin size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.address || 'N/A'}</p></div>
+                <div className="flex items-center gap-1.5 mb-3"><Mail size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.email || 'N/A'}</p></div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{s.students_count ?? 0}</span></div>
+                  {/* Teacher badge commented out per requirements */}
+                  {/* <div className="flex items-center gap-1.5 rounded-lg bg-pink-100 px-3 py-1.5"><GraduationCap size={12} className="text-pink-600" /><span className="text-xs font-bold text-pink-700">{s.teachers_count ?? 0}</span></div> */}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-[10px] font-semibold text-green-700">Active</span>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => navigate(`/admin/schools/${s.id}`, { state: { school: s } })} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="View"><Eye size={15} /></button>
+                    <button onClick={() => setDeletingSchool(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition" title="Delete"><Trash2 size={15} /></button>
+                    <button onClick={() => setEditingSchool(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition" title="Edit"><Pencil size={15} /></button>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 mb-3"><MapPin size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.address || 'N/A'}</p></div>
-              <div className="flex items-center gap-1.5 mb-3"><Mail size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.email || 'N/A'}</p></div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{s.students_count ?? 0}</span></div>
-                {/* Teacher badge commented out per requirements */}
-                {/* <div className="flex items-center gap-1.5 rounded-lg bg-pink-100 px-3 py-1.5"><GraduationCap size={12} className="text-pink-600" /><span className="text-xs font-bold text-pink-700">{s.teachers_count ?? 0}</span></div> */}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="rounded-full bg-green-100 px-3 py-1 text-[10px] font-semibold text-green-700">Active</span>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => navigate(`/admin/schools/${s.id}`)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="View"><Eye size={15} /></button>
-                  <button onClick={() => setDeletingSchool(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition" title="Delete"><Trash2 size={15} /></button>
-                  <button onClick={() => setEditingSchool(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition" title="Edit"><Pencil size={15} /></button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <div ref={loadMoreRef} className="flex min-h-12 items-center justify-center py-4">
+            {isFetchingNextPage && <Loader2 size={22} className="animate-spin text-blue-600" />}
+          </div>
+        </>
       )}
 
       {/* ─── Modals ──────────────────────────────────────────── */}

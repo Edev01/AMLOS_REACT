@@ -356,7 +356,7 @@ const AllPlanners: React.FC = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
-      // Fetch original planner to preserve complex fields (like slo_ids, subjects) 
+      // Fetch original planner to preserve complex fields (like slo_ids, subjects)
       // in case the backend requires a full object replacement.
       let originalPlanner: any = {};
       try {

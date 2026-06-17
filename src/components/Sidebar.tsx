@@ -149,6 +149,23 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
             { id: 'all-planner', label: 'All Planner', path: '/admin/planners' },
           ],
         },
+        {
+          id: 'cms',
+          label: 'CMS Management',
+          icon: <FileText size={18} />,
+          children: [
+            { id: 'cms-dashboard', label: 'CMS Dashboard', path: '/admin/cms' },
+            { id: 'all-classes', label: 'All Classes', path: '/admin/cms/classes' },
+            { id: 'add-class', label: 'Add Class', path: '/admin/cms/classes/add' },
+            { id: 'all-subjects', label: 'All Subjects', path: '/admin/cms/subjects' },
+            { id: 'add-subject', label: 'Add Subject', path: '/admin/cms/subjects/add' },
+            { id: 'all-chapters', label: 'All Chapters', path: '/admin/cms/chapters' },
+            { id: 'add-chapter', label: 'Add Chapter', path: '/admin/cms/chapters/add' },
+            { id: 'all-slos', label: 'All SLOs', path: '/admin/cms/slos' },
+            { id: 'add-slo', label: 'Add SLO', path: '/admin/cms/slos/add' },
+            { id: 'upload-slos', label: 'Upload SLOs', path: '/admin/cms/slos/upload' },
+          ],
+        },
       ];
     }
 
@@ -377,7 +394,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                                 : 'text-slate-500 hover:text-white hover:bg-white/5'
                             }`}
                           >
-                            {child.label === 'All Schools' || child.label === 'All Planner' ? (
+                            {child.label.startsWith('All') || child.label.includes('Dashboard') ? (
                               <List size={14} />
                             ) : (
                               <Plus size={14} />

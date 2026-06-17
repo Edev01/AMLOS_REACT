@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
 import { School as SchoolType } from '../types';
@@ -66,29 +67,48 @@ const normalizeSchool = (raw: any): SchoolType => {
 const SchoolDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [school, setSchool] = useState<SchoolType|null>(null);
-  const [students, setStudents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const routeSchool = (location.state as { school?: SchoolType } | null)?.school;
+  const routeSchoolForCurrentId =
+    routeSchool && String(routeSchool.id) === id ? normalizeSchool(routeSchool) : undefined;
 
-  useEffect(() => {
-    setLoading(true);
-    // Fetch School Data
-    api.get('/api/auth/schools').then(r => {
-      const rawList = Array.isArray(r.data) ? r.data : r.data?.results ?? r.data?.data ?? [];
+  const { data: queriedSchool } = useQuery<SchoolType | null>({
+    queryKey: ['school-detail', id],
+    queryFn: async ({ signal }) => {
+      if (!id) return null;
+      if (routeSchoolForCurrentId) return routeSchoolForCurrentId;
+
+      const response = await api.get('/api/auth/schools', { signal });
+      const rawList = Array.isArray(response.data)
+        ? response.data
+        : response.data?.results ?? response.data?.data ?? [];
       const found = rawList.find((s: any) => String(s.id) === id);
-      if (found) setSchool(normalizeSchool(found));
-    }).catch(() => {});
 
-    // Fetch Students Data for this school
-    api.get(`/api/auth/schools/${id}/students`).then(res => {
-      const data = res.data?.data?.students ?? res.data?.students ?? res.data?.data ?? res.data ?? [];
-      setStudents(Array.isArray(data) ? data : []);
-      setLoading(false);
-    }).catch(() => {
-      setStudents([]);
-      setLoading(false);
-    });
-  }, [id]);
+      return found ? normalizeSchool(found) : null;
+    },
+    enabled: Boolean(id),
+    initialData: routeSchoolForCurrentId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const school = routeSchoolForCurrentId ?? queriedSchool;
+
+  const { data: students = [], isLoading: loading } = useQuery<any[]>({
+    queryKey: ['school-students', id],
+    queryFn: async ({ signal }) => {
+      if (!id) return [];
+
+      const response = await api.get(`/api/auth/schools/${id}/students`, { signal });
+      const data = response.data?.data?.students
+        ?? response.data?.students
+        ?? response.data?.data
+        ?? response.data
+        ?? [];
+
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: Boolean(id),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const stats = [
     { label:'Total Students', value: students.length, change:'', icon:<Users size={20}/>, bg:'bg-blue-100', ic:'text-blue-600' },
@@ -101,7 +121,14 @@ const SchoolDetail: React.FC = () => {
     <DashboardLayout activePage="all-schools">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => navigate('/schools')} className="rounded-lg p-2 hover:bg-gray-100 transition"><ArrowLeft size={20}/></button>
+        <button
+          onClick={() => navigate('/admin/schools')}
+          className="rounded-lg p-2 hover:bg-gray-100 transition"
+          aria-label="Back to all schools"
+          title="Back to all schools"
+        >
+          <ArrowLeft size={20}/>
+        </button>
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-2xl">🏫</div>
           <div>

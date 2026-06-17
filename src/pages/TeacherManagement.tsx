@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { teacherService } from '../api/services/teacherService';
 import { useAuth } from '../context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { Teacher as TeacherType } from '../types';
+import { Teacher as TeacherType, UpdateTeacherPayload } from '../types';
 import Modal from '../components/Modal';
 import {
   Plus,

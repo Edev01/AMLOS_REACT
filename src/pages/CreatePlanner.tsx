@@ -34,6 +34,35 @@ const GRADES = [
   { value: '12', label: '12th' },
 ];
 
+type GradeOption = {
+  value: string;
+  label: string;
+};
+
+const CMS_CLASSES_STORAGE_KEY = 'amlos_cms_classes';
+const DEFAULT_CMS_CLASS_VALUES = ['CSS', 'MDCAT', 'ECAT'];
+
+const formatGradeLabel = (value: string) => {
+  const knownGrade = GRADES.find((grade) => grade.value === value);
+  if (knownGrade) return knownGrade.label;
+  return value;
+};
+
+const readLocalCmsGradeOptions = (): GradeOption[] => {
+  try {
+    const raw = localStorage.getItem(CMS_CLASSES_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item) => String(item?.name || '').trim())
+      .filter(Boolean)
+      .map((value) => ({ value, label: formatGradeLabel(value) }));
+  } catch {
+    return [];
+  }
+};
+
 const STUDY_MODES = [
   { value: 'PARALLEL', label: 'Parallel (All subjects together)' },
   { value: 'SEQUENTIAL', label: 'Sequential (One subject at a time)' },
@@ -77,6 +106,27 @@ const CreatePlanner: React.FC = () => {
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
+
+  const gradeOptions = React.useMemo<GradeOption[]>(() => {
+    const merged = new Map<string, GradeOption>();
+    const addGrade = (value: string, label?: string) => {
+      const normalized = String(value || '').trim();
+      if (!normalized || merged.has(normalized)) return;
+      merged.set(normalized, { value: normalized, label: label || formatGradeLabel(normalized) });
+    };
+
+    GRADES.forEach((grade) => addGrade(grade.value, grade.label));
+    DEFAULT_CMS_CLASS_VALUES.forEach((value) => addGrade(value, value));
+    readLocalCmsGradeOptions().forEach((grade) => addGrade(grade.value, grade.label));
+    allSubjects.forEach((subject) => addGrade(subject.grade || ''));
+
+    return Array.from(merged.values());
+  }, [allSubjects]);
+
+  const selectedGradeLabel = React.useMemo(
+    () => gradeOptions.find((grade) => grade.value === form.grade)?.label || form.grade || '',
+    [gradeOptions, form.grade]
+  );
 
   // Chapters (fetched per subject)
   const [chaptersBySubject, setChaptersBySubject] = useState<Record<number, Chapter[]>>({});
@@ -627,7 +677,7 @@ const CreatePlanner: React.FC = () => {
                   className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="">Select Grade</option>
-                  {(GRADES || []).map(g => (
+                  {(gradeOptions || []).map(g => (
                     <option key={g?.value || ''} value={g?.value || ''}>{g?.label || ''}</option>
                   ))}
                 </select>
@@ -656,11 +706,11 @@ const CreatePlanner: React.FC = () => {
                   <DatePicker
                     wrapperClassName="w-full"
                     selected={form.start_date ? new Date(form.start_date) : null}
-                    onChange={(date) => {
+                    onChange={(date: Date | null) => {
                       const localDate = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0] : '';
                       setFormField('start_date', localDate);
                     }}
-                    filterDate={(form as any).weekends_off ? (date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
+                    filterDate={(form as any).weekends_off ? (date: Date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
                     className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                     placeholderText="Select start date"
                     dateFormat="yyyy-MM-dd"
@@ -677,11 +727,11 @@ const CreatePlanner: React.FC = () => {
                   <DatePicker
                     wrapperClassName="w-full"
                     selected={form.end_date ? new Date(form.end_date) : null}
-                    onChange={(date) => {
+                    onChange={(date: Date | null) => {
                       const localDate = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0] : '';
                       setFormField('end_date', localDate);
                     }}
-                    filterDate={(form as any).weekends_off ? (date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
+                    filterDate={(form as any).weekends_off ? (date: Date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
                     minDate={form.start_date ? new Date(form.start_date) : undefined}
                     className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                     placeholderText="Select end date"
@@ -774,7 +824,7 @@ const CreatePlanner: React.FC = () => {
               <div className="left">
                 <h2 className="text-lg font-bold text-gray-900 mb-2">Select Subjects</h2>
             <p className="text-sm text-gray-500 mb-6">
-              Grade {form.grade ? `${form.grade}th` : ''} — Selected: {selectedSubjects?.length || 0} subjects
+              Grade {selectedGradeLabel || 'selected'} — Selected: {selectedSubjects?.length || 0} subjects
             </p>
               </div>
               <div className="right flex items-start">
@@ -1222,7 +1272,7 @@ const CreatePlanner: React.FC = () => {
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Grade</p>
                     <p className="text-sm font-semibold text-gray-900">
-                      {(GRADES || []).find(g => g?.value === form.grade)?.label || form.grade || '—'}
+                      {selectedGradeLabel || '—'}
                     </p>
                   </div>
                   <div>
