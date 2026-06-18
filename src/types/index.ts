@@ -58,6 +58,7 @@ export interface User {
   username?: string;
   role: Role;
   school_id?: string;
+  school_name?: string;
   campus_id?: string;      // Multi-tenant: current campus tenant
   campus_name?: string;    // Display name for UI
   active_tenant_id?: string; // Alias for campus_id
@@ -386,6 +387,7 @@ export interface AuthResponse {
     // Multi-tenant fields
     campus_id?: string;
     school_id?: string;
+    school_name?: string;
     tenant_id?: string;    // Alternative field name
     // Access control
     access_level?: 'SUPER' | 'ADMIN' | 'USER';
@@ -399,6 +401,7 @@ export interface AuthResponse {
   user?: User;
   campus_id?: string;
   school_id?: string;
+  school_name?: string;
   access_level?: 'SUPER' | 'ADMIN' | 'USER';
 }
 

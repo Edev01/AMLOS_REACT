@@ -6,6 +6,7 @@ interface TenantContext {
   campusId: string | null;
   campusName: string | null;
   schoolId: string | null;
+  schoolName: string | null;
 }
 
 interface AuthContextType {
@@ -33,6 +34,7 @@ const STORAGE_KEYS = {
   CAMPUS_ID: 'campus_id',
   CAMPUS_NAME: 'campus_name',
   SCHOOL_ID: 'school_id',
+  SCHOOL_NAME: 'school_name',
 } as const;
 
 /**
@@ -71,6 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     campusId: null,
     campusName: null,
     schoolId: null,
+    schoolName: null,
   });
   // isLoading starts TRUE — prevents ProtectedRoute from redirecting
   // until we've finished checking localStorage for an existing session.
@@ -85,6 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const storedCampusId = localStorage.getItem(STORAGE_KEYS.CAMPUS_ID);
     const storedCampusName = localStorage.getItem(STORAGE_KEYS.CAMPUS_NAME);
     const storedSchoolId = localStorage.getItem(STORAGE_KEYS.SCHOOL_ID);
+    const storedSchoolName = localStorage.getItem(STORAGE_KEYS.SCHOOL_NAME);
 
     if (storedToken && storedUser) {
       try {
@@ -96,6 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           campusId: storedCampusId || parsedUser.campus_id || null,
           campusName: storedCampusName || parsedUser.campus_name || null,
           schoolId: storedSchoolId || parsedUser.school_id || null,
+          schoolName: storedSchoolName || parsedUser.school_name || null,
         });
       } catch {
         // Invalid stored data - clear everything
@@ -115,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
     setAuthToken(null);
     setUser(null);
-    setTenant({ campusId: null, campusName: null, schoolId: null });
+    setTenant({ campusId: null, campusName: null, schoolId: null, schoolName: null });
   }, []);
 
   /**
@@ -152,28 +157,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Mark login timestamp so axios interceptor won't redirect during grace window
     markLoginTimestamp();
 
+    const responseAny = data as any;
+    const dataAny = data.data as any;
+    const dataUserAny = dataAny?.user as any;
+
     // Extract tokens
-    const accessToken = data.data?.tokens?.access || data.access_token || data.access || '';
-    const refreshToken = data.data?.tokens?.refresh || data.refresh_token || data.refresh || '';
+    const accessToken = dataAny?.tokens?.access || data.access_token || data.access || '';
+    const refreshToken = dataAny?.tokens?.refresh || data.refresh_token || data.refresh || '';
     
     // Extract role
-    const role = (data.data?.user?.role || data.role) as Role;
+    const role = (dataUserAny?.role || data.role) as Role;
     if (!role) throw new Error('Login response did not include a role.');
 
     // Extract multi-tenant identifiers (defensive multi-path extraction)
-    const campusId = data.data?.campus_id || data.data?.tenant_id || data.campus_id || '';
+    const campusId = dataAny?.campus_id || dataAny?.tenant_id || data.campus_id || '';
     const schoolId =
-      data.data?.school_id ||
-      (data.data?.user as any)?.school_id ||
+      dataAny?.school_id ||
+      dataUserAny?.school_id ||
       data.school_id ||
       findSchoolIdDeep(data) ||
       '';
-    const campusName = data.data?.user?.campus_name || '';
+    const campusName = dataUserAny?.campus_name || '';
+    const schoolNameCandidate =
+      dataAny?.school_name ||
+      dataAny?.school?.school_name ||
+      dataAny?.school?.name ||
+      dataUserAny?.school_name ||
+      dataUserAny?.school?.school_name ||
+      dataUserAny?.school?.name ||
+      responseAny?.school_name ||
+      responseAny?.school?.school_name ||
+      responseAny?.school?.name ||
+      '';
+    const schoolName =
+      schoolNameCandidate ||
+      (schoolId && Number.isNaN(Number(schoolId)) ? String(schoolId) : '');
     
     // Extract access level from various possible response structures
-    const accessLevel = (data.data?.user?.access_level || 
-                        data.data?.user?.profile?.access_level ||
-                        data.data?.access_level ||
+    const accessLevel = (dataUserAny?.access_level || 
+                        dataUserAny?.profile?.access_level ||
+                        dataAny?.access_level ||
                         (role === 'SUPER_ADMIN' ? 'SUPER' : undefined));
 
     // Defensive: Handle case where backend returns user as just an ID (number) instead of full object
@@ -193,6 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       campus_id: campusId,
       school_id: schoolId,
       campus_name: campusName,
+      school_name: schoolName,
       active_tenant_id: campusId, // Alias for consistency
       access_level: accessLevel as 'SUPER' | 'ADMIN' | 'USER' | undefined,
       // Preserve any additional properties if user was a full object
@@ -207,12 +231,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (campusId) localStorage.setItem(STORAGE_KEYS.CAMPUS_ID, campusId);
     if (campusName) localStorage.setItem(STORAGE_KEYS.CAMPUS_NAME, campusName);
     localStorage.setItem(STORAGE_KEYS.SCHOOL_ID, schoolId);
+    if (schoolName) localStorage.setItem(STORAGE_KEYS.SCHOOL_NAME, schoolName);
+    else localStorage.removeItem(STORAGE_KEYS.SCHOOL_NAME);
 
     // ─── STEP 2: Set token on axios instance SYNCHRONOUSLY ───
     if (accessToken) setAuthToken(accessToken);
 
     if (import.meta.env.DEV) {
-      console.log('[AuthContext] login persisted:', { campusId, schoolId, campusName, role });
+      console.log('[AuthContext] login persisted:', { campusId, schoolId, campusName, schoolName, role });
     }
 
     // ─── STEP 3: Update React state (batched by React 18) ───
@@ -221,6 +247,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       campusId: campusId || null,
       campusName: campusName || null,
       schoolId: schoolId || null,
+      schoolName: schoolName || null,
     });
     // Do NOT touch isLoading here — it's already false after hydration.
     // Toggling it would cause ProtectedRoute to flash "Loading…" during navigation.
@@ -243,7 +270,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(STORAGE_KEYS.CAMPUS_ID, 'ALL');
     localStorage.setItem(STORAGE_KEYS.CAMPUS_NAME, 'System Wide');
     setUser(fakeUser);
-    setTenant({ campusId: 'ALL', campusName: 'System Wide', schoolId: null });
+    setTenant({ campusId: 'ALL', campusName: 'System Wide', schoolId: null, schoolName: null });
   }, []);
 
   const logout = useCallback(() => {

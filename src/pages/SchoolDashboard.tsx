@@ -26,11 +26,24 @@ const itemVariants = {
 };
 
 const SchoolDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, tenant } = useAuth();
   const navigate = useNavigate();
   const [greeting, setGreeting] = useState('Good morning');
   const [currentDate, setCurrentDate] = useState('');
   const [students, setStudents] = useState<Student[]>([]);
+  const rawSchoolId = tenant.schoolId || user?.school_id || '';
+  const schoolNameFromId =
+    rawSchoolId && /[A-Za-z]/.test(String(rawSchoolId)) ? String(rawSchoolId) : '';
+  const schoolDisplayName =
+    tenant.schoolName ||
+    user?.school_name ||
+    (user as any)?.school?.school_name ||
+    (user as any)?.school?.name ||
+    localStorage.getItem('school_name') ||
+    schoolNameFromId ||
+    user?.email ||
+    user?.username ||
+    'School Admin';
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -93,7 +106,7 @@ const SchoolDashboard: React.FC = () => {
         <h1 className="text-2xl font-bold text-slate-900">
           {greeting},{' '}
           <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            {user?.email || user?.username || 'School Admin'}
+            {schoolDisplayName}
           </span>
         </h1>
         <p className="text-slate-500 mt-1 text-sm">{currentDate}</p>

@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
 import { School as SchoolType } from '../types';
-import { ArrowLeft, Users, GraduationCap, ClipboardList, BookOpen } from 'lucide-react';
+import { ArrowLeft, Users, GraduationCap, Search } from 'lucide-react';
 const EMAIL_RE_STRICT = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
 const EMAIL_RE_LOOSE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i;
 
@@ -64,10 +64,21 @@ const normalizeSchool = (raw: any): SchoolType => {
   };
 };
 
+const getStudentName = (student: any) => {
+  const firstName = student.first_name || student.student_name || student.user?.first_name || student.user?.username || 'Unnamed';
+  const lastName = student.last_name || student.user?.last_name || '';
+  return `${firstName} ${lastName}`.trim();
+};
+
+const getStudentEmail = (student: any) => student.email || student.user?.email || 'N/A';
+const getStudentGrade = (student: any) => student.grade || student.class_name || 'N/A';
+const getStudentStatus = (student: any) => student.status || student.user?.status || 'active';
+
 const SchoolDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [studentSearch, setStudentSearch] = useState('');
   const routeSchool = (location.state as { school?: SchoolType } | null)?.school;
   const routeSchoolForCurrentId =
     routeSchool && String(routeSchool.id) === id ? normalizeSchool(routeSchool) : undefined;
@@ -113,9 +124,25 @@ const SchoolDetail: React.FC = () => {
   const stats = [
     { label:'Total Students', value: students.length, change:'', icon:<Users size={20}/>, bg:'bg-blue-100', ic:'text-blue-600' },
     { label:'Total Teachers', value:'--', change:'', icon:<GraduationCap size={20}/>, bg:'bg-green-100', ic:'text-green-600' },
-    { label:'Total Quizzes', value:'--', change:'', icon:<ClipboardList size={20}/>, bg:'bg-pink-100', ic:'text-pink-600' },
-    { label:'Active Classes', value:'--', change:'', icon:<BookOpen size={20}/>, bg:'bg-purple-100', ic:'text-purple-600' },
   ];
+
+  const filteredStudents = useMemo(() => {
+    const query = studentSearch.trim().toLowerCase();
+    if (!query) return students;
+
+    return students.filter((student) => {
+      const values = [
+        getStudentName(student),
+        getStudentEmail(student),
+        getStudentGrade(student),
+        getStudentStatus(student),
+        student.roll_number,
+        student.student_id,
+      ];
+
+      return values.some((value) => String(value ?? '').toLowerCase().includes(query));
+    });
+  }, [students, studentSearch]);
 
   return (
     <DashboardLayout activePage="all-schools">
@@ -139,7 +166,7 @@ const SchoolDetail: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {stats.map(s => (
           <div key={s.label} className="stat-card flex items-start gap-4">
             <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${s.bg}`}><span className={s.ic}>{s.icon}</span></div>
@@ -156,10 +183,19 @@ const SchoolDetail: React.FC = () => {
 
       {/* Students Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-8">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+        <div className="p-6 border-b border-gray-100 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Enrolled Students</h2>
             <p className="text-xs text-gray-500 mt-1">List of all students currently enrolled in this school.</p>
+          </div>
+          <div className="relative w-full lg:max-w-md">
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={studentSearch}
+              onChange={(event) => setStudentSearch(event.target.value)}
+              placeholder="Search students by name, email, grade..."
+              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+            />
           </div>
         </div>
         
@@ -170,6 +206,10 @@ const SchoolDetail: React.FC = () => {
         ) : students.length === 0 ? (
           <div className="text-center py-16 text-gray-500 text-sm">
             No students found for this school.
+          </div>
+        ) : filteredStudents.length === 0 ? (
+          <div className="text-center py-16 text-gray-500 text-sm">
+            No students match your search.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -183,29 +223,29 @@ const SchoolDetail: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {students.map((student, idx) => (
+                {filteredStudents.map((student, idx) => (
                   <tr key={student.id || idx} className="hover:bg-blue-50/50 transition-colors">
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-sm">
-                          {((student.first_name || student.student_name || student.user?.first_name || student.user?.username || 'U')[0]).toUpperCase()}
+                          {(getStudentName(student)[0] || 'U').toUpperCase()}
                         </div>
                         <span className="font-semibold text-gray-900 text-sm">
-                          {student.first_name || student.student_name || student.user?.first_name || student.user?.username || 'Unnamed'} {student.last_name || student.user?.last_name || ''}
+                          {getStudentName(student)}
                         </span>
                       </div>
                     </td>
                     <td className="py-4 px-6 text-sm text-gray-500">
-                      {student.email || student.user?.email || 'N/A'}
+                      {getStudentEmail(student)}
                     </td>
                     <td className="py-4 px-6 text-sm text-gray-500">
-                      {student.grade || student.class_name || 'N/A'}
+                      {getStudentGrade(student)}
                     </td>
                     <td className="py-4 px-6">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        (student.status || student.user?.status) === 'inactive' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                        getStudentStatus(student) === 'inactive' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
                       }`}>
-                        {(student.status || student.user?.status || 'active').toUpperCase()}
+                        {getStudentStatus(student).toUpperCase()}
                       </span>
                     </td>
                   </tr>

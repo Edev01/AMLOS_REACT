@@ -117,7 +117,24 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   const commandInputRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   
-  const initials = (user?.username || user?.email || 'AK')
+  const rawSchoolIdForDisplay = tenant.schoolId || user?.school_id || '';
+  const schoolIdDisplayFallback =
+    rawSchoolIdForDisplay && /[A-Za-z]/.test(String(rawSchoolIdForDisplay))
+      ? String(rawSchoolIdForDisplay)
+      : '';
+  const schoolPortalName: string =
+    user?.role === 'SCHOOL'
+      ? String(tenant.schoolName ||
+        user?.school_name ||
+        (user as any)?.school?.school_name ||
+        (user as any)?.school?.name ||
+        localStorage.getItem('school_name') ||
+        schoolIdDisplayFallback ||
+        '')
+      : '';
+  const identityLabel = String(schoolPortalName || user?.username || user?.email || 'AK');
+
+  const initials = identityLabel
     .split(/[@.\s]/)
     .filter(Boolean)
     .slice(0, 2)
@@ -180,6 +197,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
     TEACHER: 'Teacher',
   };
   const roleLabel = roleLabelMap[user?.role || ''] || 'Admin';
+  const profileTitle = schoolPortalName || user?.username || roleLabel;
+  const profileSubtitle = schoolPortalName || user?.email || 'admin@eduadmin.com';
 
   const searchItems = buildSearchItems(
     user?.role,
@@ -406,7 +425,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                 {/* Text (hidden on xs) */}
                 <div className="hidden sm:block text-right">
                   <p className="text-sm font-semibold text-slate-800 leading-tight">{roleLabel}</p>
-                  <p className="text-[11px] text-slate-400 leading-tight">{user?.email || 'admin@eduadmin.com'}</p>
+                  <p className="text-[11px] text-slate-400 leading-tight">{profileSubtitle}</p>
                 </div>
                 {/* Avatar */}
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue">
@@ -436,7 +455,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold text-slate-900 truncate">
-                            {user?.username || roleLabel}
+                            {profileTitle}
                           </p>
                           <p className="text-xs text-slate-500 truncate mt-0.5">{user?.email || 'admin@eduadmin.com'}</p>
                           <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent-blue/10 text-accent-blue">

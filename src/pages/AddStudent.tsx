@@ -112,10 +112,10 @@ const stepFields: FieldConfig[][] = [
   ],
   [
     { name: 'grade', label: 'Grade', placeholder: 'Select grade', icon: <BookOpen size={16} />, required: true, options: [
-      { value: '9th', label: '9th' },
-      { value: '10th', label: '10th' },
-      { value: '11th', label: '11th' },
-      { value: '12th', label: '12th' },
+      { value: '9', label: '9th' },
+      { value: '10', label: '10th' },
+      { value: '11', label: '11th' },
+      { value: '12', label: '12th' },
     ] },
     { name: 'section', label: 'Section', placeholder: 'Select section', icon: <Hash size={16} />, required: true, options: [
       { value: 'A', label: 'A' },
@@ -192,7 +192,7 @@ const AddStudent: React.FC = () => {
           first_name: values.firstName,
           last_name: values.lastName,
           roll_number: values.rollNumber,
-          grade: values.grade,
+          grade: values.grade.replace(/\D/g, ''),
           section: values.section,
           state: values.state,
           date_of_birth: values.dateOfBirth,

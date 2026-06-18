@@ -48,10 +48,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
   const tenantId = params.tenantId || tenant.campusId;
   const isTenantContext = location.pathname.startsWith('/campus/');
   const role = user?.role;
+  const rawSchoolIdForDisplay = tenant.schoolId || user?.school_id || '';
+  const schoolIdDisplayFallback =
+    rawSchoolIdForDisplay && /[A-Za-z]/.test(String(rawSchoolIdForDisplay))
+      ? String(rawSchoolIdForDisplay)
+      : '';
+  const schoolPortalName =
+    role === 'SCHOOL'
+      ? tenant.schoolName ||
+        user?.school_name ||
+        (user as any)?.school?.school_name ||
+        (user as any)?.school?.name ||
+        localStorage.getItem('school_name') ||
+        schoolIdDisplayFallback
+      : '';
   const portalLabel = isSuperAdmin
     ? 'SUPER ADMIN'
     : role === 'SCHOOL'
-      ? 'SCHOOL PORTAL'
+      ? schoolPortalName?.toUpperCase() || 'SCHOOL PORTAL'
       : role === 'TEACHER'
         ? 'TEACHER PORTAL'
         : isTenantContext
