@@ -21,8 +21,13 @@ import {
   ChevronLeft,
   AlertCircle,
   Save,
+  Calendar,
+  MapPin,
+  User,
+  Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import DashboardLayout from '../components/DashboardLayout';
 
 const icons = ['🎓', '📚', '🌟', '🏆', '📖', '🎯'];
 const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
@@ -63,6 +68,9 @@ const StudentManagement: React.FC = () => {
   const [editingStudent, setEditingStudent] = useState<StudentType | null>(null);
   const [editForm, setEditForm] = useState<Partial<UpdateStudentPayload> & { academic_year?: string }>({});
   const [editSaving, setEditSaving] = useState(false);
+
+  // View detail modal state
+  const [selectedStudent, setSelectedStudent] = useState<StudentType | null>(null);
 
   const schoolId = tenant.schoolId || user?.school_id;
   const tenantId = tenant.campusId || user?.campus_id;
@@ -228,7 +236,7 @@ const StudentManagement: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50 px-4 py-6 sm:px-6 lg:px-8">
+    <DashboardLayout activePage="students">
       <div className="mb-6">
         <select
           value={filter}
@@ -268,7 +276,8 @@ const StudentManagement: React.FC = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.03 }}
-            className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+            onClick={() => setSelectedStudent(s)}
+            className="cursor-pointer rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
           >
             <div className="flex items-start gap-3 mb-3">
               <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${bgs[i % bgs.length]}`}>
@@ -314,21 +323,30 @@ const StudentManagement: React.FC = () => {
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-semibold text-emerald-700">Active</span>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => toast.success('View detail coming soon.')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedStudent(s);
+                  }}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                   title="View"
                 >
                   <Eye size={15} />
                 </button>
                 <button
-                  onClick={() => handleDelete(s)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(s);
+                  }}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                   title="Delete"
                 >
                   <Trash2 size={15} />
                 </button>
                 <button
-                  onClick={() => openEdit(s)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEdit(s);
+                  }}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
                   title="Edit"
                 >
@@ -502,7 +520,161 @@ const StudentManagement: React.FC = () => {
           </div>
         </div>
       </Modal>
-    </div>
+
+      {/* Student Detail Modal */}
+      <Modal
+        isOpen={!!selectedStudent}
+        onClose={() => setSelectedStudent(null)}
+        title="Student Details"
+      >
+        {selectedStudent && (
+          <div className="space-y-6">
+            {/* Header Avatar and Basic Info */}
+            <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-gradient-to-br from-blue-50/50 to-indigo-50/50 border border-slate-100">
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-3xl shadow-md mb-3">
+                {((selectedStudent.full_name || 'U')[0]).toUpperCase()}
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">{selectedStudent.full_name || 'Unnamed'}</h3>
+              <p className="text-xs text-slate-400 mt-1">ID: {selectedStudent.student_id || selectedStudent.roll_number || 'N/A'}</p>
+              <span className="mt-2.5 rounded-full bg-emerald-100 px-3.5 py-1 text-xs font-semibold text-emerald-700">
+                Active Student
+              </span>
+            </div>
+
+            {/* Academic Information */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Academic Details</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                    <GraduationCap size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400">Class / Grade</p>
+                    <p className="text-sm font-semibold text-slate-800">{selectedStudent.class_grade || 'N/A'}</p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-600">
+                    <Hash size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400">Section</p>
+                    <p className="text-sm font-semibold text-slate-800">{selectedStudent.section || 'N/A'}</p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
+                    <BookOpen size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400">Roll Number</p>
+                    <p className="text-sm font-semibold text-slate-800">{selectedStudent.roll_number || selectedStudent.student_id || 'N/A'}</p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-pink-100 text-pink-600">
+                    <Clock size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400">Academic Year</p>
+                    <p className="text-sm font-semibold text-slate-800">{selectedStudent.academic_year || new Date().getFullYear().toString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Personal Information */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Personal Details</h4>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Mail size={16} className="text-slate-400" />
+                    <span className="text-xs font-medium text-slate-500">Email Address</span>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-800">{selectedStudent.email || 'N/A'}</span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <User size={16} className="text-slate-400" />
+                    <span className="text-xs font-medium text-slate-500">Username</span>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-800">{selectedStudent.username || 'N/A'}</span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={16} className="text-slate-400" />
+                    <span className="text-xs font-medium text-slate-500">Date of Birth</span>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-800">
+                    {selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    }) : 'N/A'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <MapPin size={16} className="text-slate-400" />
+                    <span className="text-xs font-medium text-slate-500">Province / State</span>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-800">{selectedStudent.state || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Guardian/Parent Information */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Guardian & Contact Details</h4>
+              <div className="p-4 rounded-xl bg-blue-50/30 border border-blue-100/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users size={16} className="text-indigo-500" />
+                    <span className="text-xs font-semibold text-slate-500">Guardian Name</span>
+                  </div>
+                  <span className="text-sm font-bold text-slate-800">{selectedStudent.guardian_name || 'N/A'}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Phone size={16} className="text-indigo-500" />
+                    <span className="text-xs font-semibold text-slate-500">Guardian Contact</span>
+                  </div>
+                  <span className="text-sm font-bold text-indigo-600">{selectedStudent.guardian_contact || selectedStudent.guardian_phone || 'N/A'}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Mail size={16} className="text-indigo-500" />
+                    <span className="text-xs font-semibold text-slate-500">Guardian Email</span>
+                  </div>
+                  <span className="text-sm font-bold text-slate-800">{selectedStudent.guardian_email || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setSelectedStudent(null)}
+                className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md hover:opacity-95"
+                style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 100%)' }}
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </DashboardLayout>
   );
 };
 

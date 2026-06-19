@@ -8,6 +8,8 @@ import { Subject, Chapter, SLO } from '../types';
 import EmptyState from '../components/EmptyState';
 import toast from 'react-hot-toast';
 import { ArrowLeft, ArrowRight, Check, BookOpen, Calculator, FlaskConical, Globe, Loader2, ChevronDown, Calendar, RefreshCw, LayoutList, SlidersHorizontal, CheckCircle2 } from 'lucide-react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const steps = [
   { n: 1, title: 'Planner Basic Info', sub: 'Set basic details' },
@@ -31,6 +33,35 @@ const GRADES = [
   { value: '11', label: '11th' },
   { value: '12', label: '12th' },
 ];
+
+type GradeOption = {
+  value: string;
+  label: string;
+};
+
+const CMS_CLASSES_STORAGE_KEY = 'amlos_cms_classes';
+const DEFAULT_CMS_CLASS_VALUES = ['CSS', 'MDCAT', 'ECAT'];
+
+const formatGradeLabel = (value: string) => {
+  const knownGrade = GRADES.find((grade) => grade.value === value);
+  if (knownGrade) return knownGrade.label;
+  return value;
+};
+
+const readLocalCmsGradeOptions = (): GradeOption[] => {
+  try {
+    const raw = localStorage.getItem(CMS_CLASSES_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item) => String(item?.name || '').trim())
+      .filter(Boolean)
+      .map((value) => ({ value, label: formatGradeLabel(value) }));
+  } catch {
+    return [];
+  }
+};
 
 const STUDY_MODES = [
   { value: 'PARALLEL', label: 'Parallel (All subjects together)' },
@@ -68,12 +99,34 @@ const CreatePlanner: React.FC = () => {
     max_study_time_daily: '120',
     grade: '',
     mode: 'PARALLEL',
+    weekends_off: false,
   });
 
   // Subjects
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
+
+  const gradeOptions = React.useMemo<GradeOption[]>(() => {
+    const merged = new Map<string, GradeOption>();
+    const addGrade = (value: string, label?: string) => {
+      const normalized = String(value || '').trim();
+      if (!normalized || merged.has(normalized)) return;
+      merged.set(normalized, { value: normalized, label: label || formatGradeLabel(normalized) });
+    };
+
+    GRADES.forEach((grade) => addGrade(grade.value, grade.label));
+    DEFAULT_CMS_CLASS_VALUES.forEach((value) => addGrade(value, value));
+    readLocalCmsGradeOptions().forEach((grade) => addGrade(grade.value, grade.label));
+    allSubjects.forEach((subject) => addGrade(subject.grade || ''));
+
+    return Array.from(merged.values());
+  }, [allSubjects]);
+
+  const selectedGradeLabel = React.useMemo(
+    () => gradeOptions.find((grade) => grade.value === form.grade)?.label || form.grade || '',
+    [gradeOptions, form.grade]
+  );
 
   // Chapters (fetched per subject)
   const [chaptersBySubject, setChaptersBySubject] = useState<Record<number, Chapter[]>>({});
@@ -330,7 +383,36 @@ const CreatePlanner: React.FC = () => {
     };
   };
 
-  const setFormField = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+  const setFormField = (k: string, v: any) => {
+    if (k === 'start_date' || k === 'end_date') {
+      if (v && (form as any).weekends_off) {
+        const day = new Date(v as string).getDay();
+        if (day === 0 || day === 6) {
+          toast.error('Weekends are disabled. Please select a weekday.', { id: 'weekend-error' });
+          return;
+        }
+      }
+    }
+    
+    if (k === 'weekends_off' && v === true) {
+      if (form.start_date) {
+        const sd = new Date(form.start_date).getDay();
+        if (sd === 0 || sd === 6) {
+          toast.error('Start Date is a weekend. Please select a weekday.', { id: 'weekend-error-sd' });
+          setForm(p => ({ ...p, start_date: '' }));
+        }
+      }
+      if (form.end_date) {
+        const ed = new Date(form.end_date).getDay();
+        if (ed === 0 || ed === 6) {
+          toast.error('End Date is a weekend. Please select a weekday.', { id: 'weekend-error-ed' });
+          setForm(p => ({ ...p, end_date: '' }));
+        }
+      }
+    }
+    
+    setForm(p => ({ ...p, [k]: v }));
+  };
 
   // SEQUENTIAL mode helpers
   const moveSubjectOrder = (index: number, direction: 'up' | 'down') => {
@@ -525,6 +607,13 @@ const CreatePlanner: React.FC = () => {
       toast.error('Please select at least one SLO');
       return;
     }
+    if (step === 3) {
+      const metrics = getSloMetrics();
+      if (metrics && metrics.isExceeded) {
+        toast.error('Daily study time limit exceeded. Please adjust limit or duration.');
+        return;
+      }
+    }
     if (step < 4) setStep(step + 1);
   };
 
@@ -588,7 +677,7 @@ const CreatePlanner: React.FC = () => {
                   className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="">Select Grade</option>
-                  {(GRADES || []).map(g => (
+                  {(gradeOptions || []).map(g => (
                     <option key={g?.value || ''} value={g?.value || ''}>{g?.label || ''}</option>
                   ))}
                 </select>
@@ -608,8 +697,72 @@ const CreatePlanner: React.FC = () => {
                   ))}
                 </select>
               </div>
-              {field('Start Date', 'start_date', '', 'date')}
-              {field('End Date', 'end_date', '', 'date')}
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex w-full">
+                  <DatePicker
+                    wrapperClassName="w-full"
+                    selected={form.start_date ? new Date(form.start_date) : null}
+                    onChange={(date: Date | null) => {
+                      const localDate = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0] : '';
+                      setFormField('start_date', localDate);
+                    }}
+                    filterDate={(form as any).weekends_off ? (date: Date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    placeholderText="Select start date"
+                    dateFormat="yyyy-MM-dd"
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  End Date <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex w-full">
+                  <DatePicker
+                    wrapperClassName="w-full"
+                    selected={form.end_date ? new Date(form.end_date) : null}
+                    onChange={(date: Date | null) => {
+                      const localDate = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0] : '';
+                      setFormField('end_date', localDate);
+                    }}
+                    filterDate={(form as any).weekends_off ? (date: Date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
+                    minDate={form.start_date ? new Date(form.start_date) : undefined}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    placeholderText="Select end date"
+                    dateFormat="yyyy-MM-dd"
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-transparent select-none">
+                  Spacer
+                </label>
+                <div className="flex items-center justify-between w-full rounded-lg border border-gray-200 bg-white px-4 h-[42px]">
+                  <h3 className="text-sm text-gray-700">Weekends Off</h3>
+                  <button
+                    type="button"
+                    onClick={() => setFormField('weekends_off', !(form as any).weekends_off)}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      (form as any).weekends_off ? 'bg-blue-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        (form as any).weekends_off ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
               {field('Min Study Time Daily (min)', 'min_study_time_daily', '30', 'number')}
               {field('Max Study Time Daily (min)', 'max_study_time_daily', '120', 'number')}
               <div className="md:col-span-2 lg:col-span-3">
@@ -671,7 +824,7 @@ const CreatePlanner: React.FC = () => {
               <div className="left">
                 <h2 className="text-lg font-bold text-gray-900 mb-2">Select Subjects</h2>
             <p className="text-sm text-gray-500 mb-6">
-              Grade {form.grade ? `${form.grade}th` : ''} — Selected: {selectedSubjects?.length || 0} subjects
+              Grade {selectedGradeLabel || 'selected'} — Selected: {selectedSubjects?.length || 0} subjects
             </p>
               </div>
               <div className="right flex items-start">
@@ -835,12 +988,85 @@ const CreatePlanner: React.FC = () => {
         )}
 
         {/* Step 3: Chapters & SLOs */}
-        {step === 3 && (
+        {step === 3 && (() => {
+          const metrics = getSloMetrics();
+          return (
           <div className="animate-fadeIn">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Select Chapters & SLOs</h2>
-            <p className="text-sm text-gray-500 mb-6">
-              Selected: {selectedSloIds?.length || 0} SLOs
-            </p>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Select Chapters & SLOs</h2>
+                <p className="text-sm text-gray-500">
+                  Selected: {selectedSloIds?.length || 0} SLOs
+                </p>
+              </div>
+              {selectedSubjects.length > 1 && (() => {
+                const allSloIds = selectedSubjects.flatMap(id => 
+                  (chaptersBySubject[id] || []).flatMap(ch => (ch.slos || []).map(slo => slo.id))
+                );
+                const isAllGlobalSelected = allSloIds.length > 0 && allSloIds.every(id => selectedSloIds.includes(id));
+                return (
+                  <label className="flex items-center gap-2 text-sm text-blue-600 cursor-pointer hover:text-blue-700 select-none bg-blue-50/50 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isAllGlobalSelected}
+                      onChange={() => toggleSelectAllSlos(allSloIds)}
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="font-medium">
+                      {isAllGlobalSelected ? 'Deselect All' : 'Select All'}
+                    </span>
+                  </label>
+                );
+              })()}
+            </div>
+
+            {metrics && metrics.isExceeded && (
+              <div className="mb-6 p-5 border border-red-200 bg-red-50/50 rounded-2xl flex flex-col md:flex-row items-start gap-4">
+                <div className="p-2 rounded-xl bg-red-100 text-red-600 shrink-0">
+                  <SlidersHorizontal size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-red-800">Daily Study Time Limit Exceeded</h3>
+                  <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                    The selected SLOs require an estimated <strong>{metrics.totalHours.toFixed(1)} hours</strong> of study.
+                    Over the plan duration of <strong>{metrics.days} days</strong>, this requires <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>.
+                    However, your defined maximum limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
+                  </p>
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+                    <div>
+                      <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                        Increase Daily Limit (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        value={form.max_study_time_daily}
+                        onChange={e => setFormField('max_study_time_daily', e.target.value)}
+                        placeholder="e.g. 384"
+                        className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                      />
+                      <p className="text-[10px] text-red-600 mt-1">
+                        Suggested: Set to at least <strong>{metrics.suggestedMaxMinutes} min</strong>
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                        Extend End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={form.end_date}
+                        onChange={e => setFormField('end_date', e.target.value)}
+                        className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                      />
+                      <p className="text-[10px] text-red-600 mt-1">
+                        Suggested: Set to <strong>{metrics.suggestedEndDateString}</strong> or later
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {step3Loading && (
               <div className="flex items-center justify-center h-32 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 mb-6">
                 <Loader2 className="animate-spin text-blue-500 mr-2" size={24} />
@@ -909,11 +1135,22 @@ const CreatePlanner: React.FC = () => {
 
                             return (
                               <div key={chapter.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                <button
+                                <div
                                   onClick={() => toggleChapterExpand(chapter.id)}
-                                  className="w-full flex items-center justify-between p-3 bg-gray-50/80 hover:bg-gray-100 transition-colors"
+                                  className="w-full flex items-center justify-between p-3 bg-gray-50/80 hover:bg-gray-100 transition-colors cursor-pointer select-none"
                                 >
                                   <div className="flex items-center gap-3">
+                                    {sloCount > 0 && (
+                                      <div className="flex items-center" onClick={e => e.stopPropagation()}>
+                                        <input
+                                          type="checkbox"
+                                          checked={chapterSlos.every((s: SLO) => selectedSloIds.includes(s.id))}
+                                          onChange={() => toggleSelectAllSlos(chapterSlos.map((s: SLO) => s.id))}
+                                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                          title="Select/Deselect all SLOs for this chapter"
+                                        />
+                                      </div>
+                                    )}
                                     <span className="text-sm font-medium text-gray-800">{chapter.name || ''}</span>
                                     <span className="text-xs text-gray-500">
                                       {sloCount === 0 ? 'No SLOs' : `${selectedCount}/${sloCount} SLO${sloCount > 1 ? 's' : ''} selected`}
@@ -925,35 +1162,20 @@ const CreatePlanner: React.FC = () => {
                                       className={`text-gray-400 transition-transform ${isChapterExpanded ? 'rotate-180' : ''}`}
                                     />
                                   )}
-                                </button>
+                                </div>
 
                                 {isChapterExpanded && sloCount > 0 && (
                                   <div className="p-3 bg-white space-y-2">
-                                    <label className="flex items-center gap-1.5 text-xs text-blue-600 cursor-pointer hover:text-blue-700 mb-1">
-                                      <input
-                                        type="checkbox"
-                                        checked={chapterSlos.every((s: SLO) => selectedSloIds.includes(s.id))}
-                                        onChange={() => toggleSelectAllSlos(chapterSlos.map((s: SLO) => s.id))}
-                                        className="w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                      />
-                                      Select All
-                                    </label>
                                     {chapterSlos.map((slo: SLO) => (
-                                      <label
+                                      <div
                                         key={slo.id}
-                                        className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-all ${selectedSloIds.includes(slo.id)
+                                        className={`flex items-center gap-3 p-2 rounded-md border transition-all ${selectedSloIds.includes(slo.id)
                                           ? 'border-blue-500 bg-blue-50'
-                                          : 'border-gray-100 hover:border-blue-200'
+                                          : 'border-gray-100'
                                           }`}
                                       >
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedSloIds.includes(slo.id)}
-                                          onChange={() => toggleSlo(slo.id)}
-                                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                        />
                                         <span className="text-sm text-gray-700">{slo.slo_text || slo.name || ''}</span>
-                                      </label>
+                                      </div>
                                     ))}
                                   </div>
                                 )}
@@ -975,7 +1197,8 @@ const CreatePlanner: React.FC = () => {
             </div>
 
           </div>
-        )}
+          );
+        })()}
 
         {/* Step 4: Preview */}
         {step === 4 && (() => {
@@ -1049,7 +1272,7 @@ const CreatePlanner: React.FC = () => {
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Grade</p>
                     <p className="text-sm font-semibold text-gray-900">
-                      {(GRADES || []).find(g => g?.value === form.grade)?.label || form.grade || '—'}
+                      {selectedGradeLabel || '—'}
                     </p>
                   </div>
                   <div>
@@ -1159,7 +1382,8 @@ const CreatePlanner: React.FC = () => {
             <button
               type="button"
               onClick={nextStep}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition"
+              disabled={step === 3 && (() => { const m = getSloMetrics(); return m ? m.isExceeded : false; })()}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-60 transition"
             >
               Next <ArrowRight size={16} />
             </button>

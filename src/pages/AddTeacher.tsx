@@ -25,49 +25,43 @@ import {
   LogOut,
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
-import { studentService } from '../api/services/studentService';
+import { teacherService } from '../api/services/teacherService';
 import { useAuth } from '../context/AuthContext';
-import { IStudentData, CreateStudentPayload } from '../types';
+import { CreateTeacherPayload } from '../types';
 import toast from 'react-hot-toast';
 
-// ─── Exported type alias ───────────────────────────────────────────────────
-export type { IStudentData as AddStudentFormValues } from '../types';
-
-type FormValues = IStudentData;
+type FormValues = CreateTeacherPayload & { phone: string };
 
 // ─── Step definitions ────────────────────────────────────────────────────────
 const steps = [
   { id: 1, label: 'Basic Info', icon: <User size={16} /> },
-  { id: 2, label: 'Academic', icon: <BookOpen size={16} /> },
-  { id: 3, label: 'Guardian', icon: <Shield size={16} /> },
+  { id: 2, label: 'Professional', icon: <BookOpen size={16} /> },
+  { id: 3, label: 'Contact', icon: <Phone size={16} /> },
   { id: 4, label: 'Account', icon: <Lock size={16} /> },
 ];
 
 const stepFieldNames: (keyof FormValues)[][] = [
-  ['firstName', 'lastName', 'email', 'dateOfBirth'],
-  ['grade', 'section', 'state', 'rollNumber'],
-  ['guardianName', 'guardianPhone', 'guardianEmail'],
+  ['first_name', 'last_name'],
+  ['subject', 'qualification', 'experience_years', 'salary'],
+  ['email', 'phone'],
   ['username', 'password'],
 ];
 
 // ─── Per-step validation schemas ────────────────────────────────────────────
 const stepSchemas = [
   Yup.object({
-    firstName: Yup.string().trim().required('First name is required'),
-    lastName: Yup.string().trim().required('Last name is required'),
+    first_name: Yup.string().trim().required('First name is required'),
+    last_name: Yup.string().trim().required('Last name is required'),
+  }),
+  Yup.object({
+    subject: Yup.string().trim().required('Subject is required'),
+    qualification: Yup.string().trim().required('Qualification is required'),
+    experience_years: Yup.number().required('Experience is required'),
+    salary: Yup.number().required('Salary is required'),
+  }),
+  Yup.object({
     email: Yup.string().trim().email('Enter a valid email').required('Email is required'),
-    dateOfBirth: Yup.string().required('Date of birth is required'),
-  }),
-  Yup.object({
-    grade: Yup.string().trim().required('Grade is required'),
-    section: Yup.string().trim().required('Section is required'),
-    state: Yup.string().trim().required('State is required'),
-    rollNumber: Yup.string().trim().required('Roll number is required'),
-  }),
-  Yup.object({
-    guardianName: Yup.string().trim().required('Guardian name is required'),
-    guardianPhone: Yup.string().trim().required('Guardian phone is required'),
-    guardianEmail: Yup.string().trim().email('Enter a valid email').required('Guardian email is required'),
+    phone: Yup.string().trim().required('Phone is required'),
   }),
   Yup.object({
     username: Yup.string().trim().required('Username is required'),
@@ -77,17 +71,14 @@ const stepSchemas = [
 
 // ─── Initial values ─────────────────────────────────────────────────────────
 const initialValues: FormValues = {
-  firstName: '',
-  lastName: '',
+  first_name: '',
+  last_name: '',
   email: '',
-  dateOfBirth: '',
-  grade: '',
-  section: '',
-  state: '',
-  rollNumber: '',
-  guardianName: '',
-  guardianPhone: '',
-  guardianEmail: '',
+  phone: '',
+  subject: '',
+  qualification: '',
+  experience_years: '',
+  salary: '',
   username: '',
   password: '',
 };
@@ -105,47 +96,27 @@ interface FieldConfig {
 
 const stepFields: FieldConfig[][] = [
   [
-    { name: 'firstName', label: 'First Name', placeholder: 'Muhammad', icon: <User size={16} />, required: true },
-    { name: 'lastName', label: 'Last Name', placeholder: 'Ali Khan', icon: <User size={16} />, required: true },
-    { name: 'email', label: 'Email Address', placeholder: 'student@school.edu', icon: <Mail size={16} />, required: true, type: 'email' },
-    { name: 'dateOfBirth', label: 'Date of Birth', placeholder: '', icon: <Calendar size={16} />, required: true, type: 'date' },
+    { name: 'first_name', label: 'First Name', placeholder: 'Muhammad', icon: <User size={16} />, required: true },
+    { name: 'last_name', label: 'Last Name', placeholder: 'Ali Khan', icon: <User size={16} />, required: true },
   ],
   [
-    { name: 'grade', label: 'Grade', placeholder: 'Select grade', icon: <BookOpen size={16} />, required: true, options: [
-      { value: '9', label: '9th' },
-      { value: '10', label: '10th' },
-      { value: '11', label: '11th' },
-      { value: '12', label: '12th' },
-    ] },
-    { name: 'section', label: 'Section', placeholder: 'Select section', icon: <Hash size={16} />, required: true, options: [
-      { value: 'A', label: 'A' },
-      { value: 'B', label: 'B' },
-      { value: 'C', label: 'C' },
-      { value: 'D', label: 'D' },
-    ] },
-    { name: 'state', label: 'State', placeholder: 'Select State', icon: <Shield size={16} />, required: true, options: [
-      { value: 'Balochistan', label: 'Balochistan' },
-      { value: 'Khyber Pakhtunkhwa (KPK)', label: 'Khyber Pakhtunkhwa (KPK)' },
-      { value: 'Punjab', label: 'Punjab' },
-      { value: 'Sindh', label: 'Sindh' },
-      { value: 'Gilgit-Baltistan', label: 'Gilgit-Baltistan' },
-      { value: 'Azad Kashmir', label: 'Azad Kashmir' },
-    ] },
-    { name: 'rollNumber', label: 'Roll Number', placeholder: 'ROLL-2024-001', icon: <GraduationCap size={16} />, required: true },
+    { name: 'subject', label: 'Subject', placeholder: 'Mathematics', icon: <BookOpen size={16} />, required: true },
+    { name: 'qualification', label: 'Qualification', placeholder: 'M.Sc', icon: <GraduationCap size={16} />, required: true },
+    { name: 'experience_years', label: 'Experience (Years)', placeholder: '2', icon: <Hash size={16} />, required: true, type: 'number' },
+    { name: 'salary', label: 'Salary', placeholder: '50000', icon: <Hash size={16} />, required: true, type: 'number' },
   ],
   [
-    { name: 'guardianName', label: 'Guardian Name', placeholder: 'Parent / Guardian full name', icon: <Users size={16} />, required: true },
-    { name: 'guardianPhone', label: 'Guardian Phone', placeholder: '+92 300 1234567', icon: <Phone size={16} />, required: true, type: 'tel' },
-    { name: 'guardianEmail', label: 'Guardian Email', placeholder: 'guardian@email.com', icon: <Mail size={16} />, required: true, type: 'email' },
+    { name: 'email', label: 'Email Address', placeholder: 'teacher@school.edu', icon: <Mail size={16} />, required: true, type: 'email' },
+    { name: 'phone', label: 'Phone Number', placeholder: '+92 300 1234567', icon: <Phone size={16} />, required: true, type: 'tel' },
   ],
   [
-    { name: 'username', label: 'Username', placeholder: 'student_username', icon: <User size={16} />, required: true },
+    { name: 'username', label: 'Username', placeholder: 'teacher_username', icon: <User size={16} />, required: true },
     { name: 'password', label: 'Password', placeholder: '••••••••', icon: <Lock size={16} />, required: true, type: 'password' },
   ],
 ];
 
 // ─── Component ──────────────────────────────────────────────────────────────
-const AddStudent: React.FC = () => {
+const AddTeacher: React.FC = () => {
   const navigate = useNavigate();
   const { user, tenant, logout } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
@@ -185,24 +156,21 @@ const AddStudent: React.FC = () => {
       }
 
       try {
-        const payload: Omit<CreateStudentPayload, 'school_id'> = {
+        const payload: CreateTeacherPayload = {
           email: values.email,
           username: values.username,
           password: values.password,
-          first_name: values.firstName,
-          last_name: values.lastName,
-          roll_number: values.rollNumber,
-          grade: values.grade.replace(/\D/g, ''),
-          section: values.section,
-          state: values.state,
-          date_of_birth: values.dateOfBirth,
-          guardian_name: values.guardianName,
-          guardian_phone: values.guardianPhone,
-          guardian_email: values.guardianEmail,
+          first_name: values.first_name,
+          last_name: values.last_name,
+          subject: values.subject,
+          qualification: values.qualification,
+          experience_years: values.experience_years,
+          salary: values.salary,
+          // note: backend needs phone if it supports it, assuming it's part of it or ignored
         };
 
-        await studentService.createStudent(schoolId, payload);
-        toast.success(`Student "${values.firstName} ${values.lastName}" created successfully! 🎉`);
+        await teacherService.createTeacher(payload);
+        toast.success(`Teacher "${values.first_name} ${values.last_name}" created successfully! 🎉`);
         navigate(backPath);
       } catch {
         // Axios interceptors already show toasts for 4xx/5xx errors.
@@ -411,11 +379,11 @@ const AddStudent: React.FC = () => {
   // ── Determine back navigation path ──────────────────────────────────────
   const tenantId = tenant.campusId || user?.campus_id;
   const backPath = tenantId
-    ? `/campus/${tenantId}/students`
-    : '/school/students';
+    ? `/campus/${tenantId}/teachers`
+    : '/school/teachers';
 
   return (
-    <DashboardLayout activePage="add-student">
+    <DashboardLayout activePage="add-teacher">
       <div className="w-full">
       <motion.div
         initial={{ opacity: 0, y: -16 }}
@@ -429,7 +397,7 @@ const AddStudent: React.FC = () => {
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 transition-colors mb-4"
         >
           <ChevronLeft size={16} />
-          Back to Students
+          Back to Teachers
         </button>
 
         <div className="flex items-center gap-3 mb-2">
@@ -437,11 +405,11 @@ const AddStudent: React.FC = () => {
             className="flex items-center justify-center w-10 h-10 rounded-xl"
             style={{ background: 'linear-gradient(135deg, #0f2057 0%, #1e40af 100%)' }}
           >
-            <GraduationCap size={20} className="text-white" />
+            <Users size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Enroll New Student</h1>
-            <p className="text-sm text-gray-500">Complete the 4-step form to register a new student</p>
+            <h1 className="text-2xl font-bold text-gray-900">Add New Teacher</h1>
+            <p className="text-sm text-gray-500">Complete the 4-step form to register a new teacher</p>
           </div>
         </div>
       </motion.div>
@@ -561,7 +529,7 @@ const AddStudent: React.FC = () => {
                   ) : (
                     <>
                       <CheckCircle2 size={16} />
-                      Save Student
+                      Save Teacher
                     </>
                   )}
                 </motion.button>
@@ -575,4 +543,4 @@ const AddStudent: React.FC = () => {
   );
 };
 
-export default AddStudent;
+export default AddTeacher;

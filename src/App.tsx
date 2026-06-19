@@ -13,6 +13,9 @@ import AddSchool from './pages/AddSchool';
 import SchoolDetail from './pages/SchoolDetail';
 import CreatePlanner from './pages/CreatePlanner';
 import AllPlanners from './pages/AllPlanners';
+import ViewPlanner from './pages/ViewPlanner';
+import CMSManagement from './pages/CMSManagement';
+import AssessmentManagement from './pages/AssessmentManagement';
 import SchoolPortal from './pages/SchoolPortal';
 import TeacherDashboard from './pages/TeacherDashboard';
 import CampusDashboard from './pages/CampusDashboard';
@@ -20,6 +23,8 @@ import SchoolAdminDashboard from './pages/SchoolAdminDashboard';
 import SchoolDashboard from './pages/SchoolDashboard';
 import AddStudent from './pages/AddStudent';
 import StudentManagement from './pages/StudentManagement';
+import TeacherManagement from './pages/TeacherManagement';
+import AddTeacher from './pages/AddTeacher';
 import MainLayout from './components/MainLayout';
 
 function App() {
@@ -53,6 +58,21 @@ function App() {
             <Route path="/admin/schools/:id" element={<SchoolDetail />} />
             <Route path="/admin/planners" element={<AllPlanners />} />
             <Route path="/admin/planners/create" element={<CreatePlanner />} />
+            <Route path="/admin/planners/:id" element={<ViewPlanner />} />
+            <Route path="/admin/assessments" element={<AssessmentManagement />} />
+            <Route path="/admin/assessments/templates" element={<AssessmentManagement view="templates" />} />
+            <Route path="/admin/assessments/templates/create" element={<AssessmentManagement view="create-template" />} />
+            <Route path="/admin/assessments/generated" element={<AssessmentManagement view="generated" />} />
+            <Route path="/admin/cms" element={<CMSManagement />} />
+            <Route path="/admin/cms/classes" element={<CMSManagement view="classes" />} />
+            <Route path="/admin/cms/classes/add" element={<CMSManagement view="add-class" />} />
+            <Route path="/admin/cms/subjects" element={<CMSManagement view="subjects" />} />
+            <Route path="/admin/cms/subjects/add" element={<CMSManagement view="add-subject" />} />
+            <Route path="/admin/cms/chapters" element={<CMSManagement view="chapters" />} />
+            <Route path="/admin/cms/chapters/add" element={<CMSManagement view="add-chapter" />} />
+            <Route path="/admin/cms/slos" element={<CMSManagement view="slos" />} />
+            <Route path="/admin/cms/slos/add" element={<CMSManagement view="add-slo" />} />
+            <Route path="/admin/cms/slos/upload" element={<CMSManagement view="upload-slo" />} />
             {/* Legacy route redirects */}
             <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/super-admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
@@ -68,10 +88,12 @@ function App() {
             <Route path="/campus/:tenantId/dashboard" element={<SchoolAdminDashboard />} />
             <Route path="/campus/:tenantId/students" element={<StudentManagement />} />
             <Route path="/campus/:tenantId/students/add" element={<AddStudent />} />
-            <Route path="/campus/:tenantId/teachers" element={<div>Teachers Page</div>} />
+            <Route path="/campus/:tenantId/teachers" element={<TeacherManagement />} />
+            <Route path="/campus/:tenantId/teachers/add" element={<AddTeacher />} />
             <Route path="/campus/:tenantId/classes" element={<div>Classes Page</div>} />
             <Route path="/campus/:tenantId/planners" element={<AllPlanners />} />
             <Route path="/campus/:tenantId/planners/create" element={<CreatePlanner />} />
+            <Route path="/campus/:tenantId/planners/:id" element={<ViewPlanner />} />
             <Route path="/campus/:tenantId/analytics" element={<div>Analytics Page</div>} />
             <Route path="/campus/:tenantId/settings" element={<div>Settings Page</div>} />
             {/* Legacy route redirect for school admins */}
@@ -82,18 +104,17 @@ function App() {
               SCHOOL ROLE ROUTES - School Admin Dashboard
               ============================================ */}
           <Route element={<ProtectedRoute allowedRoles={['SCHOOL']} />}>
-            <Route element={<MainLayout />}>
-              <Route path="/school/dashboard" element={<SchoolDashboard />} />
-              <Route path="/school/students" element={<StudentManagement />} />
-              <Route path="/school/students/add" element={<AddStudent />} />
-              <Route path="/school/teachers" element={<div>Teachers Page</div>} />
-              <Route path="/school/teachers/add" element={<div>Add Teacher</div>} />
-              <Route path="/school/classes" element={<div>Classes Page</div>} />
-              <Route path="/school/planners" element={<AllPlanners />} />
-              <Route path="/school/planners/create" element={<CreatePlanner />} />
-              <Route path="/school/analytics" element={<div>Analytics Page</div>} />
-              <Route path="/school/settings" element={<div>Settings Page</div>} />
-            </Route>
+            <Route path="/school/dashboard" element={<SchoolDashboard />} />
+            <Route path="/school/students" element={<StudentManagement />} />
+            <Route path="/school/students/add" element={<AddStudent />} />
+            <Route path="/school/teachers" element={<TeacherManagement />} />
+            <Route path="/school/teachers/add" element={<AddTeacher />} />
+            <Route path="/school/classes" element={<div>Classes Page</div>} />
+            <Route path="/school/planners" element={<AllPlanners />} />
+            <Route path="/school/planners/create" element={<CreatePlanner />} />
+            <Route path="/school/planners/:id" element={<ViewPlanner />} />
+            <Route path="/school/analytics" element={<div>Analytics Page</div>} />
+            <Route path="/school/settings" element={<div>Settings Page</div>} />
           </Route>
 
           {/* ============================================

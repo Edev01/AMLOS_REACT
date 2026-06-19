@@ -58,6 +58,7 @@ export interface User {
   username?: string;
   role: Role;
   school_id?: string;
+  school_name?: string;
   campus_id?: string;      // Multi-tenant: current campus tenant
   campus_name?: string;    // Display name for UI
   active_tenant_id?: string; // Alias for campus_id
@@ -278,8 +279,45 @@ export interface UpdateStudentPayload {
 export interface Teacher {
   id: string | number;
   username: string;
+  email?: string;
+  full_name?: string;
+  name?: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  teacher_id?: string | number;
+  dob?: string;
+  subject?: string;
+  qualification?: string;
+  experience_years?: string | number;
+  salary?: string | number;
   school_id?: string;
   created_at?: string;
+  [key: string]: any;
+}
+
+export interface CreateTeacherPayload {
+  username: string;
+  email: string;
+  password?: string;
+  subject?: string;
+  qualification?: string;
+  first_name: string;
+  last_name: string;
+  experience_years?: string | number;
+  salary?: string | number;
+}
+
+export interface UpdateTeacherPayload {
+  teacher_id?: string | number;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  subject?: string;
+  qualification?: string;
+  experience_years?: string | number;
+  salary?: string | number;
 }
 
 // --- Curriculum ---
@@ -349,6 +387,7 @@ export interface AuthResponse {
     // Multi-tenant fields
     campus_id?: string;
     school_id?: string;
+    school_name?: string;
     tenant_id?: string;    // Alternative field name
     // Access control
     access_level?: 'SUPER' | 'ADMIN' | 'USER';
@@ -362,6 +401,7 @@ export interface AuthResponse {
   user?: User;
   campus_id?: string;
   school_id?: string;
+  school_name?: string;
   access_level?: 'SUPER' | 'ADMIN' | 'USER';
 }
 

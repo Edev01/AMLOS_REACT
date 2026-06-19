@@ -1,11 +1,9 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/DashboardLayout';
-import { DashboardOverviewSkeleton } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
-import api from '../api/services/api';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Area, AreaChart,
@@ -108,54 +106,52 @@ const GlowingDot: React.FC<{ color: string }> = ({ color }) => (
 
 const DashboardOverview: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const { data: dashboardData, isLoading: loading } = useQuery({
-    queryKey: ['dashboardData'],
-    queryFn: async () => {
-      try {
-        // Step 1: Fetch all schools
-        const schoolsRes = await api.get('/api/auth/schools');
-        
-        const schoolsData = schoolsRes.data;
-        const schoolsList = Array.isArray(schoolsData) 
-          ? schoolsData 
-          : schoolsData?.results ?? schoolsData?.data ?? [];
-        
-        const schoolCount = schoolsList.length;
-        let studentCount = 0;
-
-        // Step 2: For each school, fetch students via the per-school endpoint
-        if (schoolsList.length > 0) {
-          const studentPromises = schoolsList.map((school: any) =>
-            api.get(`/api/auth/schools/${school.id}/students`)
-              .then(res => {
-                const data = res.data?.data?.students ?? res.data?.students ?? res.data?.data ?? res.data ?? [];
-                return Array.isArray(data) ? data.length : 0;
-              })
-              .catch(() => 0) // Gracefully handle per-school failures
-          );
-          
-          const counts = await Promise.all(studentPromises);
-          studentCount = counts.reduce((sum, count) => sum + count, 0);
+  const cachedSchoolQueries = queryClient.getQueriesData<any>({ queryKey: ['schools'] });
+  const cachedSchoolsById = new Map<string | number, any>();
+  let cachedTotalSchoolCount: number | null = null;
+  cachedSchoolQueries.forEach(([, data]) => {
+    if (Array.isArray(data?.pages)) {
+      data.pages.forEach((page: any) => {
+        if (typeof page?.totalCount === 'number') {
+          cachedTotalSchoolCount = Math.max(cachedTotalSchoolCount ?? 0, page.totalCount);
         }
-
-        return { schoolCount, studentCount };
-      } catch (err) {
-        console.error("Dashboard fetch error", err);
-        return { schoolCount: 0, studentCount: 0 };
-      }
+      });
     }
-  });
 
-  const schoolCount = dashboardData?.schoolCount || 0;
-  const studentCount = dashboardData?.studentCount || 0;
+    const schools = Array.isArray(data?.pages)
+      ? data.pages.flatMap((page: any) => page?.schools ?? [])
+      : data?.schools ?? [];
+
+    schools.forEach((school: any) => {
+      if (school?.id !== undefined && school?.id !== null) cachedSchoolsById.set(school.id, school);
+    });
+  });
+  const cachedSchools = Array.from(cachedSchoolsById.values());
+  const schoolCount = cachedTotalSchoolCount ?? (cachedSchools.length > 0 ? cachedSchools.length : null);
+  const hasPartialSchoolCache =
+    typeof cachedTotalSchoolCount === 'number' && cachedSchools.length < cachedTotalSchoolCount;
+  const studentCounts = cachedSchools.map((school: any) => {
+    const rawCount =
+      school.students_count ??
+      school.student_count ??
+      school.total_students ??
+      (typeof school.students === 'number' ? school.students : undefined);
+
+    return typeof rawCount === 'number' ? rawCount : null;
+  });
+  const hasStudentCounts = studentCounts.some((count) => count !== null);
+  const studentCount = hasStudentCounts && !hasPartialSchoolCache
+    ? studentCounts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
+    : null;
 
   const stats = [
     { 
       label: 'Total Schools', 
-      value: schoolCount || 0, 
-      change: '+12.5%', 
+      value: typeof schoolCount === 'number' ? schoolCount : '—',
+      change: typeof schoolCount === 'number' ? '+12.5%' : '',
       trend: 'up',
       icon: <School size={20} />, 
       gradient: 'from-accent-blue to-accent-indigo',
@@ -164,8 +160,8 @@ const DashboardOverview: React.FC = () => {
     },
     { 
       label: 'Total Students', 
-      value: studentCount.toLocaleString(), 
-      change: '+10.5%', 
+      value: typeof studentCount === 'number' ? studentCount.toLocaleString() : '—',
+      change: typeof studentCount === 'number' ? '+10.5%' : '',
       trend: 'up',
       icon: <Users size={20} />, 
       gradient: 'from-emerald-500 to-teal-500',
@@ -173,14 +169,6 @@ const DashboardOverview: React.FC = () => {
       sparkColor: '#10b981'
     },
   ];
-
-  if (loading) {
-    return (
-      <DashboardLayout activePage="dashboard">
-        <DashboardOverviewSkeleton />
-      </DashboardLayout>
-    );
-  }
 
   return (
     <DashboardLayout activePage="dashboard">
@@ -222,10 +210,12 @@ const DashboardOverview: React.FC = () => {
               <p className="text-xs font-medium text-slate-400 mb-1">{s.label}</p>
               <div className="flex items-baseline gap-2">
                 <p className="text-2xl font-bold text-navy-800">{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</p>
-                <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-500">
-                  <TrendingUp size={12} />
-                  {s.change}
-                </span>
+                {s.change && (
+                  <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-500">
+                    <TrendingUp size={12} />
+                    {s.change}
+                  </span>
+                )}
               </div>
             </div>
           </motion.div>

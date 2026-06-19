@@ -103,8 +103,10 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
       console.error("Error: planId is missing before sending request!");
       return;
     }
+    const raw = (planner as any).rawObject || {};
     const cleanPayload = {
       title: form.title,
+      plan_name: form.title,
       plan_type: form.plan_type || form.mode,
       grade: form.grade,
       mode: form.mode,
@@ -112,7 +114,6 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
       end_date: form.end_date,
       min_study_time_daily: !form.min_study_time_daily || Number(form.min_study_time_daily) === 0 ? null : Number(form.min_study_time_daily),
       max_study_time_daily: !form.max_study_time_daily || Number(form.max_study_time_daily) === 0 ? null : Number(form.max_study_time_daily),
-      slo_ids: Array.isArray((form as any).slo_ids) ? (form as any).slo_ids.map(Number).filter((id: number) => id > 0) : []
     };
     console.log("Sending Payload:", cleanPayload);
     onSave(planId, cleanPayload);
@@ -248,17 +249,31 @@ const AllPlanners: React.FC = () => {
         topics: p.topics_count || p.topics || 0,
         status: p.status || 'draft',
         createdDate: p.created_at?.split('T')[0] || p.start_date || 'N/A',
+        rawObject: p,
         examType: p.plan_type || p.exam_type || p.examType || 'N/A',
         startDate: p.start_date || 'N/A',
         endDate: p.end_date || 'N/A',
-        dailyLimit: (p.min_study_time_daily || p.daily_limit_minutes || p.daily_limit || '').toString(),
-        minStudyTime: p.min_study_time_daily || p.daily_limit_minutes || 0,
-        maxStudyTime: p.max_study_time_daily || 0,
+        minStudyTime: p.min_study_time_daily || p.min_study_time || p.daily_limit_minutes || 0,
+        maxStudyTime: p.max_study_time_daily || p.max_study_time || 0,
         mode: p.mode || 'PARALLEL',
         sloCount: (() => {
           if (Array.isArray(p.slo_ids)) return p.slo_ids.length;
+          if (typeof p.slo_ids === 'string') {
+            try { const arr = JSON.parse(p.slo_ids); if (Array.isArray(arr)) return arr.length; } catch(e) {}
+            return p.slo_ids.split(',').filter(Boolean).length;
+          }
           if (Array.isArray(p.slos)) return p.slos.length;
           if (typeof p.slo_count === 'number') return p.slo_count;
+          if (typeof p.total_slos === 'number') return p.total_slos;
+          
+          // Aggressive fallback: find any key that might hold SLOs
+          for (const key of Object.keys(p)) {
+            const k = key.toLowerCase();
+            if (k.includes('slo') && Array.isArray(p[key])) return p[key].length;
+            if (k.includes('slo') && typeof p[key] === 'string' && p[key].includes(',')) return p[key].split(',').filter(Boolean).length;
+            if ((k === 'slocount' || k === 'totalslos' || k === 'assignedslos' || k === 'slo_count') && typeof p[key] === 'number') return p[key];
+          }
+          
           return p.topics_count || p.topics || 0;
         })(),
       })) as Planner[];
@@ -324,15 +339,46 @@ const AllPlanners: React.FC = () => {
       setDeletingPlanner(null);
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.detail || err?.response?.data?.message || 'Failed to delete planner.');
+      const data = err?.response?.data;
+      let serverMsg = 'Failed to delete planner.';
+      if (data) {
+        let rawMsg = typeof data === 'string' ? data : (data.detail || data.message || (data.non_field_errors ? String(data.non_field_errors) : ''));
+        if (typeof rawMsg === 'string' && rawMsg.includes('ErrorDetail(string=')) {
+          const m = rawMsg.match(/ErrorDetail\(string='([^']+)'/);
+          if (m && m[1]) serverMsg = m[1];
+        } else if (rawMsg) {
+          serverMsg = typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg);
+        }
+      }
+      toast.error(serverMsg);
     },
   });
 
-  // ─── Update Mutation ──────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
+      // Fetch original planner to preserve complex fields (like slo_ids, subjects)
+      // in case the backend requires a full object replacement.
+      let originalPlanner: any = {};
+      try {
+        const detailRes = await api.get(`/api/study-plans/${id}`);
+        const p = detailRes.data;
+        if (p?.data && typeof p.data === 'object' && !Array.isArray(p.data)) {
+          originalPlanner = p.data;
+        } else if (p?.plan && typeof p.plan === 'object') {
+          originalPlanner = p.plan;
+        } else if (p?.study_plan && typeof p.study_plan === 'object') {
+          originalPlanner = p.study_plan;
+        } else {
+          originalPlanner = p || {};
+        }
+      } catch (e) {
+        console.warn("Could not fetch detail planner before update. Data might be lost.");
+      }
+
       const finalPayload = {
+        ...originalPlanner, // Spread original first
         title: data.title,
+        plan_name: data.title,
         plan_type: data.plan_type,
         grade: data.grade,
         mode: data.mode,
@@ -347,11 +393,23 @@ const AllPlanners: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planners'] });
+      queryClient.invalidateQueries({ queryKey: ['planner'] }); // Invalidate detail view cache too
       toast.success('Planner updated successfully! ✅');
       setEditingPlanner(null);
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.detail || err?.response?.data?.message || 'Failed to update planner.');
+      const data = err?.response?.data;
+      let serverMsg = 'Failed to update planner.';
+      if (data) {
+        let rawMsg = typeof data === 'string' ? data : (data.detail || data.message || (data.non_field_errors ? String(data.non_field_errors) : ''));
+        if (typeof rawMsg === 'string' && rawMsg.includes('ErrorDetail(string=')) {
+          const m = rawMsg.match(/ErrorDetail\(string='([^']+)'/);
+          if (m && m[1]) serverMsg = m[1];
+        } else if (rawMsg) {
+          serverMsg = typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg);
+        }
+      }
+      toast.error(serverMsg);
     },
   });
 
@@ -503,13 +561,22 @@ const AllPlanners: React.FC = () => {
                     </td>
 
                     {/* Created Date */}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-slate-500">{planner.createdDate}</span>
                     </td>
 
                     {/* Actions */}
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1">
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => navigate(`${getBasePath()}/${planner.id}`)}
+                          className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="View"
+                        >
+                          <Eye size={16} />
+                        </motion.button>
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.95 }}
