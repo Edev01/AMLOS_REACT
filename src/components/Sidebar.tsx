@@ -164,6 +164,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           ],
         },
         {
+          id: 'assessment-management',
+          label: 'Assessment Management',
+          icon: <ClipboardList size={18} />,
+          children: [
+            { id: 'create-assessment-template', label: 'Create Template', path: '/admin/assessments/templates/create' },
+            { id: 'all-assessment-templates', label: 'All Templates', path: '/admin/assessments/templates' },
+            { id: 'generated-assessments', label: 'Generated Assessments', path: '/admin/assessments/generated' },
+          ],
+        },
+        {
           id: 'cms',
           label: 'CMS Management',
           icon: <FileText size={18} />,
