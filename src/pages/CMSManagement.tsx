@@ -321,7 +321,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const [chapterSubjectId, setChapterSubjectId] = useState(searchParams.get('subject') || '');
   const [chapterSearch, setChapterSearch] = useState('');
   const [sloSearch, setSloSearch] = useState('');
-  const [sloSubjectFilter, setSloSubjectFilter] = useState('');
+  const [sloFilterSubjectId, setSloFilterSubjectId] = useState('');
+  const [sloFilterChapterId, setSloFilterChapterId] = useState('');
+  const [hasSearchedSlos, setHasSearchedSlos] = useState(false);
   const [subjectForm, setSubjectForm] = useState({ name: '', grade: '', description: '' });
   const [chapterForm, setChapterForm] = useState({ grade: '', subject: '', name: '' });
   const [sloForm, setSloForm] = useState({
@@ -371,7 +373,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     );
   }, [classOptions, classSearch]);
 
-  const shouldLoadAllChapters = ['dashboard', 'subjects', 'slos'].includes(view);
+  const shouldLoadAllChapters = ['dashboard', 'subjects'].includes(view);
   const allChaptersQuery = useQuery({
     queryKey: ['cms', 'chapters', 'all', subjects.map((subject) => subject.id).join(',')],
     queryFn: () => fetchAllChapters(subjects),
@@ -383,9 +385,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const activeChapterSubjectId =
     view === 'chapters'
       ? chapterSubjectId
-      : view === 'add-slo' || view === 'upload-slo'
-        ? sloForm.subject
-        : '';
+      : view === 'slos'
+        ? sloFilterSubjectId
+        : view === 'add-slo' || view === 'upload-slo'
+          ? sloForm.subject
+          : '';
 
   const activeChaptersQuery = useQuery({
     queryKey: ['cms', 'chapters', activeChapterSubjectId],
@@ -444,6 +448,19 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   }, [allChapters]);
 
   const sloRows = useMemo(() => {
+    if (view === 'slos') {
+      if (!hasSearchedSlos || !sloFilterChapterId) return [];
+      const chapter = activeChapters.find((ch) => String(ch.id) === sloFilterChapterId);
+      if (!chapter) return [];
+      return getChapterSlos(chapter).map((slo) => ({
+        ...slo,
+        chapter_id: getChapterId(chapter),
+        chapter_name: chapter.name,
+        subject_name: chapter.subject_name,
+        subject_grade: chapter.subject_grade,
+      }));
+    }
+
     return allChapters.flatMap((chapter) =>
       getChapterSlos(chapter).map((slo) => ({
         ...slo,
@@ -453,7 +470,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         subject_grade: chapter.subject_grade,
       }))
     );
-  }, [allChapters]);
+  }, [allChapters, activeChapters, view, hasSearchedSlos, sloFilterChapterId]);
 
   const sloSubjectOptions = useMemo(() => {
     return Array.from(
@@ -467,7 +484,6 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const filteredSloRows = useMemo(() => {
     return sloRows.filter((slo) => {
-      const matchesSubject = !sloSubjectFilter || slo.subject_name === sloSubjectFilter;
       const matchesText = matchesSearchQuery(sloSearch, [
         getSloTitle(slo),
         slo.chapter_name,
@@ -478,9 +494,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         getSloTime(slo),
       ]);
 
-      return matchesSubject && matchesText;
+      return matchesText;
     });
-  }, [sloRows, sloSearch, sloSubjectFilter]);
+  }, [sloRows, sloSearch]);
 
   const filteredSubjects = subjects.filter((subject) => {
     const matchesSearch = matchesSearchQuery(subjectSearch, [
@@ -969,21 +985,30 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         subtitle="SLOs are the objectives selected by the planner flow."
         action={<PrimaryButton onClick={() => navigate('/admin/cms/slos/add')}><Plus size={16} /> Add SLO</PrimaryButton>}
       />
-      <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_240px]">
+      <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[200px_200px_1fr_auto]">
+        <select value={sloFilterSubjectId} onChange={(e) => { setSloFilterSubjectId(e.target.value); setSloFilterChapterId(''); setHasSearchedSlos(false); }} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100">
+          <option value="">Select Subject</option>
+          {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+        </select>
+        <select value={sloFilterChapterId} onChange={(e) => { setSloFilterChapterId(e.target.value); setHasSearchedSlos(false); }} disabled={!sloFilterSubjectId || activeChaptersQuery.isLoading} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400">
+          <option value="">Select Chapter</option>
+          {activeChapters.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.name}</option>)}
+        </select>
         <SearchInput
           value={sloSearch}
           onChange={setSloSearch}
-          placeholder="Search SLOs by objective, chapter, subject, difficulty"
+          placeholder="Search SLOs..."
         />
-        <select value={sloSubjectFilter} onChange={(e) => setSloSubjectFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100">
-          <option value="">All Subjects</option>
-          {sloSubjectOptions.map((subjectName) => <option key={subjectName} value={subjectName}>{subjectName}</option>)}
-        </select>
+        <PrimaryButton onClick={() => setHasSearchedSlos(true)} disabled={!sloFilterSubjectId || !sloFilterChapterId || activeChaptersQuery.isLoading}>
+          {activeChaptersQuery.isFetching && hasSearchedSlos ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Search
+        </PrimaryButton>
       </div>
-      {allChaptersQuery.isLoading ? (
+      {!hasSearchedSlos ? (
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">Please select a subject and chapter, then click Search to view SLOs.</div>
+      ) : activeChaptersQuery.isLoading || activeChaptersQuery.isFetching ? (
         <div className="rounded-2xl border bg-white p-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading SLOs...</div>
       ) : sloRows.length === 0 ? (
-        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No SLOs found.</div>
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No SLOs found for the selected chapter.</div>
       ) : filteredSloRows.length === 0 ? (
         <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No SLOs match your search.</div>
       ) : (

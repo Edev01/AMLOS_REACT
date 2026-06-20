@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import {
   LogOut,
   LayoutDashboard,
@@ -54,7 +55,7 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
   
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     students: false,
-    academic: false,
+    teachers: false,
     planner: false,
   });
   
@@ -127,34 +128,51 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
   const menuItems = getMenuItems();
 
   useEffect(() => {
+    if (collapsed) return;
     const activeParent = menuItems.find(item => isParentActive(item) || isActive(item.path, item.id));
     if (activeParent && activeParent.id) {
       setExpandedMenus(prev => ({ ...prev, [activeParent.id]: true }));
     }
-  }, [location.pathname, activePage]);
+  }, [location.pathname, activePage, collapsed]);
 
-  const sidebarWidth = collapsed ? 'w-[72px]' : 'w-[260px]';
+  // Close collapsed menu when clicking outside
+  useEffect(() => {
+    if (!collapsed) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setExpandedMenus({
+          students: false,
+          teachers: false,
+          planner: false,
+        });
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [collapsed]);
+
+  const { isDark } = useTheme();
 
   return (
     <aside 
-      className={`flex h-full flex-col bg-slate-900 text-white transition-all duration-300 ease-in-out ${sidebarWidth}`}
+      className={`relative flex h-full flex-col rounded-[24px] shadow-2xl transition-all duration-300 ease-in-out ${isDark ? 'bg-white text-slate-800' : 'bg-slate-900 text-white'} w-full`}
     >
         {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-600/10 via-transparent to-purple-600/10 pointer-events-none" />
+        {!isDark && <div className="absolute inset-0 bg-gradient-to-b from-blue-600/10 via-transparent to-purple-600/10 pointer-events-none rounded-[24px]" />}
         
         {/* Brand Header */}
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative flex items-center gap-3 px-5 py-5 border-b border-white/10"
+          className={`relative flex items-center gap-3 px-5 py-6 border-b rounded-t-[24px] ${isDark ? 'border-slate-100' : 'border-white/10'}`}
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/30 flex-shrink-0">
+          <div className={`flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/30 flex-shrink-0 ${collapsed ? 'h-8 w-8' : 'h-10 w-10'}`}>
             {isSuperAdmin ? <Sparkles size={20} className="text-white" /> : <Building2 size={20} className="text-white" />}
           </div>
           {!collapsed && (
             <div className="overflow-hidden">
-              <h1 className="text-lg font-bold leading-tight text-white truncate">AMLOS</h1>
-              <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase truncate">
+              <h1 className={`text-lg font-bold leading-tight truncate ${isDark ? 'text-slate-900' : 'text-white'}`}>AMLOS</h1>
+              <p className={`text-[10px] font-medium tracking-wide uppercase truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 {portalLabel}
               </p>
             </div>
@@ -164,15 +182,15 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
         {/* Campus Badge */}
         {!collapsed && tenant.campusName && (
           <div className="mx-4 mt-4 mb-2">
-            <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
-              <p className="text-xs text-blue-300 font-medium truncate">{tenant.campusName}</p>
+            <div className={`rounded-lg border px-3 py-2 ${isDark ? 'bg-blue-50 border-blue-100' : 'bg-blue-500/10 border-blue-500/20'}`}>
+              <p className={`text-xs font-medium truncate ${isDark ? 'text-blue-700' : 'text-blue-300'}`}>{tenant.campusName}</p>
               <p className="text-[10px] text-slate-500">ID: {tenantId}</p>
             </div>
           </div>
         )}
 
         {/* Navigation */}
-        <nav ref={navRef} className="relative flex-1 overflow-y-auto px-3 py-3 space-y-1">
+        <nav ref={navRef} className={`relative flex-1 px-3 py-4 space-y-1 custom-scrollbar ${collapsed ? 'overflow-visible' : 'overflow-y-auto overflow-x-hidden'}`}>
           {/* Menu Items */}
           {menuItems.map((item) => {
             const hasChildren = item.children && item.children.length > 0;
@@ -180,7 +198,7 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
             const active = isActive(item.path, item.id) || isParentActive(item);
 
             return (
-              <div key={item.id} className="relative">
+              <div key={item.id} className="relative group">
                 <button
                   onClick={() => {
                     if (hasChildren) {
@@ -189,30 +207,64 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
                       navigate(item.path);
                     }
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative z-10
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative z-10
                     ${active 
-                      ? 'text-white' 
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? (isDark ? 'text-slate-900 bg-slate-100/80 border border-slate-200' : 'text-white bg-blue-500/10 border border-blue-500/20')
+                      : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent')
                     }
-                    ${collapsed ? 'justify-center' : ''}
+                    ${collapsed ? 'justify-center px-0' : ''}
                   `}
-                  title={collapsed ? item.label : undefined}
                 >
-                  <span className={`${active ? 'text-blue-400' : 'text-slate-400 group-hover:text-blue-400'} transition-colors`}>
-                    {item.icon}
-                  </span>
+                  <div className={`flex items-center ${collapsed ? 'justify-center w-full' : 'gap-3'}`}>
+                    <span className={`${active ? (isDark ? 'text-blue-600' : 'text-blue-400') : (isDark ? 'text-slate-500 group-hover:text-blue-600' : 'text-slate-400 group-hover:text-blue-400')} transition-colors`}>
+                      {item.icon}
+                    </span>
+                    {!collapsed && <span className="flex-1 text-left whitespace-nowrap">{item.label}</span>}
+                  </div>
                   
-                  {!collapsed && (
-                    <>
-                      <span className="flex-1 text-left">{item.label}</span>
-                      {hasChildren && (
-                        <span className="text-slate-500">
-                          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </span>
-                      )}
-                    </>
+                  {!collapsed && hasChildren && (
+                    <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                      {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </span>
                   )}
                 </button>
+
+                {/* Collapsed Hover Tooltip */}
+                {collapsed && !expanded && (
+                  <div className={`absolute left-[54px] top-1/2 -translate-y-1/2 hidden whitespace-nowrap rounded-[8px] px-3 py-2 text-[13px] font-bold shadow-lg border group-hover:block z-[100] pointer-events-none ${isDark ? 'bg-white text-slate-800 border-slate-200' : 'bg-[#1e293b] text-white border-white/10'}`}>
+                    {item.label}
+                  </div>
+                )}
+
+                {/* Collapsed Click Popover for children */}
+                {collapsed && hasChildren && expanded && (
+                  <div className={`absolute left-[54px] top-0 min-w-[180px] rounded-[16px] shadow-[0_8px_30px_rgb(0,0,0,0.4)] border z-[100] overflow-hidden ${isDark ? 'bg-white border-slate-200' : 'bg-[#1e293b] border-white/10'}`}>
+                    <div className="p-2">
+                      <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        {item.label}
+                      </div>
+                      {item.children!.map((child) => {
+                        const childActive = isActive(child.path, child.id);
+                        return (
+                          <button
+                            key={child.id}
+                            onClick={() => {
+                              toggleMenu(item.id);
+                              navigate(child.path);
+                            }}
+                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+                              childActive
+                                ? (isDark ? 'text-blue-600 bg-blue-50' : 'text-blue-400 bg-blue-400/10')
+                                : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-50' : 'text-slate-300 hover:text-white hover:bg-white/5')
+                            }`}
+                          >
+                            <span>{child.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Submenu */}
                 <AnimatePresence>
@@ -224,15 +276,15 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
                       transition={{ duration: 0.2, ease: "easeInOut" }}
                       className="overflow-hidden"
                     >
-                      <div className="ml-6 mt-1 space-y-1 border-l border-white/10 pl-4">
+                      <div className={`ml-6 mt-1 space-y-1 border-l pl-4 py-1 ${isDark ? 'border-slate-200' : 'border-white/10'}`}>
                         {item.children?.map((child) => (
                           <button
                             key={child.id}
                             onClick={() => navigate(child.path)}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200
+                            className={`w-full text-left px-3 py-2 rounded-lg text-[12.5px] transition-all duration-200
                               ${isActive(child.path, child.id)
-                                ? 'text-blue-400 bg-blue-500/10'
-                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                ? (isDark ? 'text-blue-600 bg-blue-50 border border-blue-100 font-semibold' : 'text-blue-400 bg-blue-500/10 font-semibold')
+                                : (isDark ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-50' : 'text-slate-400 hover:text-white hover:bg-white/5')
                               }
                             `}
                           >
@@ -247,7 +299,6 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
             );
           })}
         </nav>
-
     </aside>
   );
 };
