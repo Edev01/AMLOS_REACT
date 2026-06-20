@@ -145,6 +145,12 @@
   }
 }
 
+/* Global: nudge native <select> dropdown arrow slightly left */
+select {
+  background-position: right 0.5rem center !important;
+  padding-right: 2rem !important;
+}
+
 @layer components {
   /* Premium Stat Card with Glass Effect */
   .stat-card-premium {

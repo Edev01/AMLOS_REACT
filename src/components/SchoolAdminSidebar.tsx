@@ -209,7 +209,7 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
                   }}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative z-10
                     ${active 
-                      ? (isDark ? 'text-slate-900 bg-slate-100/80 border border-slate-200' : 'text-white bg-blue-500/10 border border-blue-500/20')
+                      ? (isDark ? 'text-accent-blue font-semibold bg-accent-blue/10 border border-accent-blue/20' : 'text-white bg-blue-500/10 border border-blue-500/20')
                       : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent')
                     }
                     ${collapsed ? 'justify-center px-0' : ''}
@@ -252,9 +252,9 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
                               toggleMenu(item.id);
                               navigate(child.path);
                             }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors border border-transparent ${
                               childActive
-                                ? (isDark ? 'text-blue-600 bg-blue-50' : 'text-blue-400 bg-blue-400/10')
+                                ? (isDark ? 'text-accent-blue font-semibold bg-accent-blue/10 border-accent-blue/20' : 'text-blue-400 bg-blue-400/10')
                                 : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-50' : 'text-slate-300 hover:text-white hover:bg-white/5')
                             }`}
                           >
@@ -283,7 +283,7 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
                             onClick={() => navigate(child.path)}
                             className={`w-full text-left px-3 py-2 rounded-lg text-[12.5px] transition-all duration-200
                               ${isActive(child.path, child.id)
-                                ? (isDark ? 'text-blue-600 bg-blue-50 border border-blue-100 font-semibold' : 'text-blue-400 bg-blue-500/10 font-semibold')
+                                ? (isDark ? 'text-accent-blue bg-accent-blue/10 border border-accent-blue/20 font-semibold' : 'text-blue-400 bg-blue-500/10 font-semibold')
                                 : (isDark ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-50' : 'text-slate-400 hover:text-white hover:bg-white/5')
                               }
                             `}

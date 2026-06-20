@@ -517,13 +517,6 @@ const SchoolManagement: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-900">School Management</h1>
         <p className="text-sm text-gray-500 mt-1">Manage and monitor all schools in the platform</p>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">Check Status</span>
-          <button onClick={() => setFilter('active')} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${filter === 'active' ? 'bg-green-100 text-green-700 ring-1 ring-green-300' : 'bg-white text-gray-500 ring-1 ring-gray-200'}`}>Active</button>
-          <button onClick={() => setFilter('inactive')} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${filter === 'inactive' ? 'bg-gray-200 text-gray-700 ring-1 ring-gray-300' : 'bg-white text-gray-500 ring-1 ring-gray-200'}`}>In Active</button>
-        </div>
-      </div>
       <div className="relative mb-6">
         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
         <input type="text" placeholder="Search Schools By Name, Email Address, Id Or Principal Name" value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />

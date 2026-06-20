@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
@@ -206,6 +207,7 @@ const AllPlanners: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, tenant, isSuperAdmin } = useAuth();
+  const { isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [editingPlanner, setEditingPlanner] = useState<Planner | null>(null);
@@ -515,7 +517,11 @@ const AllPlanners: React.FC = () => {
                     {/* Grade */}
                     <td className="px-6 py-4">
                       {planner.grade ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${
+                          isDark 
+                            ? 'text-amber-500 border-amber-500/30 bg-amber-500/10' 
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
                           Grade {planner.grade}
                         </span>
                       ) : (

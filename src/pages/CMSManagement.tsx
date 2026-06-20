@@ -317,10 +317,12 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const [classSearch, setClassSearch] = useState('');
   const [subjectSearch, setSubjectSearch] = useState('');
   const [subjectGradeFilter, setSubjectGradeFilter] = useState(searchParams.get('grade') || '');
+  const [hasSelectedSubjectFilter, setHasSelectedSubjectFilter] = useState(!!searchParams.get('grade'));
   const [chapterGradeFilter, setChapterGradeFilter] = useState('');
   const [chapterSubjectId, setChapterSubjectId] = useState(searchParams.get('subject') || '');
   const [chapterSearch, setChapterSearch] = useState('');
   const [sloSearch, setSloSearch] = useState('');
+  const [sloFilterGrade, setSloFilterGrade] = useState('');
   const [sloFilterSubjectId, setSloFilterSubjectId] = useState('');
   const [sloFilterChapterId, setSloFilterChapterId] = useState('');
   const [hasSearchedSlos, setHasSearchedSlos] = useState(false);
@@ -769,52 +771,71 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           onChange={setSubjectSearch}
           placeholder="Search subjects by name, grade, description"
         />
-        <select value={subjectGradeFilter} onChange={(e) => setSubjectGradeFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100">
+        <select 
+          value={subjectGradeFilter} 
+          onChange={(e) => {
+            setSubjectGradeFilter(e.target.value);
+            setHasSelectedSubjectFilter(true);
+          }} 
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+        >
           <option value="">All Classes</option>
           {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
         </select>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <table className="w-full min-w-[900px] text-left">
-          <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-            <tr>
-              <th className="px-6 py-4 text-sm font-bold">Subject Name</th>
-              <th className="px-6 py-4 text-sm font-bold">Grade</th>
-              <th className="px-6 py-4 text-sm font-bold">Description</th>
-              <th className="px-6 py-4 text-sm font-bold">Total Chapters</th>
-              <th className="px-6 py-4 text-sm font-bold">Total SLOs</th>
-              <th className="px-6 py-4 text-sm font-bold">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {subjectsQuery.isLoading ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading subjects...</td></tr>
-            ) : filteredSubjects.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">No subjects found.</td></tr>
-            ) : (
-              filteredSubjects.map((subject) => {
-                const counts = chapterCountsBySubject.get(getSubjectId(subject));
-                return (
-                  <tr key={subject.id} className="hover:bg-slate-50/70">
-                    <td className="px-6 py-4 text-sm font-bold text-slate-900">{subject.name}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{subject.grade || 'N/A'}</td>
-                    <td className="px-6 py-4 text-sm text-slate-500">{subject.description || 'N/A'}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-700">{counts?.chapters ?? (subject as any).total_chapters ?? (subject as any).chapters_count ?? 0}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-700">{counts?.slos ?? (subject as any).total_slos ?? (subject as any).slos_count ?? 0}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        <IconButton title="View chapters" tone="blue" onClick={() => navigate(`/admin/cms/chapters?subject=${subject.id}`)}><Eye size={15} /></IconButton>
-                        <IconButton title="Edit subject" onClick={() => showPendingApi('Subject')}><Pencil size={15} /></IconButton>
-                        <IconButton title="Delete subject" tone="red" onClick={() => showPendingApi('Subject')}><Trash2 size={15} /></IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {subjectGradeFilter === '' && !hasSelectedSubjectFilter ? (
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm flex flex-col items-center justify-center py-20 px-6 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 mb-4">
+            <BookOpen size={32} className="text-blue-500" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">Select a Class to View Subjects</h3>
+          <p className="text-sm text-slate-500 max-w-md">
+            Please select a class from the dropdown filter above to view the subjects associated with it.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <table className="w-full min-w-[900px] text-left">
+            <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold">Subject Name</th>
+                <th className="px-6 py-4 text-sm font-bold">Grade</th>
+                <th className="px-6 py-4 text-sm font-bold">Description</th>
+                <th className="px-6 py-4 text-sm font-bold">Total Chapters</th>
+                <th className="px-6 py-4 text-sm font-bold">Total SLOs</th>
+                <th className="px-6 py-4 text-sm font-bold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {subjectsQuery.isLoading ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading subjects...</td></tr>
+              ) : filteredSubjects.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">No subjects found for this class.</td></tr>
+              ) : (
+                filteredSubjects.map((subject) => {
+                  const counts = chapterCountsBySubject.get(getSubjectId(subject));
+                  return (
+                    <tr key={subject.id} className="hover:bg-slate-50/70">
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900">{subject.name}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{subject.grade || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{subject.description || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-700">{counts?.chapters ?? (subject as any).total_chapters ?? (subject as any).chapters_count ?? 0}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-700">{counts?.slos ?? (subject as any).total_slos ?? (subject as any).slos_count ?? 0}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1">
+                          <IconButton title="View chapters" tone="blue" onClick={() => navigate(`/admin/cms/chapters?subject=${subject.id}`)}><Eye size={15} /></IconButton>
+                          <IconButton title="Edit subject" onClick={() => showPendingApi('Subject')}><Pencil size={15} /></IconButton>
+                          <IconButton title="Delete subject" tone="red" onClick={() => showPendingApi('Subject')}><Trash2 size={15} /></IconButton>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 
@@ -983,12 +1004,37 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader
         title="All SLOs"
         subtitle="SLOs are the objectives selected by the planner flow."
-        action={<PrimaryButton onClick={() => navigate('/admin/cms/slos/add')}><Plus size={16} /> Add SLO</PrimaryButton>}
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/admin/cms/slos/upload')}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-2.5 text-sm font-bold text-blue-600 shadow-sm transition hover:bg-blue-50"
+            >
+              <Upload size={16} /> Upload SLOs
+            </button>
+            <PrimaryButton onClick={() => navigate('/admin/cms/slos/add')}><Plus size={16} /> Add SLO</PrimaryButton>
+          </div>
+        }
       />
-      <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[200px_200px_1fr_auto]">
+      <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[160px_200px_200px_1fr_auto]">
+        <select
+          value={sloFilterGrade}
+          onChange={(e) => {
+            setSloFilterGrade(e.target.value);
+            setSloFilterSubjectId('');
+            setSloFilterChapterId('');
+            setHasSearchedSlos(false);
+          }}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+        >
+          <option value="">Select Grade</option>
+          {Array.from(new Set(subjects.map((s) => s.grade).filter(Boolean))).sort().map((grade) => (
+            <option key={grade} value={grade}>{grade}</option>
+          ))}
+        </select>
         <select value={sloFilterSubjectId} onChange={(e) => { setSloFilterSubjectId(e.target.value); setSloFilterChapterId(''); setHasSearchedSlos(false); }} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100">
           <option value="">Select Subject</option>
-          {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+          {(sloFilterGrade ? subjects.filter((s) => s.grade === sloFilterGrade) : subjects).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
         </select>
         <select value={sloFilterChapterId} onChange={(e) => { setSloFilterChapterId(e.target.value); setHasSearchedSlos(false); }} disabled={!sloFilterSubjectId || activeChaptersQuery.isLoading} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400">
           <option value="">Select Chapter</option>
@@ -1004,7 +1050,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         </PrimaryButton>
       </div>
       {!hasSearchedSlos ? (
-        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">Please select a subject and chapter, then click Search to view SLOs.</div>
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">Please select a grade, subject and chapter, then click Search to view SLOs.</div>
       ) : activeChaptersQuery.isLoading || activeChaptersQuery.isFetching ? (
         <div className="rounded-2xl border bg-white p-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading SLOs...</div>
       ) : sloRows.length === 0 ? (

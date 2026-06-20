@@ -24,6 +24,10 @@ import {
   Building2,
   Shield,
   GraduationCap,
+  Briefcase,
+  DollarSign,
+  UserCog,
+  GraduationCap as StudentIcon,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -198,6 +202,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
             { id: 'all-slos', label: 'All SLOs', path: '/admin/cms/slos' },
           ],
         },
+        {
+          id: 'role-management',
+          label: 'Role Management',
+          icon: <UserCog size={18} />,
+          path: '/admin/role-management',
+        },
+        {
+          id: 'hr-management',
+          label: 'HR Management',
+          icon: <Briefcase size={18} />,
+          path: '/admin/hr-management',
+        },
+        {
+          id: 'finance-management',
+          label: 'Finance Management',
+          icon: <DollarSign size={18} />,
+          path: '/admin/finance-management',
+        },
       ];
     }
 
@@ -229,6 +251,34 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           ],
         },
         // Strict Sidebar Minimization: Removed Teachers, Quizzes, Content, Academic/Curriculum, Analytics, and Settings per requirements.
+      ];
+    }
+
+    // TEACHER role gets Students + Teachers menu
+    if (user?.role === 'TEACHER') {
+      return [
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: <LayoutDashboard size={18} />,
+          path: '/teacher-dashboard',
+        },
+        {
+          id: 'students',
+          label: 'Students',
+          icon: <Users size={18} />,
+          children: [
+            { id: 'all-students', label: 'All Students', path: '/school/students' },
+          ],
+        },
+        {
+          id: 'teachers',
+          label: 'Teachers',
+          icon: <BookOpen size={18} />,
+          children: [
+            { id: 'all-teachers', label: 'All Teachers', path: '/school/teachers' },
+          ],
+        },
       ];
     }
     
@@ -264,6 +314,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
       setOpenMenu(activeParent.id);
     }
   }, [location.pathname, activePage, collapsed]);
+
+  // Ensure dropdown closes when navigating to a new page
+  useEffect(() => {
+    if (collapsed) {
+      setOpenMenu(null);
+    }
+  }, [location.pathname, collapsed]);
 
   const { isDark } = useTheme();
 
@@ -358,13 +415,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                   if (hasChildren) {
                     toggleMenu(item.id);
                   } else if (item.path) {
+                    setOpenMenu(null);
                     navigate(item.path);
                   }
                 }}
                 className={`relative flex w-full items-center justify-between rounded-lg py-2.5 text-[13px] font-medium transition-all duration-200 z-10 ${
                   itemActive || parentActive
-                    ? (isDark ? 'text-slate-900 bg-slate-100/80' : 'text-white')
-                    : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-50' : 'text-slate-400 hover:text-white hover:bg-white/5')
+                    ? (isDark ? 'text-accent-blue font-semibold' : 'text-white')
+                    : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-white/5')
                 } ${collapsed ? 'px-0 justify-center' : 'px-4'}`}
               >
                 <div className={`flex items-center ${collapsed ? 'justify-center w-full' : 'gap-3'}`}>
@@ -403,10 +461,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                             setOpenMenu(null);
                             navigate(child.path);
                           }}
-                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors border border-transparent ${
                             childActive
-                              ? (isDark ? 'text-accent-blue bg-accent-blue/10' : 'text-accent-blue bg-accent-blue/10')
-                              : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-50' : 'text-slate-300 hover:text-white hover:bg-white/5')
+                              ? (isDark ? 'text-accent-blue font-semibold bg-accent-blue/10 border-accent-blue/20' : 'text-accent-blue bg-accent-blue/10 border-transparent')
+                              : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 hover:text-white hover:bg-white/5')
                           }`}
                         >
                           <span>{child.label}</span>
@@ -440,8 +498,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                             onClick={() => navigate(child.path)}
                             className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-[12.5px] transition-all duration-200 border ${
                               childActive
-                                ? (isDark ? 'text-blue-600 font-semibold bg-blue-50 border-blue-100' : 'text-blue-400 font-semibold bg-blue-500/20 border-blue-500/20')
-                                : (isDark ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-transparent' : 'text-slate-400 hover:text-white hover:bg-white/5 border-transparent')
+                                ? (isDark ? 'text-accent-blue font-semibold bg-accent-blue/10 border-accent-blue/20' : 'text-blue-400 font-semibold bg-blue-500/20 border-blue-500/20')
+                                : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent' : 'text-slate-400 hover:text-white hover:bg-white/5 border-transparent')
                             }`}
                           >
                             <span>{child.label}</span>
