@@ -22,8 +22,11 @@ import {
   Shield,
   User,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Moon,
+  Sun
 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useIsFetching } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
@@ -96,7 +99,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   const isFetching = useIsFetching();
   const location = useLocation();
   useEffect(() => { if (window.innerWidth < 1024) setSidebarCollapsed(true); }, [location.pathname]);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 1024);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (window.innerWidth < 1024) return true;
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
+  }, [sidebarCollapsed]);
   
   // Handle responsive sidebar collapse
   useEffect(() => {
@@ -104,7 +115,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
       if (window.innerWidth < 1024) {
         setSidebarCollapsed(true);
       } else {
-        setSidebarCollapsed(false);
+        const saved = localStorage.getItem('sidebarCollapsed');
+        setSidebarCollapsed(saved !== null ? JSON.parse(saved) : false);
       }
     };
     window.addEventListener('resize', handleResize);
@@ -220,8 +232,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
     }
   }, [navigate]);
 
+  const { isDark, toggleTheme } = useTheme();
+
   return (
-    <div className="min-h-screen bg-surface-light font-sans relative">
+    <div className={`min-h-screen font-sans relative transition-colors duration-300 ${isDark ? 'bg-[#0a0f1e]' : 'bg-surface-light'}`}>
       {/* Global Top-Bar Progress Loader for Background Fetching */}
       {isFetching > 0 && (
         <div className="fixed top-0 left-0 w-full h-1 bg-blue-100 z-[100]">
@@ -343,8 +357,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
 
       {/* Sidebar — always visible */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 transform transition-all duration-300 translate-x-0 ${
-          sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
+        className={`fixed inset-y-4 left-4 z-40 transform transition-all duration-300 translate-x-0 ${
+          sidebarCollapsed ? 'w-[72px]' : 'w-[280px]'
         }`}
       >
         {useSchoolAdminSidebar ? (
@@ -355,7 +369,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
       </div>
 
       {/* Main content area */}
-      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-[72px]' : 'ml-[72px] lg:ml-[260px]'}`}>
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-[104px]' : 'ml-[104px] lg:ml-[312px]'}`}>
         {/* Top navigation bar with Glassmorphism */}
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
@@ -363,8 +377,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
           transition={{ duration: 0.4 }}
           className={`sticky top-0 z-20 flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 ${
             scrolled 
-              ? 'bg-white/80 backdrop-blur-xl shadow-soft border-b border-slate-200/50' 
-              : 'bg-white/50 backdrop-blur-sm border-b border-transparent'
+              ? isDark ? 'bg-[#0a0f1e]/90 backdrop-blur-xl shadow-[0_2px_24px_rgba(0,0,0,0.5)] border-b border-white/5' : 'bg-white/80 backdrop-blur-xl shadow-soft border-b border-slate-200/50' 
+              : isDark ? 'bg-[#0a0f1e]/60 backdrop-blur-sm border-b border-white/5' : 'bg-white/50 backdrop-blur-sm border-b border-transparent'
           }`}
         >
           {/* Left — Mobile hamburger + Desktop collapse toggle */}
@@ -375,7 +389,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               whileTap={{ scale: 0.95 }}
               type="button"
               onClick={() => setSidebarCollapsed(p => !p)}
-              className="rounded-xl p-2.5 text-slate-500 hover:bg-slate-100 transition-colors"
+              className={`rounded-xl p-2.5 transition-colors ${isDark ? 'text-slate-400 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'}`}
             >
               {sidebarCollapsed ? <Menu size={20} className="lg:hidden" /> : <X size={20} className="lg:hidden" />}
               {sidebarCollapsed ? <ChevronsRight size={18} className="hidden lg:block" /> : <ChevronsLeft size={18} className="hidden lg:block" />}
@@ -391,12 +405,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               className="relative w-full group"
             >
               <div className="relative flex items-center">
-                <Search size={16} className="absolute left-3.5 text-slate-400 transition-colors group-hover:text-accent-blue" />
-                <div className="w-full rounded-xl border border-slate-200/60 bg-slate-50/80 backdrop-blur-sm py-2.5 pl-10 pr-20 text-sm text-slate-600 outline-none transition-all duration-200 text-left hover:bg-white hover:border-accent-blue/30 hover:shadow-soft">
+                <Search size={16} className={`absolute left-3.5 transition-colors group-hover:text-accent-blue ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                <div className={`w-full rounded-xl border backdrop-blur-sm py-2.5 pl-10 pr-20 text-sm outline-none transition-all duration-200 text-left ${
+                  isDark
+                    ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:border-accent-blue/30'
+                    : 'border-slate-200/60 bg-slate-50/80 text-slate-600 hover:bg-white hover:border-accent-blue/30 hover:shadow-soft'
+                }`}>
                   Search schools, teachers, quizzes...
                 </div>
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-100 rounded border border-slate-200">
+                  <kbd className={`hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded border ${
+                    isDark ? 'text-slate-500 bg-white/10 border-white/10' : 'text-slate-400 bg-slate-100 border-slate-200'
+                  }`}>
                     <Command size={10} />
                     <span>K</span>
                   </kbd>
@@ -407,29 +427,70 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
 
           {/* Right section — notifications + profile dropdown */}
           <div className="flex items-center gap-2">
+
+            {/* Dark/Light Mode Toggle */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={toggleTheme}
+              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              className={`relative rounded-xl p-2.5 transition-all duration-300 ${
+                isDark
+                  ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20'
+                  : 'text-slate-500 hover:bg-slate-100 border border-transparent'
+              }`}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {isDark ? (
+                  <motion.span
+                    key="sun"
+                    initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                    animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                    exit={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex"
+                  >
+                    <Sun size={18} />
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="moon"
+                    initial={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                    animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                    exit={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex"
+                  >
+                    <Moon size={18} />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+
             {/* Bell */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               type="button"
-              className="relative rounded-xl p-2.5 text-slate-500 hover:bg-slate-100 transition-colors"
+              className={`relative rounded-xl p-2.5 transition-colors ${isDark ? 'text-slate-400 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'}`}
             >
               <Bell size={18} />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             </motion.button>
 
             {/* Profile Dropdown */}
-            <div ref={profileRef} className="relative pl-2 border-l border-slate-200">
+            <div ref={profileRef} className={`relative pl-2 border-l ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setProfileOpen(p => !p)}
-                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-slate-100 transition-colors cursor-pointer"
+                className={`flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors cursor-pointer ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
               >
                 {/* Text (hidden on xs) */}
                 <div className="hidden sm:block text-right">
-                  <p className="text-sm font-semibold text-slate-800 leading-tight">{roleLabel}</p>
-                  <p className="text-[11px] text-slate-400 leading-tight">{profileSubtitle}</p>
+                  <p className={`text-sm font-semibold leading-tight ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{roleLabel}</p>
+                  <p className={`text-[11px] leading-tight ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{profileSubtitle}</p>
                 </div>
                 {/* Avatar */}
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue">
@@ -437,7 +498,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                 </div>
                 <ChevronDown
                   size={14}
-                  className={`hidden sm:block text-slate-400 transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`}
+                  className={`hidden sm:block transition-transform duration-200 ${isDark ? 'text-slate-500' : 'text-slate-400'} ${profileOpen ? 'rotate-180' : ''}`}
                 />
               </motion.button>
 
@@ -449,19 +510,27 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ duration: 0.18, ease: 'easeOut' }}
-                    className="absolute right-0 top-[calc(100%+8px)] w-72 rounded-2xl bg-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-200/80 overflow-hidden z-50"
+                    className={`absolute right-0 top-[calc(100%+8px)] w-72 rounded-2xl overflow-hidden z-50 ${
+                      isDark
+                        ? 'bg-[#1a2035] shadow-[0_8px_40px_rgba(0,0,0,0.6)] border border-white/10'
+                        : 'bg-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-200/80'
+                    }`}
                   >
                     {/* Header */}
-                    <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-accent-blue/5 to-accent-indigo/5 border-b border-slate-100">
+                    <div className={`px-4 pt-4 pb-3 border-b ${
+                      isDark
+                        ? 'bg-gradient-to-br from-accent-blue/10 to-accent-indigo/10 border-white/10'
+                        : 'bg-gradient-to-br from-accent-blue/5 to-accent-indigo/5 border-slate-100'
+                    }`}>
                       <div className="flex items-center gap-3">
                         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-sm font-bold text-white shadow-glow-blue">
                           {initials || 'AK'}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate">
+                          <p className={`text-sm font-bold truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                             {profileTitle}
                           </p>
-                          <p className="text-xs text-slate-500 truncate mt-0.5">{user?.email || 'admin@eduadmin.com'}</p>
+                          <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{user?.email || 'admin@eduadmin.com'}</p>
                           <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent-blue/10 text-accent-blue">
                             {isSuperAdmin ? <Shield size={9} /> : <User size={9} />}
                             {roleLabel}
@@ -479,9 +548,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                     <div className="py-1.5">
                       <button
                         onClick={() => { setProfileOpen(false); handleLogout(); }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 transition-colors group"
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-rose-500 transition-colors group ${
+                          isDark ? 'hover:bg-rose-500/10' : 'hover:bg-rose-50'
+                        }`}
                       >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-500 group-hover:bg-rose-100 transition-colors">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 transition-colors ${
+                          isDark ? 'bg-rose-500/10 group-hover:bg-rose-500/20' : 'bg-rose-50 group-hover:bg-rose-100'
+                        }`}>
                           <LogOut size={15} />
                         </div>
                         <div>
@@ -502,7 +575,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
-          className="p-4 sm:p-6 lg:p-8"
+          className={`p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-64px)] transition-colors duration-300 ${
+            isDark ? 'bg-[#0a0f1e]' : ''
+          }`}
         >
           <div className="mx-auto max-w-[1400px]">{children}</div>
         </motion.main>

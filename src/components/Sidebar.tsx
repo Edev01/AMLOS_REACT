@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { hasCrossTenantAccess } from '../types';
 import {
   LogOut,
@@ -132,6 +133,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
     return () => window.removeEventListener('resize', updateIndicator);
   }, [location.pathname, activePage, openMenu]);
 
+  // Close collapsed menu when clicking outside
+  useEffect(() => {
+    if (!collapsed) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [collapsed]);
+
   // Generate tenant-aware menu items based on role and context
   const getMenuItems = (): MenuItem[] => {
     const basePath = isTenantContext && tenantId ? `/campus/${tenantId}` : '/admin';
@@ -180,14 +193,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           children: [
             { id: 'cms-dashboard', label: 'CMS Dashboard', path: '/admin/cms' },
             { id: 'all-classes', label: 'All Classes', path: '/admin/cms/classes' },
-            { id: 'add-class', label: 'Add Class', path: '/admin/cms/classes/add' },
             { id: 'all-subjects', label: 'All Subjects', path: '/admin/cms/subjects' },
-            { id: 'add-subject', label: 'Add Subject', path: '/admin/cms/subjects/add' },
             { id: 'all-chapters', label: 'All Chapters', path: '/admin/cms/chapters' },
-            { id: 'add-chapter', label: 'Add Chapter', path: '/admin/cms/chapters/add' },
             { id: 'all-slos', label: 'All SLOs', path: '/admin/cms/slos' },
-            { id: 'add-slo', label: 'Add SLO', path: '/admin/cms/slos/add' },
-            { id: 'upload-slos', label: 'Upload SLOs', path: '/admin/cms/slos/upload' },
           ],
         },
       ];
@@ -250,23 +258,26 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
   const menuItems = getMenuItems();
 
   useEffect(() => {
+    if (collapsed) return;
     const activeParent = menuItems.find(item => isParentActive(item) || isActive(item.path, item.id));
     if (activeParent && activeParent.id) {
       setOpenMenu(activeParent.id);
     }
-  }, [location.pathname, activePage]);
+  }, [location.pathname, activePage, collapsed]);
+
+  const { isDark } = useTheme();
 
   return (
-    <aside className={`flex h-full flex-col bg-navy-800 text-white overflow-hidden transition-all duration-300 ${collapsed ? 'w-[72px]' : 'w-[260px]'}`}>
+    <aside className={`relative flex h-full flex-col rounded-[24px] shadow-2xl transition-all duration-300 ${isDark ? 'bg-white text-slate-800' : 'bg-navy-800 text-white'} w-full`}>
       {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-accent-blue/5 via-transparent to-transparent pointer-events-none" />
+      {!isDark && <div className="absolute inset-0 bg-gradient-to-b from-accent-blue/5 via-transparent to-transparent pointer-events-none rounded-[24px]" />}
       
       {/* Brand Header with Glass Effect */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="relative flex items-center gap-3 px-6 py-5 border-b border-white/5"
+        className={`relative flex items-center gap-3 px-6 py-6 border-b rounded-t-[24px] ${isDark ? 'border-slate-100' : 'border-white/5'}`}
       >
         <div className={`flex items-center justify-center rounded-xl shadow-glow-blue flex-shrink-0 ${collapsed ? 'h-8 w-8' : 'h-10 w-10'} ${
           isSuperAdmin 
@@ -277,8 +288,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <h1 className="text-lg font-bold leading-tight text-white truncate">AMLOS</h1>
-            <p className="text-[11px] text-slate-400 font-medium tracking-wide truncate">
+            <h1 className={`text-lg font-bold leading-tight truncate ${isDark ? 'text-slate-900' : 'text-white'}`}>AMLOS</h1>
+            <p className={`text-[11px] font-medium tracking-wide truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
               {portalLabel}
             </p>
           </div>
@@ -287,10 +298,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
 
       {/* Tenant Context Banner (for Campus Admins) */}
       {!collapsed && isTenantContext && tenant.campusName && (
-        <div className="mx-4 mt-4 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+        <div className={`mx-4 mt-4 rounded-lg border px-3 py-2 ${isDark ? 'bg-blue-50 border-blue-100' : 'bg-blue-500/10 border-blue-500/20'}`}>
           <div className="flex items-center gap-2">
-            <Building2 size={14} className="text-blue-400" />
-            <span className="text-xs text-blue-300 font-medium truncate">
+            <Building2 size={14} className={isDark ? 'text-blue-600' : 'text-blue-400'} />
+            <span className={`text-xs font-medium truncate ${isDark ? 'text-blue-700' : 'text-blue-300'}`}>
               {tenant.campusName}
             </span>
           </div>
@@ -299,22 +310,17 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
       )}
 
       {/* Navigation with Sliding Highlight */}
-      <nav ref={navRef} className="relative flex-1 overflow-y-auto px-3 py-3 space-y-1">
+      <nav ref={navRef} className={`relative flex-1 px-3 py-4 space-y-1 custom-scrollbar ${collapsed ? 'overflow-visible' : 'overflow-y-auto overflow-x-hidden'}`}>
         {/* Sliding Active Indicator */}
         <motion.div
-          className="absolute left-3 right-3 rounded-lg bg-accent-blue/20 border border-accent-blue/20"
+          className="absolute left-3 right-3 rounded-lg bg-accent-blue/10 border border-accent-blue/20"
           initial={false}
           animate={{
             top: activeIndicator.top,
             height: activeIndicator.height,
             opacity: activeIndicator.height > 0 ? 1 : 0,
           }}
-          transition={{
-            type: "spring",
-            stiffness: 400,
-            damping: 30,
-            mass: 0.8,
-          }}
+          transition={{ type: "spring", stiffness: 400, damping: 30, mass: 0.8 }}
           style={{ pointerEvents: 'none' }}
         />
         
@@ -327,12 +333,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
             height: activeIndicator.height - 16,
             opacity: activeIndicator.height > 0 ? 1 : 0,
           }}
-          transition={{
-            type: "spring",
-            stiffness: 400,
-            damping: 30,
-            mass: 0.8,
-          }}
+          transition={{ type: "spring", stiffness: 400, damping: 30, mass: 0.8 }}
           style={{ pointerEvents: 'none' }}
         />
 
@@ -345,18 +346,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           return (
             <motion.div 
               key={item.id}
+              className="relative group"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ 
-                duration: 0.3, 
-                delay: index * 0.05,
-                ease: [0.25, 0.46, 0.45, 0.94]
-              }}
+              transition={{ duration: 0.3, delay: index * 0.05, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
               <button
-                ref={(el) => {
-                  if (el) itemRefs.current.set(item.id, el);
-                }}
+                ref={(el) => { if (el) itemRefs.current.set(item.id, el); }}
                 type="button"
                 onClick={() => {
                   if (hasChildren) {
@@ -367,29 +363,59 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                 }}
                 className={`relative flex w-full items-center justify-between rounded-lg py-2.5 text-[13px] font-medium transition-all duration-200 z-10 ${
                   itemActive || parentActive
-                    ? 'text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    ? (isDark ? 'text-slate-900 bg-slate-100/80' : 'text-white')
+                    : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-50' : 'text-slate-400 hover:text-white hover:bg-white/5')
                 } ${collapsed ? 'px-0 justify-center' : 'px-4'}`}
-                title={collapsed ? item.label : undefined}
               >
                 <div className={`flex items-center ${collapsed ? 'justify-center w-full' : 'gap-3'}`}>
-                  <span className={`transition-colors duration-200 ${
-                    itemActive || parentActive ? 'text-accent-blue' : ''
-                  }`}>
+                  <span className={`transition-colors duration-200 ${itemActive || parentActive ? 'text-accent-blue' : ''}`}>
                     {item.icon}
                   </span>
-                  {!collapsed && <span>{item.label}</span>}
+                  {!collapsed && <span className="whitespace-nowrap">{item.label}</span>}
                 </div>
                 {!collapsed && hasChildren && (
-                  <motion.span 
-                    animate={{ rotate: isExpanded ? 180 : 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="text-slate-500"
-                  >
+                  <motion.span animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }} className={isDark ? 'text-slate-400' : 'text-slate-500'}>
                     <ChevronDown size={14} />
                   </motion.span>
                 )}
               </button>
+
+              {/* Collapsed Hover Tooltip */}
+              {collapsed && !isExpanded && (
+                <div className={`absolute left-[54px] top-1/2 -translate-y-1/2 hidden whitespace-nowrap rounded-[8px] px-3 py-2 text-[13px] font-bold shadow-lg border group-hover:block z-[100] pointer-events-none ${isDark ? 'bg-white text-slate-800 border-slate-200' : 'bg-[#1e293b] text-white border-white/10'}`}>
+                  {item.label}
+                </div>
+              )}
+
+              {/* Collapsed Click Popover for children */}
+              {collapsed && hasChildren && isExpanded && (
+                <div className={`absolute left-[54px] top-0 min-w-[180px] rounded-[16px] shadow-[0_8px_30px_rgb(0,0,0,0.4)] border z-[100] overflow-hidden ${isDark ? 'bg-white border-slate-200' : 'bg-[#1e293b] border-white/10'}`}>
+                  <div className="p-2">
+                    <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      {item.label}
+                    </div>
+                    {item.children!.map((child) => {
+                      const childActive = isActive(child.path, child.id);
+                      return (
+                        <button
+                          key={child.id}
+                          onClick={() => {
+                            setOpenMenu(null);
+                            navigate(child.path);
+                          }}
+                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+                            childActive
+                              ? (isDark ? 'text-accent-blue bg-accent-blue/10' : 'text-accent-blue bg-accent-blue/10')
+                              : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-50' : 'text-slate-300 hover:text-white hover:bg-white/5')
+                          }`}
+                        >
+                          <span>{child.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Sub-items with Animation */}
               <AnimatePresence>
@@ -401,7 +427,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                     transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
                     className="overflow-hidden"
                   >
-                    <div className="ml-4 space-y-0.5 border-l border-white/10 pl-3 py-0.5">
+                    <div className={`ml-4 space-y-0.5 border-l pl-3 py-1 mt-1 ${isDark ? 'border-slate-200' : 'border-white/10'}`}>
                       {item.children!.map((child, childIndex) => {
                         const childActive = isActive(child.path, child.id);
                         return (
@@ -412,23 +438,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                             transition={{ duration: 0.2, delay: childIndex * 0.03 }}
                             type="button"
                             onClick={() => navigate(child.path)}
-                            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-[12.5px] transition-all duration-200 ${
+                            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-[12.5px] transition-all duration-200 border ${
                               childActive
-                                ? 'text-accent-blue font-semibold bg-accent-blue/10'
-                                : 'text-slate-500 hover:text-white hover:bg-white/5'
+                                ? (isDark ? 'text-blue-600 font-semibold bg-blue-50 border-blue-100' : 'text-blue-400 font-semibold bg-blue-500/20 border-blue-500/20')
+                                : (isDark ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 border-transparent' : 'text-slate-400 hover:text-white hover:bg-white/5 border-transparent')
                             }`}
                           >
-                            {child.label.startsWith('All') || child.label.includes('Dashboard') ? (
-                              <List size={14} />
-                            ) : (
-                              <Plus size={14} />
-                            )}
                             <span>{child.label}</span>
                             {childActive && (
-                              <motion.div
-                                layoutId="activeChildIndicator"
-                                className="ml-auto w-1.5 h-1.5 rounded-full bg-accent-blue"
-                              />
+                              <motion.div layoutId="activeChildIndicator" className="ml-auto w-1.5 h-1.5 rounded-full bg-accent-blue" />
                             )}
                           </motion.button>
                         );
@@ -441,7 +459,20 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           );
         })}
       </nav>
-
+      
+      {/* Bottom Actions if any */}
+      <div className={`mt-auto border-t p-4 rounded-b-[24px] ${isDark ? 'border-slate-100' : 'border-white/5'}`}>
+        <button
+          onClick={handleLogout}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all ${
+            isDark ? 'text-slate-600 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-white/5 hover:text-red-400'
+          } ${collapsed ? 'justify-center' : ''}`}
+          title={collapsed ? 'Logout' : undefined}
+        >
+          <LogOut size={18} />
+          {!collapsed && <span>Logout</span>}
+        </button>
+      </div>
     </aside>
   );
 };
