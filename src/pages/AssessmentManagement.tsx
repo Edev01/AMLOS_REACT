@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import Modal from '../components/Modal';
 import api from '../api/services/api';
 import { Chapter, Subject } from '../types';
 import {
@@ -32,6 +33,7 @@ import {
   Shuffle,
   Trash2,
   X,
+  AlertTriangle,
 } from 'lucide-react';
 
 type AssessmentView = 'dashboard' | 'templates' | 'create-template' | 'generated';
@@ -393,6 +395,10 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     readLocalTemplates().map((item) => normalizeTemplate(item))
   );
 
+  // Delete modal state
+  const [deletingTemplate, setDeletingTemplate] = useState<AssessmentTemplate | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const metadataQuery = useQuery({
     queryKey: ['assessments', 'metadata'],
     queryFn: assessmentService.getMetadata,
@@ -427,6 +433,13 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     enabled: Boolean(form.subject),
     retry: 1,
     staleTime: 5 * 60 * 1000,
+  });
+
+  const availableQuery = useQuery({
+    queryKey: ['assessments', 'available'],
+    queryFn: assessmentService.listAvailableAssessments,
+    retry: 1,
+    staleTime: 30 * 1000,
   });
 
   const metadata = metadataQuery.data ?? {};
@@ -652,17 +665,23 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     if (payload) saveMutation.mutate(payload);
   };
 
-  const handleDelete = (template: AssessmentTemplate) => {
-    if (!template.id) return;
-    const confirmed = window.confirm('Delete this assessment template?');
-    if (!confirmed) return;
+  const handleDelete = () => {
+    if (!deletingTemplate?.id) return;
+    setIsDeleting(true);
 
-    if (String(template.id).startsWith('local-')) {
-      removeLocalTemplate(template.id);
+    if (String(deletingTemplate.id).startsWith('local-')) {
+      removeLocalTemplate(deletingTemplate.id);
       toast.success('Template deleted successfully.');
+      setDeletingTemplate(null);
+      setIsDeleting(false);
       return;
     }
-    deleteMutation.mutate(template.id);
+    deleteMutation.mutate(deletingTemplate.id, {
+      onSettled: () => {
+        setIsDeleting(false);
+        setDeletingTemplate(null);
+      }
+    });
   };
 
   const getTemplateSubjectName = (template: AssessmentTemplate) => {
@@ -802,7 +821,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                 <IconButton title="Edit" onClick={() => navigate(`/admin/assessments/templates/create?edit=${template.id}`)}>
                   <Pencil size={17} />
                 </IconButton>
-                <IconButton title="Delete" tone="red" onClick={() => handleDelete(template)}>
+                <IconButton title="Delete" tone="red" onClick={() => setDeletingTemplate(template)}>
                   <Trash2 size={17} />
                 </IconButton>
               </div>
@@ -1011,28 +1030,63 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     );
   };
 
-  const renderGenerated = () => (
-    <>
-      <SectionHeader
-        title="Generated Assessments"
-        subtitle="Student-ready assessments produced from saved templates."
-        action={
-          <PrimaryButton onClick={() => navigate('/admin/assessments/templates/create')}>
-            <Plus size={16} /> Create Template
-          </PrimaryButton>
-        }
-      />
-      <div className="rounded-2xl border border-white/70 bg-white p-10 text-center shadow-soft">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-          <BarChart3 size={24} />
-        </div>
-        <h2 className="mt-4 text-lg font-bold text-gray-900">No generated assessments yet.</h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Saved templates are ready for the random generator service.
-        </p>
-      </div>
-    </>
-  );
+  const renderGenerated = () => {
+    const available = availableQuery.data || [];
+    return (
+      <>
+        <SectionHeader
+          title="Generated Assessments"
+          subtitle="Student-ready assessments produced from saved templates."
+          action={
+            <PrimaryButton onClick={() => navigate('/admin/assessments/templates/create')}>
+              <Plus size={16} /> Create Template
+            </PrimaryButton>
+          }
+        />
+        {availableQuery.isLoading ? (
+          <div className="flex items-center justify-center py-16 text-slate-500">
+            <Loader2 size={20} className="mr-2 animate-spin" /> Loading generated assessments...
+          </div>
+        ) : available.length === 0 ? (
+          <div className="rounded-2xl border border-white/70 bg-white p-10 text-center shadow-soft">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <BarChart3 size={24} />
+            </div>
+            <h2 className="mt-4 text-lg font-bold text-gray-900">No generated assessments yet.</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Saved templates are ready for the random generator service.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="grid grid-cols-[1.5fr_1fr_1fr_0.8fr_0.8fr] gap-4 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-sm font-bold text-white">
+              <span>Title</span>
+              <span>Subject</span>
+              <span>Total Questions</span>
+              <span>Created</span>
+              <span>Status</span>
+            </div>
+            {available.map((assessment: any) => (
+              <div
+                key={String(assessment.id ?? assessment.title)}
+                className="grid grid-cols-[1.5fr_1fr_1fr_0.8fr_0.8fr] items-center gap-4 border-b border-gray-100 px-6 py-5 last:border-b-0"
+              >
+                <div>
+                  <p className="font-bold text-gray-900">{assessment.title || 'Untitled Assessment'}</p>
+                </div>
+                <span className="text-slate-600">{assessment.subject_name || 'N/A'}</span>
+                <span className="text-slate-700 font-semibold">{assessment.total_questions || 0} Questions</span>
+                <span className="text-slate-500">{formatDate(assessment.created_at)}</span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600 w-max">
+                  {assessment.status || 'AVAILABLE'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  };
 
   const renderTemplateModal = () => {
     if (!selectedTemplate) return null;
@@ -1097,6 +1151,42 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
       </div>
       {renderContent()}
       {renderTemplateModal()}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deletingTemplate && (
+          <Modal
+            isOpen={!!deletingTemplate}
+            onClose={() => setDeletingTemplate(null)}
+            title="Delete Template"
+          >
+            <div className="flex flex-col items-center text-center py-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 mb-4">
+                <AlertTriangle size={28} className="text-red-500" />
+              </div>
+              <p className="text-sm text-gray-500 mb-1">Are you sure you want to delete</p>
+              <p className="text-sm font-bold text-gray-800 mb-4">"{deletingTemplate.title}"?</p>
+              <p className="text-xs text-red-500 mb-6">This action cannot be undone.</p>
+              <div className="flex items-center gap-3 w-full">
+                <button 
+                  onClick={() => setDeletingTemplate(null)} 
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeleting && <Loader2 size={14} className="animate-spin" />}
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   );
 };

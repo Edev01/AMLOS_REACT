@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
-import api from '../api/services/api';
+import {
+  getGrades, createGrade, updateGrade, deleteGrade,
+  getSubjects, createSubject, updateSubject, deleteSubject,
+  getChaptersBySubject, createChapter, updateChapter, deleteChapter,
+  createSlo, updateSlo, deleteSlo, bulkUploadSlos,
+} from '../api/services/curriculumService';
 import { Chapter, SLO, Subject } from '../types';
 import {
   BookOpen,
@@ -23,6 +28,7 @@ import {
   Save,
   X,
   Clock,
+  AlertTriangle,
 } from 'lucide-react';
 
 type CMSView =
@@ -41,11 +47,10 @@ interface CMSManagementProps {
   view?: CMSView;
 }
 
-interface CMSClass {
-  id: string;
+interface Grade {
+  id: number | string;
   name: string;
   description?: string;
-  source: 'default' | 'subject' | 'local';
 }
 
 interface CMSChapter extends Chapter {
@@ -64,44 +69,7 @@ interface CMSSlo extends SLO {
   subject_grade?: string;
 }
 
-const LOCAL_CLASSES_KEY = 'amlos_cms_classes';
-
-const DEFAULT_CLASSES: CMSClass[] = [
-  { id: 'default-9', name: '9', description: 'Class 9', source: 'default' },
-  { id: 'default-10', name: '10', description: 'Class 10', source: 'default' },
-  { id: 'default-11', name: '11', description: 'Class 11', source: 'default' },
-  { id: 'default-css', name: 'CSS', description: 'Competitive exam class', source: 'default' },
-  { id: 'default-mdcat', name: 'MDCAT', description: 'Medical entry test class', source: 'default' },
-  { id: 'default-ecat', name: 'ECAT', description: 'Engineering entry test class', source: 'default' },
-];
-
-const extractList = (payload: any): any[] => {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.results)) return payload.results;
-  if (Array.isArray(payload?.data?.results)) return payload.data.results;
-  if (Array.isArray(payload?.data?.subjects)) return payload.data.subjects;
-  if (Array.isArray(payload?.data?.chapters)) return payload.data.chapters;
-  if (Array.isArray(payload?.data?.slos)) return payload.data.slos;
-  if (Array.isArray(payload?.subjects)) return payload.subjects;
-  if (Array.isArray(payload?.chapters)) return payload.chapters;
-  if (Array.isArray(payload?.slos)) return payload.slos;
-  if (Array.isArray(payload?.data)) return payload.data;
-  return [];
-};
-
-const readLocalClasses = (): CMSClass[] => {
-  try {
-    const raw = localStorage.getItem(LOCAL_CLASSES_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const saveLocalClasses = (classes: CMSClass[]) => {
-  localStorage.setItem(LOCAL_CLASSES_KEY, JSON.stringify(classes));
-};
+// ── Helpers ──
 
 const getSubjectId = (subject: Subject) => Number(subject.id);
 const getChapterId = (chapter: CMSChapter | Chapter) => Number(chapter.id);
@@ -120,22 +88,15 @@ const getSloTime = (slo: CMSSlo) =>
 const matchesSearchQuery = (query: string, values: unknown[]) => {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return true;
-
   return values.some((value) =>
     String(value ?? '').toLowerCase().includes(normalizedQuery)
   );
 };
 
-const fetchSubjects = async (): Promise<Subject[]> => {
-  const response = await api.get('/api/curriculum/subjects');
-  return extractList(response.data) as Subject[];
-};
-
-const fetchChaptersBySubject = async (subjectId: number, subjects: Subject[] = []): Promise<CMSChapter[]> => {
-  const response = await api.get(`/api/curriculum/chapters/${subjectId}`);
+const fetchChaptersBySubjectEnriched = async (subjectId: number, subjects: Subject[] = []): Promise<CMSChapter[]> => {
+  const chapters = await getChaptersBySubject(subjectId);
   const subject = subjects.find((item) => getSubjectId(item) === subjectId);
-
-  return extractList(response.data).map((chapter: any) => ({
+  return chapters.map((chapter: any) => ({
     ...chapter,
     subject: chapter.subject ?? subjectId,
     subject_name: subject?.name ?? chapter.subject_name,
@@ -147,11 +108,13 @@ const fetchChaptersBySubject = async (subjectId: number, subjects: Subject[] = [
 const fetchAllChapters = async (subjects: Subject[]): Promise<CMSChapter[]> => {
   const results = await Promise.all(
     subjects.map((subject) =>
-      fetchChaptersBySubject(getSubjectId(subject), subjects).catch(() => [])
+      fetchChaptersBySubjectEnriched(getSubjectId(subject), subjects).catch(() => [])
     )
   );
   return results.flat();
 };
+
+// ── Shared UI Components ──
 
 const SectionHeader: React.FC<{
   title: string;
@@ -250,34 +213,22 @@ const FormCard: React.FC<{
   title: string;
   subtitle: string;
   icon: React.ReactNode;
-  children: React.ReactNode;
   footer: React.ReactNode;
-}> = ({ eyebrow, title, subtitle, icon, children, footer }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 18 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.35 }}
-    className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
-  >
-    <div
-      className="px-6 py-6 lg:px-8"
-      style={{ background: 'linear-gradient(135deg, #0f2057 0%, #1a3a8a 60%, #1e40af 100%)' }}
-    >
-      <div className="flex items-start gap-4">
-        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/20">
-          {icon}
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-blue-200">{eyebrow}</p>
-          <h2 className="mt-1 text-lg font-bold text-white">{title}</h2>
-          <p className="mt-1 text-sm text-blue-100">{subtitle}</p>
-        </div>
+  children: React.ReactNode;
+}> = ({ eyebrow, title, subtitle, icon, footer, children }) => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-white/70 bg-white shadow-soft">
+    <div className="flex items-center gap-4 border-b border-slate-100 px-6 py-5">
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+        {icon}
+      </div>
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">{eyebrow}</p>
+        <p className="text-lg font-bold text-slate-900">{title}</p>
+        <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
     </div>
-    <div className="px-6 py-7 lg:px-8">{children}</div>
-    <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/70 px-6 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-      {footer}
-    </div>
+    <div className="p-6">{children}</div>
+    <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">{footer}</div>
   </motion.div>
 );
 
@@ -306,12 +257,93 @@ const IconButton: React.FC<{
   );
 };
 
+// ── Delete Confirmation Modal ──
+const DeleteModal: React.FC<{
+  title: string;
+  itemName: string;
+  onClose: () => void;
+  onConfirm: () => void;
+  isDeleting: boolean;
+}> = ({ title, itemName, onClose, onConfirm, isDeleting }) => (
+  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+      <div className="flex flex-col items-center text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 mb-4"><AlertTriangle size={28} className="text-red-500" /></div>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
+        <p className="text-sm text-gray-500 mb-1">Are you sure you want to delete</p>
+        <p className="text-sm font-bold text-gray-800 mb-4">"{itemName}"?</p>
+        <p className="text-xs text-red-500 mb-6">This action cannot be undone.</p>
+        <div className="flex items-center gap-3 w-full">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+          <button onClick={onConfirm} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+            {isDeleting && <Loader2 size={14} className="animate-spin" />}
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  </motion.div>
+);
+
+// ── Edit Modal ──
+const EditModal: React.FC<{
+  title: string;
+  fields: { label: string; name: string; value: string; type?: string }[];
+  onClose: () => void;
+  onSave: (values: Record<string, string>) => void;
+  isSaving: boolean;
+}> = ({ title, fields, onClose, onSave, isSaving }) => {
+  const [values, setValues] = useState<Record<string, string>>(
+    Object.fromEntries(fields.map(f => [f.name, f.value]))
+  );
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-gray-900 mb-4">{title}</h3>
+        <div className="space-y-4">
+          {fields.map(f => (
+            <div key={f.name}>
+              <label className="text-sm font-semibold text-gray-700">{f.label}</label>
+              {f.type === 'textarea' ? (
+                <textarea
+                  value={values[f.name]}
+                  onChange={e => setValues(prev => ({ ...prev, [f.name]: e.target.value }))}
+                  className={`${fieldClass} min-h-24 resize-y`}
+                />
+              ) : (
+                <input
+                  type={f.type || 'text'}
+                  value={values[f.name]}
+                  onChange={e => setValues(prev => ({ ...prev, [f.name]: e.target.value }))}
+                  className={fieldClass}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-end gap-3 pt-4 mt-4 border-t border-gray-100">
+          <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+          <button type="button" onClick={() => onSave(values)} disabled={isSaving} className="px-5 py-2 rounded-xl bg-blue-600 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2">
+            {isSaving && <Loader2 size={14} className="animate-spin" />}
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// ═════════════════════════════════════════
+//  MAIN COMPONENT
+// ═════════════════════════════════════════
+
 const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [localClasses, setLocalClasses] = useState<CMSClass[]>(readLocalClasses);
+  // ── Form state ──
   const [className, setClassName] = useState('');
   const [classDescription, setClassDescription] = useState('');
   const [classSearch, setClassSearch] = useState('');
@@ -336,20 +368,44 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     difficulty_frequency: 'MEDIUM',
     estimated_time: '45',
   });
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkText, setBulkText] = useState('');
 
-  const subjectsQuery = useQuery({
-    queryKey: ['cms', 'subjects'],
-    queryFn: fetchSubjects,
+  // ── Modal state ──
+  const [editingGrade, setEditingGrade] = useState<Grade | null>(null);
+  const [deletingGrade, setDeletingGrade] = useState<Grade | null>(null);
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [deletingSubject, setDeletingSubject] = useState<Subject | null>(null);
+  const [editingChapter, setEditingChapter] = useState<CMSChapter | null>(null);
+  const [deletingChapter, setDeletingChapter] = useState<CMSChapter | null>(null);
+  const [editingSlo, setEditingSlo] = useState<CMSSlo | null>(null);
+  const [deletingSlo, setDeletingSlo] = useState<CMSSlo | null>(null);
+
+  // ═══ QUERIES ═══
+
+  // Grades
+  const gradesQuery = useQuery({
+    queryKey: ['cms', 'grades'],
+    queryFn: getGrades,
     staleTime: 5 * 60 * 1000,
   });
-  const subjects = subjectsQuery.data ?? [];
+  const grades: Grade[] = gradesQuery.data ?? [];
 
+  // Subjects
+  const subjectsQuery = useQuery({
+    queryKey: ['cms', 'subjects'],
+    queryFn: getSubjects,
+    staleTime: 5 * 60 * 1000,
+  });
+  const subjects: Subject[] = subjectsQuery.data ?? [];
+
+  // Class options derived from grades
   const classOptions = useMemo(() => {
-    const merged = new Map<string, CMSClass>();
-    [...DEFAULT_CLASSES, ...localClasses].forEach((item) => {
-      merged.set(item.name.toLowerCase(), item);
+    const merged = new Map<string, Grade>();
+    grades.forEach((grade) => {
+      merged.set(grade.name.toLowerCase(), grade);
     });
+    // Also include grades that appear in subjects but not in grades API
     subjects.forEach((subject) => {
       if (!subject.grade) return;
       const key = subject.grade.toLowerCase();
@@ -357,27 +413,23 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         merged.set(key, {
           id: `subject-${subject.grade}`,
           name: subject.grade,
-          description: 'Created from curriculum subjects',
-          source: 'subject',
+          description: 'From curriculum subjects',
         });
       }
     });
     return Array.from(merged.values());
-  }, [localClasses, subjects]);
+  }, [grades, subjects]);
 
   const filteredClasses = useMemo(() => {
-    return classOptions.filter((cmsClass) =>
-      matchesSearchQuery(classSearch, [
-        cmsClass.name,
-        cmsClass.description,
-        cmsClass.source,
-      ])
+    return classOptions.filter((g) =>
+      matchesSearchQuery(classSearch, [g.name, g.description])
     );
   }, [classOptions, classSearch]);
 
+  // Chapters
   const shouldLoadAllChapters = ['dashboard', 'subjects'].includes(view);
   const allChaptersQuery = useQuery({
-    queryKey: ['cms', 'chapters', 'all', subjects.map((subject) => subject.id).join(',')],
+    queryKey: ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')],
     queryFn: () => fetchAllChapters(subjects),
     enabled: shouldLoadAllChapters && subjects.length > 0,
     staleTime: 5 * 60 * 1000,
@@ -395,12 +447,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const activeChaptersQuery = useQuery({
     queryKey: ['cms', 'chapters', activeChapterSubjectId],
-    queryFn: () => fetchChaptersBySubject(Number(activeChapterSubjectId), subjects),
+    queryFn: () => fetchChaptersBySubjectEnriched(Number(activeChapterSubjectId), subjects),
     enabled: Boolean(activeChapterSubjectId),
     staleTime: 5 * 60 * 1000,
   });
   const activeChapters = activeChaptersQuery.data ?? [];
 
+  // ── URL sync effects ──
   useEffect(() => {
     const subjectId = searchParams.get('subject');
     if (!subjectId || subjects.length === 0) return;
@@ -411,18 +464,17 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   useEffect(() => {
     const grade = searchParams.get('grade');
-    if (grade) setSubjectGradeFilter(grade);
+    if (grade) {
+      setSubjectGradeFilter(grade);
+      setHasSelectedSubjectFilter(true);
+    }
   }, [searchParams]);
 
   useEffect(() => {
     const subjectId = searchParams.get('subject');
     const chapterId = searchParams.get('chapter');
     if (!subjectId && !chapterId) return;
-
-    const subject = subjectId
-      ? subjects.find((item) => String(item.id) === subjectId)
-      : undefined;
-
+    const subject = subjectId ? subjects.find((item) => String(item.id) === subjectId) : undefined;
     setSloForm((prev) => ({
       ...prev,
       grade: subject?.grade || prev.grade,
@@ -430,6 +482,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       chapter: chapterId || prev.chapter,
     }));
   }, [searchParams, subjects]);
+
+  // ── Computed ──
 
   const subjectsByGrade = (grade: string) =>
     grade ? subjects.filter((subject) => subject.grade === grade) : subjects;
@@ -462,7 +516,6 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         subject_grade: chapter.subject_grade,
       }));
     }
-
     return allChapters.flatMap((chapter) =>
       getChapterSlos(chapter).map((slo) => ({
         ...slo,
@@ -474,19 +527,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     );
   }, [allChapters, activeChapters, view, hasSearchedSlos, sloFilterChapterId]);
 
-  const sloSubjectOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        sloRows
-          .map((slo) => slo.subject_name)
-          .filter((subjectName): subjectName is string => Boolean(subjectName))
-      )
-    ).sort((a, b) => a.localeCompare(b));
-  }, [sloRows]);
-
   const filteredSloRows = useMemo(() => {
-    return sloRows.filter((slo) => {
-      const matchesText = matchesSearchQuery(sloSearch, [
+    return sloRows.filter((slo) =>
+      matchesSearchQuery(sloSearch, [
         getSloTitle(slo),
         slo.chapter_name,
         slo.subject_name,
@@ -494,10 +537,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         slo.difficulty_frequency,
         slo.priority,
         getSloTime(slo),
-      ]);
-
-      return matchesText;
-    });
+      ])
+    );
   }, [sloRows, sloSearch]);
 
   const filteredSubjects = subjects.filter((subject) => {
@@ -510,14 +551,58 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     return matchesSearch && matchesGrade;
   });
 
+  // ═══ MUTATIONS ═══
+
+  // ── Grades ──
+  const createGradeMutation = useMutation({
+    mutationFn: async () => {
+      await createGrade({
+        name: className.trim(),
+        description: classDescription.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Grade created successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setClassName('');
+      setClassDescription('');
+      navigate('/admin/cms/classes');
+    },
+    onError: () => toast.error('Failed to create grade.'),
+  });
+
+  const updateGradeMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number | string; data: Record<string, string> }) => {
+      await updateGrade(id, { name: data.name, description: data.description });
+    },
+    onSuccess: () => {
+      toast.success('Grade updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setEditingGrade(null);
+    },
+    onError: () => toast.error('Failed to update grade.'),
+  });
+
+  const deleteGradeMutation = useMutation({
+    mutationFn: async (id: number | string) => {
+      await deleteGrade(id);
+    },
+    onSuccess: () => {
+      toast.success('Grade deleted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setDeletingGrade(null);
+    },
+    onError: () => toast.error('Failed to delete grade.'),
+  });
+
+  // ── Subjects ──
   const createSubjectMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      await createSubject({
         name: subjectForm.name.trim(),
         description: subjectForm.description.trim(),
         grade: subjectForm.grade.trim(),
-      };
-      await api.post('/api/curriculum/subjects/create', payload);
+      });
     },
     onSuccess: () => {
       toast.success('Subject created successfully.');
@@ -525,11 +610,37 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       setSubjectForm({ name: '', grade: '', description: '' });
       navigate('/admin/cms/subjects');
     },
+    onError: () => toast.error('Failed to create subject.'),
   });
 
+  const updateSubjectMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number | string; data: Record<string, string> }) => {
+      await updateSubject(id, { name: data.name, description: data.description, grade: data.grade });
+    },
+    onSuccess: () => {
+      toast.success('Subject updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setEditingSubject(null);
+    },
+    onError: () => toast.error('Failed to update subject.'),
+  });
+
+  const deleteSubjectMutation = useMutation({
+    mutationFn: async (id: number | string) => {
+      await deleteSubject(id);
+    },
+    onSuccess: () => {
+      toast.success('Subject deleted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setDeletingSubject(null);
+    },
+    onError: () => toast.error('Failed to delete subject.'),
+  });
+
+  // ── Chapters ──
   const createChapterMutation = useMutation({
     mutationFn: async () => {
-      await api.post('/api/curriculum/chapters/create', {
+      await createChapter({
         subject: Number(chapterForm.subject),
         name: chapterForm.name.trim(),
       });
@@ -540,11 +651,37 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       setChapterForm({ grade: '', subject: '', name: '' });
       navigate('/admin/cms/chapters');
     },
+    onError: () => toast.error('Failed to create chapter.'),
   });
 
+  const updateChapterMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number | string; data: Record<string, string> }) => {
+      await updateChapter(id, { name: data.name });
+    },
+    onSuccess: () => {
+      toast.success('Chapter updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setEditingChapter(null);
+    },
+    onError: () => toast.error('Failed to update chapter.'),
+  });
+
+  const deleteChapterMutation = useMutation({
+    mutationFn: async (id: number | string) => {
+      await deleteChapter(id);
+    },
+    onSuccess: () => {
+      toast.success('Chapter deleted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setDeletingChapter(null);
+    },
+    onError: () => toast.error('Failed to delete chapter.'),
+  });
+
+  // ── SLOs ──
   const createSloMutation = useMutation({
     mutationFn: async () => {
-      await api.post('/api/curriculum/slos/create', {
+      await createSlo({
         chapter: Number(sloForm.chapter),
         name: sloForm.name.trim(),
         difficulty_frequency: sloForm.difficulty_frequency,
@@ -557,88 +694,90 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       setSloForm((prev) => ({ ...prev, name: '' }));
       navigate('/admin/cms/slos');
     },
+    onError: () => toast.error('Failed to create SLO.'),
   });
 
+  const updateSloMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number | string; data: Record<string, string> }) => {
+      await updateSlo(id, {
+        name: data.name,
+        difficulty_frequency: data.difficulty_frequency || undefined,
+        estimated_time: data.estimated_time ? Number(data.estimated_time) : undefined,
+      });
+    },
+    onSuccess: () => {
+      toast.success('SLO updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setEditingSlo(null);
+    },
+    onError: () => toast.error('Failed to update SLO.'),
+  });
+
+  const deleteSloMutation = useMutation({
+    mutationFn: async (id: number | string) => {
+      await deleteSlo(id);
+    },
+    onSuccess: () => {
+      toast.success('SLO deleted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setDeletingSlo(null);
+    },
+    onError: () => toast.error('Failed to delete SLO.'),
+  });
+
+  // Bulk upload — uses the real /api/curriculum/bulk-upload with form-data
   const bulkUploadMutation = useMutation({
     mutationFn: async () => {
-      const items = bulkText
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean);
-
-      await Promise.all(
-        items.map((line) =>
-          api.post('/api/curriculum/slos/create', {
-            chapter: Number(sloForm.chapter),
-            name: line,
-            difficulty_frequency: sloForm.difficulty_frequency,
-            estimated_time: Number(sloForm.estimated_time) || 0,
-          })
-        )
-      );
-
-      return items.length;
+      if (bulkFile) {
+        // Real file upload via form-data
+        await bulkUploadSlos(sloForm.grade || '0', bulkFile);
+        return 1;
+      } else {
+        // Text-based fallback: create SLOs one by one
+        const items = bulkText
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+        await Promise.all(
+          items.map((line) =>
+            createSlo({
+              chapter: Number(sloForm.chapter),
+              name: line,
+              difficulty_frequency: sloForm.difficulty_frequency,
+              estimated_time: Number(sloForm.estimated_time) || 0,
+            })
+          )
+        );
+        return items.length;
+      }
     },
     onSuccess: (count) => {
-      toast.success(`${count} SLOs uploaded successfully.`);
+      toast.success(bulkFile ? 'SLOs uploaded successfully from file.' : `${count} SLOs uploaded successfully.`);
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       setBulkText('');
+      setBulkFile(null);
       navigate('/admin/cms/slos');
     },
+    onError: () => toast.error('Failed to upload SLOs.'),
   });
-
-  const handleAddClass = (event: React.FormEvent) => {
-    event.preventDefault();
-    const name = className.trim();
-    if (!name) {
-      toast.error('Class name is required.');
-      return;
-    }
-    const nextClasses = [
-      ...localClasses.filter((item) => item.name.toLowerCase() !== name.toLowerCase()),
-      {
-        id: `local-${Date.now()}`,
-        name,
-        description: classDescription.trim(),
-        source: 'local' as const,
-      },
-    ];
-    setLocalClasses(nextClasses);
-    saveLocalClasses(nextClasses);
-    setClassName('');
-    setClassDescription('');
-    toast.success('Class saved locally.');
-    navigate('/admin/cms/classes');
-  };
-
-  const handleDeleteLocalClass = (cmsClass: CMSClass) => {
-    if (cmsClass.source !== 'local') {
-      toast.error('Default and subject-derived classes cannot be deleted here.');
-      return;
-    }
-    const nextClasses = localClasses.filter((item) => item.id !== cmsClass.id);
-    setLocalClasses(nextClasses);
-    saveLocalClasses(nextClasses);
-    toast.success('Class deleted.');
-  };
 
   const handleBulkFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setBulkFile(file);
+    // Also read into textarea for preview
     const reader = new FileReader();
     reader.onload = () => setBulkText(String(reader.result || ''));
     reader.readAsText(file);
   };
 
-  const showPendingApi = (entity: string) => {
-    toast.error(`${entity} edit/delete API is not connected yet.`);
-  };
+  // ═══ RENDER FUNCTIONS ═══
 
   const renderDashboard = () => (
     <>
       <SectionHeader
         title="CMS Management"
-        subtitle="Manage classes, subjects, chapters, and SLOs used by planner generation."
+        subtitle="Manage grades, subjects, chapters, and SLOs used by planner generation."
         action={
           <PrimaryButton onClick={() => navigate('/admin/cms/subjects/add')}>
             <Plus size={16} /> Add Subject
@@ -646,7 +785,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         }
       />
       <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Classes" value={classOptions.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" />
+        <StatCard label="Total Grades" value={grades.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" />
         <StatCard label="Total Subjects" value={subjects.length} icon={<BookOpen size={20} />} tone="bg-purple-100 text-purple-600" />
         <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" />
         <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" />
@@ -656,7 +795,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           <h2 className="text-lg font-bold text-gray-900">CMS Flow</h2>
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
             {[
-              ['Class / Grade', 'Choose learning level'],
+              ['Grade', 'Choose learning level'],
               ['Subject', 'Map curriculum area'],
               ['Chapter', 'Group study content'],
               ['SLOs', 'Planner-ready objectives'],
@@ -672,14 +811,18 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           </div>
         </div>
         <div className="rounded-2xl border border-white/70 bg-white p-6 shadow-soft">
-          <h2 className="text-lg font-bold text-gray-900">Recent CMS Activity</h2>
+          <h2 className="text-lg font-bold text-gray-900">Quick Stats</h2>
           <div className="mt-5 space-y-4">
-            {['New subject added', 'New chapter created', 'SLO uploaded'].map((item) => (
-              <div key={item} className="flex items-center gap-3">
-                <span className="h-2 w-2 rounded-full bg-blue-500" />
+            {[
+              { label: 'Grades', count: grades.length, icon: <GraduationCap size={16} /> },
+              { label: 'Subjects', count: subjects.length, icon: <BookOpen size={16} /> },
+              { label: 'Chapters', count: allChapters.length, icon: <Layers3 size={16} /> },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-500">{item.icon}</span>
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">{item}</p>
-                  <p className="text-xs text-slate-400">Curriculum activity</p>
+                  <p className="text-sm font-semibold text-slate-800">{item.count} {item.label}</p>
+                  <p className="text-xs text-slate-400">In curriculum</p>
                 </div>
               </div>
             ))}
@@ -689,38 +832,41 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     </>
   );
 
+  // ── GRADES (Classes) ──
   const renderClasses = () => (
     <>
       <SectionHeader
-        title="All Classes"
-        subtitle="Class and grade options used to organize curriculum."
-        action={<PrimaryButton onClick={() => navigate('/admin/cms/classes/add')}><Plus size={16} /> Add Class</PrimaryButton>}
+        title="All Grades"
+        subtitle="Grades used to organize the curriculum. Data from the backend API."
+        action={<PrimaryButton onClick={() => navigate('/admin/cms/classes/add')}><Plus size={16} /> Add Grade</PrimaryButton>}
       />
       <SearchInput
         value={classSearch}
         onChange={setClassSearch}
-        placeholder="Search classes by name, type, description"
+        placeholder="Search grades by name"
         className="mb-5"
       />
-      {filteredClasses.length === 0 ? (
-        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No classes match your search.</div>
+      {gradesQuery.isLoading ? (
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading grades...</div>
+      ) : filteredClasses.length === 0 ? (
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No grades found.</div>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {filteredClasses.map((cmsClass) => (
-            <div key={cmsClass.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          {filteredClasses.map((grade) => (
+            <div key={grade.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-lg font-bold text-slate-900">{cmsClass.name}</p>
-                  <p className="mt-1 text-sm text-slate-500">{cmsClass.description || 'Curriculum class'}</p>
+                  <p className="text-lg font-bold text-slate-900">{grade.name}</p>
+                  <p className="mt-1 text-sm text-slate-500">{grade.description || 'Curriculum grade'}</p>
                 </div>
                 <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-bold uppercase text-blue-600">
-                  {cmsClass.source}
+                  Grade
                 </span>
               </div>
               <div className="mt-6 flex items-center justify-end gap-1">
-                <IconButton title="View subjects" tone="blue" onClick={() => navigate(`/admin/cms/subjects?grade=${encodeURIComponent(cmsClass.name)}`)}><Eye size={15} /></IconButton>
-                <IconButton title="Edit" onClick={() => cmsClass.source === 'local' ? (setClassName(cmsClass.name), setClassDescription(cmsClass.description || ''), navigate('/admin/cms/classes/add')) : toast.error('Only local classes can be edited here.')}><Pencil size={15} /></IconButton>
-                <IconButton title="Delete" tone="red" onClick={() => handleDeleteLocalClass(cmsClass)}><Trash2 size={15} /></IconButton>
+                <IconButton title="View subjects" tone="blue" onClick={() => navigate(`/admin/cms/subjects?grade=${encodeURIComponent(grade.name)}`)}><Eye size={15} /></IconButton>
+                <IconButton title="Edit" onClick={() => setEditingGrade(grade)}><Pencil size={15} /></IconButton>
+                <IconButton title="Delete" tone="red" onClick={() => setDeletingGrade(grade)}><Trash2 size={15} /></IconButton>
               </div>
             </div>
           ))}
@@ -731,23 +877,25 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const renderAddClass = () => (
     <>
-      <SectionHeader title="Add Class" subtitle="Create a class or exam category for curriculum planning." />
-      <form onSubmit={handleAddClass}>
+      <SectionHeader title="Add Grade" subtitle="Create a new grade for curriculum organization." />
+      <form onSubmit={(e) => { e.preventDefault(); if (!className.trim()) { toast.error('Grade name is required.'); return; } createGradeMutation.mutate(); }}>
         <FormCard
-          eyebrow="Class Setup"
-          title="Class Details"
-          subtitle="Create the class or exam level used across CMS and planner setup."
+          eyebrow="Grade Setup"
+          title="Grade Details"
+          subtitle="Create the grade used across CMS and planner setup."
           icon={<GraduationCap size={22} />}
           footer={
             <>
               <SecondaryButton onClick={() => navigate('/admin/cms/classes')}><X size={16} /> Cancel</SecondaryButton>
-              <PrimaryButton type="submit"><Save size={16} /> Save Class</PrimaryButton>
+              <PrimaryButton type="submit" disabled={createGradeMutation.isPending}>
+                {createGradeMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Grade
+              </PrimaryButton>
             </>
           }
         >
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <FieldLabel label="Class / Grade Name">
-              <input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="Grade 9, CSS, MDCAT" className={fieldClass} />
+            <FieldLabel label="Grade Name">
+              <input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="9, 10, CSS, MDCAT" className={fieldClass} />
             </FieldLabel>
             <FieldLabel label="Description" className="lg:col-span-2">
               <textarea value={classDescription} onChange={(e) => setClassDescription(e.target.value)} placeholder="Optional description" className={`${fieldClass} min-h-32 resize-y`} />
@@ -758,11 +906,12 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     </>
   );
 
+  // ── SUBJECTS ──
   const renderSubjects = () => (
     <>
       <SectionHeader
         title="All Subjects"
-        subtitle="Subjects are grouped by class or grade and feed into planner creation."
+        subtitle="Subjects are grouped by grade and feed into planner creation."
         action={<PrimaryButton onClick={() => navigate('/admin/cms/subjects/add')}><Plus size={16} /> Add Subject</PrimaryButton>}
       />
       <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_220px]">
@@ -771,15 +920,15 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           onChange={setSubjectSearch}
           placeholder="Search subjects by name, grade, description"
         />
-        <select 
-          value={subjectGradeFilter} 
+        <select
+          value={subjectGradeFilter}
           onChange={(e) => {
             setSubjectGradeFilter(e.target.value);
             setHasSelectedSubjectFilter(true);
-          }} 
+          }}
           className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
         >
-          <option value="">All Classes</option>
+          <option value="">All Grades</option>
           {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
         </select>
       </div>
@@ -788,9 +937,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 mb-4">
             <BookOpen size={32} className="text-blue-500" />
           </div>
-          <h3 className="text-xl font-bold text-slate-800 mb-2">Select a Class to View Subjects</h3>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">Select a Grade to View Subjects</h3>
           <p className="text-sm text-slate-500 max-w-md">
-            Please select a class from the dropdown filter above to view the subjects associated with it.
+            Please select a grade from the dropdown filter above to view the subjects associated with it.
           </p>
         </div>
       ) : (
@@ -810,7 +959,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
               {subjectsQuery.isLoading ? (
                 <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading subjects...</td></tr>
               ) : filteredSubjects.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">No subjects found for this class.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">No subjects found for this grade.</td></tr>
               ) : (
                 filteredSubjects.map((subject) => {
                   const counts = chapterCountsBySubject.get(getSubjectId(subject));
@@ -824,8 +973,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1">
                           <IconButton title="View chapters" tone="blue" onClick={() => navigate(`/admin/cms/chapters?subject=${subject.id}`)}><Eye size={15} /></IconButton>
-                          <IconButton title="Edit subject" onClick={() => showPendingApi('Subject')}><Pencil size={15} /></IconButton>
-                          <IconButton title="Delete subject" tone="red" onClick={() => showPendingApi('Subject')}><Trash2 size={15} /></IconButton>
+                          <IconButton title="Edit subject" onClick={() => setEditingSubject(subject)}><Pencil size={15} /></IconButton>
+                          <IconButton title="Delete subject" tone="red" onClick={() => setDeletingSubject(subject)}><Trash2 size={15} /></IconButton>
                         </div>
                       </td>
                     </tr>
@@ -841,7 +990,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const renderAddSubject = () => (
     <>
-      <SectionHeader title="Add Subject" subtitle="Create a subject under a class or grade." />
+      <SectionHeader title="Add Subject" subtitle="Create a subject under a grade." />
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -855,7 +1004,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         <FormCard
           eyebrow="Subject Setup"
           title="Subject Details"
-          subtitle="Attach a curriculum subject to a class or grade."
+          subtitle="Attach a curriculum subject to a grade."
           icon={<BookOpen size={22} />}
           footer={
             <>
@@ -870,8 +1019,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             <FieldLabel label="Subject Name">
               <input value={subjectForm.name} onChange={(e) => setSubjectForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Mathematics" className={fieldClass} />
             </FieldLabel>
-            <FieldLabel label="Class / Grade">
-              <input list="cms-grade-options" value={subjectForm.grade} onChange={(e) => setSubjectForm((prev) => ({ ...prev, grade: e.target.value }))} placeholder="10" className={fieldClass} />
+            <FieldLabel label="Grade">
+              <select value={subjectForm.grade} onChange={(e) => setSubjectForm((prev) => ({ ...prev, grade: e.target.value }))} className={`mt-2 ${selectClass}`}>
+                <option value="">Select Grade</option>
+                {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+              </select>
             </FieldLabel>
             <FieldLabel label="Description" className="lg:col-span-2">
               <textarea value={subjectForm.description} onChange={(e) => setSubjectForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Core mathematics curriculum for grade 10" className={`${fieldClass} min-h-32 resize-y`} />
@@ -882,6 +1034,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     </>
   );
 
+  // ── CHAPTERS ──
   const renderChapters = () => {
     const visibleSubjects = subjectsByGrade(chapterGradeFilter);
     const selectedSubject = subjects.find((item) => String(item.id) === chapterSubjectId);
@@ -939,8 +1092,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 </div>
                 <div className="mt-5 flex items-center justify-end gap-1">
                   <IconButton title="Add SLO" tone="blue" onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}><Plus size={15} /></IconButton>
-                  <IconButton title="Edit chapter" onClick={() => showPendingApi('Chapter')}><Pencil size={15} /></IconButton>
-                  <IconButton title="Delete chapter" tone="red" onClick={() => showPendingApi('Chapter')}><Trash2 size={15} /></IconButton>
+                  <IconButton title="Edit chapter" onClick={() => setEditingChapter(chapter)}><Pencil size={15} /></IconButton>
+                  <IconButton title="Delete chapter" tone="red" onClick={() => setDeletingChapter(chapter)}><Trash2 size={15} /></IconButton>
                 </div>
               </div>
             ))}
@@ -978,7 +1131,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           }
         >
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <FieldLabel label="Class / Grade">
+            <FieldLabel label="Grade">
               <select value={chapterForm.grade} onChange={(e) => setChapterForm({ grade: e.target.value, subject: '', name: chapterForm.name })} className={`mt-2 ${selectClass}`}>
                 <option value="">Select Grade</option>
                 {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
@@ -999,6 +1152,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     </>
   );
 
+  // ── SLOs ──
   const renderSlos = () => (
     <>
       <SectionHeader
@@ -1080,8 +1234,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                   <td className="px-6 py-4 text-sm text-slate-600">{getSloTime(slo) ? `${getSloTime(slo)}m` : 'N/A'}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1">
-                      <IconButton title="Edit SLO" onClick={() => showPendingApi('SLO')}><Pencil size={15} /></IconButton>
-                      <IconButton title="Delete SLO" tone="red" onClick={() => showPendingApi('SLO')}><Trash2 size={15} /></IconButton>
+                      <IconButton title="Edit SLO" onClick={() => setEditingSlo(slo)}><Pencil size={15} /></IconButton>
+                      <IconButton title="Delete SLO" tone="red" onClick={() => setDeletingSlo(slo)}><Trash2 size={15} /></IconButton>
                     </div>
                   </td>
                 </tr>
@@ -1097,28 +1251,39 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     <>
       <SectionHeader
         title={bulk ? 'Upload SLOs' : 'Add SLO'}
-        subtitle={bulk ? 'Paste or upload one SLO per line for the selected chapter.' : 'Create a single SLO under a selected chapter.'}
+        subtitle={bulk ? 'Upload a file or paste SLOs for the selected chapter.' : 'Create a single SLO under a selected chapter.'}
       />
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (!sloForm.chapter || (bulk ? !bulkText.trim() : !sloForm.name.trim())) {
-            toast.error(bulk ? 'Chapter and SLO lines are required.' : 'Chapter and SLO name are required.');
-            return;
+          if (bulk) {
+            if (!bulkFile && !bulkText.trim()) {
+              toast.error('Please upload a file or paste SLO lines.');
+              return;
+            }
+            if (!bulkFile && !sloForm.chapter) {
+              toast.error('Please select a chapter for text-based upload.');
+              return;
+            }
+            bulkUploadMutation.mutate();
+          } else {
+            if (!sloForm.chapter || !sloForm.name.trim()) {
+              toast.error('Chapter and SLO name are required.');
+              return;
+            }
+            createSloMutation.mutate();
           }
-          if (bulk) bulkUploadMutation.mutate();
-          else createSloMutation.mutate();
         }}
       >
         <FormCard
           eyebrow={bulk ? 'Bulk SLO Upload' : 'SLO Setup'}
           title={bulk ? 'Upload Objectives' : 'SLO Details'}
-          subtitle={bulk ? 'Upload multiple objectives against a selected chapter.' : 'Create one planner-ready objective under a chapter.'}
+          subtitle={bulk ? 'Upload multiple objectives via file or text.' : 'Create one planner-ready objective under a chapter.'}
           icon={bulk ? <Upload size={22} /> : <ListChecks size={22} />}
           footer={
             <>
               <div className="text-xs font-medium text-slate-400">
-                {bulk ? `${bulkText.split(/\r?\n/).filter((line) => line.trim()).length} lines ready` : 'Single SLO entry'}
+                {bulk ? (bulkFile ? `File: ${bulkFile.name}` : `${bulkText.split(/\r?\n/).filter((line) => line.trim()).length} lines ready`) : 'Single SLO entry'}
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <SecondaryButton onClick={() => navigate('/admin/cms/slos')}><X size={16} /> Cancel</SecondaryButton>
@@ -1131,7 +1296,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           }
         >
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <FieldLabel label="Class / Grade">
+            <FieldLabel label="Grade">
               <select value={sloForm.grade} onChange={(e) => setSloForm((prev) => ({ ...prev, grade: e.target.value, subject: '', chapter: '' }))} className={`mt-2 ${selectClass}`}>
                 <option value="">Select Grade</option>
                 {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
@@ -1163,14 +1328,14 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
               </div>
             </FieldLabel>
             {bulk && (
-              <FieldLabel label="Upload File">
+              <FieldLabel label="Upload File (.csv, .txt, .xlsx)">
                 <label className="mt-2 flex min-h-[50px] cursor-pointer items-center justify-center rounded-xl border border-dashed border-blue-200 bg-blue-50/50 px-4 py-3 text-sm font-semibold text-blue-600 transition hover:border-blue-300 hover:bg-blue-50">
-                  <input type="file" accept=".txt,.csv" onChange={handleBulkFile} className="hidden" />
-                  <span className="inline-flex items-center gap-2"><Upload size={16} /> Upload TXT/CSV</span>
+                  <input type="file" accept=".txt,.csv,.xlsx,.xls" onChange={handleBulkFile} className="hidden" />
+                  <span className="inline-flex items-center gap-2"><Upload size={16} /> {bulkFile ? bulkFile.name : 'Upload File'}</span>
                 </label>
               </FieldLabel>
             )}
-            <FieldLabel label={bulk ? 'SLO Lines' : 'SLO'} className="lg:col-span-2">
+            <FieldLabel label={bulk ? 'SLO Lines (Preview / Manual Entry)' : 'SLO'} className="lg:col-span-2">
               {bulk ? (
                 <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder="Student can solve simple linear equations." className={`${fieldClass} min-h-56 resize-y`} />
               ) : (
@@ -1211,11 +1376,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   return (
     <DashboardLayout activePage={activePageMap[view]}>
-      <datalist id="cms-grade-options">
-        {classOptions.map((item) => <option key={item.id} value={item.name} />)}
-      </datalist>
       <div className="mb-5 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-400">
-        <span>Class / Grade</span>
+        <span>Grade</span>
         <ArrowRight size={13} />
         <span>Subject</span>
         <ArrowRight size={13} />
@@ -1224,6 +1386,103 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         <span>SLOs</span>
       </div>
       {renderContent()}
+
+      {/* ── Modals ── */}
+      <AnimatePresence>
+        {/* Grade Edit */}
+        {editingGrade && (
+          <EditModal
+            title="Edit Grade"
+            fields={[
+              { label: 'Grade Name', name: 'name', value: editingGrade.name },
+              { label: 'Description', name: 'description', value: editingGrade.description || '', type: 'textarea' },
+            ]}
+            onClose={() => setEditingGrade(null)}
+            onSave={(values) => updateGradeMutation.mutate({ id: editingGrade.id, data: values })}
+            isSaving={updateGradeMutation.isPending}
+          />
+        )}
+        {/* Grade Delete */}
+        {deletingGrade && (
+          <DeleteModal
+            title="Delete Grade"
+            itemName={deletingGrade.name}
+            onClose={() => setDeletingGrade(null)}
+            onConfirm={() => deleteGradeMutation.mutate(deletingGrade.id)}
+            isDeleting={deleteGradeMutation.isPending}
+          />
+        )}
+        {/* Subject Edit */}
+        {editingSubject && (
+          <EditModal
+            title="Edit Subject"
+            fields={[
+              { label: 'Subject Name', name: 'name', value: editingSubject.name },
+              { label: 'Grade', name: 'grade', value: editingSubject.grade || '' },
+              { label: 'Description', name: 'description', value: editingSubject.description || '', type: 'textarea' },
+            ]}
+            onClose={() => setEditingSubject(null)}
+            onSave={(values) => updateSubjectMutation.mutate({ id: editingSubject.id, data: values })}
+            isSaving={updateSubjectMutation.isPending}
+          />
+        )}
+        {/* Subject Delete */}
+        {deletingSubject && (
+          <DeleteModal
+            title="Delete Subject"
+            itemName={deletingSubject.name}
+            onClose={() => setDeletingSubject(null)}
+            onConfirm={() => deleteSubjectMutation.mutate(deletingSubject.id)}
+            isDeleting={deleteSubjectMutation.isPending}
+          />
+        )}
+        {/* Chapter Edit */}
+        {editingChapter && (
+          <EditModal
+            title="Edit Chapter"
+            fields={[
+              { label: 'Chapter Name', name: 'name', value: editingChapter.name },
+            ]}
+            onClose={() => setEditingChapter(null)}
+            onSave={(values) => updateChapterMutation.mutate({ id: editingChapter.id, data: values })}
+            isSaving={updateChapterMutation.isPending}
+          />
+        )}
+        {/* Chapter Delete */}
+        {deletingChapter && (
+          <DeleteModal
+            title="Delete Chapter"
+            itemName={deletingChapter.name}
+            onClose={() => setDeletingChapter(null)}
+            onConfirm={() => deleteChapterMutation.mutate(deletingChapter.id)}
+            isDeleting={deleteChapterMutation.isPending}
+          />
+        )}
+        {/* SLO Edit */}
+        {editingSlo && (
+          <EditModal
+            title="Edit SLO"
+            fields={[
+              { label: 'SLO Name', name: 'name', value: getSloTitle(editingSlo) },
+              { label: 'Difficulty Frequency', name: 'difficulty_frequency', value: editingSlo.difficulty_frequency || 'MEDIUM' },
+              { label: 'Estimated Time (minutes)', name: 'estimated_time', value: String(getSloTime(editingSlo) || ''), type: 'number' },
+            ]}
+            onClose={() => setEditingSlo(null)}
+            onSave={(values) => updateSloMutation.mutate({ id: editingSlo.id, data: values })}
+            isSaving={updateSloMutation.isPending}
+          />
+        )}
+        {/* SLO Delete */}
+        {deletingSlo && (
+          <DeleteModal
+            title="Delete SLO"
+            itemName={getSloTitle(deletingSlo)}
+            onClose={() => setDeletingSlo(null)}
+            onConfirm={() => deleteSloMutation.mutate(deletingSlo.id)}
+            isDeleting={deleteSloMutation.isPending}
+          />
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   );
 };

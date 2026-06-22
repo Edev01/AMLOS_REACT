@@ -8,7 +8,7 @@ import { useTheme } from '../context/ThemeContext';
 import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
-import api from '../api/services/api';
+import { studyPlanService } from '../api/services/studyPlanService';
 import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Clock, Layers, X, AlertTriangle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -217,9 +217,7 @@ const AllPlanners: React.FC = () => {
   const { data: plannersData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['planners'],
     queryFn: async () => {
-      const url = '/api/study-plans';
-      const r = await api.get(url, { timeout: 10000 });
-      const d = r.data;
+      const d = await studyPlanService.listPlans();
 
       let rawList: any[] = [];
       if (Array.isArray(d)) {
@@ -333,7 +331,7 @@ const AllPlanners: React.FC = () => {
   // ─── Delete Mutation ──────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: async (planId: number) => {
-      await api.delete(`/api/study-plans/${planId}/delete`);
+      await studyPlanService.deletePlan(planId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planners'] });
@@ -362,8 +360,7 @@ const AllPlanners: React.FC = () => {
       // in case the backend requires a full object replacement.
       let originalPlanner: any = {};
       try {
-        const detailRes = await api.get(`/api/study-plans/${id}`);
-        const p = detailRes.data;
+        const p = await studyPlanService.getPlanDetails(id);
         if (p?.data && typeof p.data === 'object' && !Array.isArray(p.data)) {
           originalPlanner = p.data;
         } else if (p?.plan && typeof p.plan === 'object') {
@@ -391,7 +388,7 @@ const AllPlanners: React.FC = () => {
         min_study_time_daily: Number(data.min_study_time_daily || data.min_study_time),
         max_study_time_daily: Number(data.max_study_time_daily || data.max_study_time),
       };
-      await api.post(`/api/study-plans/${id}/update`, finalPayload);
+      await studyPlanService.updatePlan(id, finalPayload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planners'] });

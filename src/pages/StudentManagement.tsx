@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { studentService } from '../api/services/studentService';
 import { useAuth } from '../context/AuthContext';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { Student as StudentType, UpdateStudentPayload } from '../types';
 import Modal from '../components/Modal';
 import {
@@ -25,6 +25,9 @@ import {
   MapPin,
   User,
   Clock,
+  FileText,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
@@ -71,6 +74,27 @@ const StudentManagement: React.FC = () => {
 
   // View detail modal state
   const [selectedStudent, setSelectedStudent] = useState<StudentType | null>(null);
+  const [detailTab, setDetailTab] = useState<'info' | 'plans'>('info');
+
+  // Delete modal state
+  const [deletingStudent, setDeletingStudent] = useState<StudentType | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Fetch fresh student data when viewing details
+  const { data: freshStudentData, isLoading: studentDetailLoading } = useQuery({
+    queryKey: ['student-detail', selectedStudent?.id],
+    queryFn: () => studentService.getStudentById(selectedStudent!.id),
+    enabled: !!selectedStudent?.id,
+  });
+
+  // Fetch student's study plans when viewing details
+  const { data: studentPlans = [], isLoading: plansLoading } = useQuery({
+    queryKey: ['student-plans', selectedStudent?.id],
+    queryFn: () => studentService.getStudentPlans(selectedStudent!.id),
+    enabled: !!selectedStudent?.id && detailTab === 'plans',
+  });
+
+  const displayStudent = freshStudentData ? { ...selectedStudent, ...freshStudentData } as StudentType : selectedStudent;
 
   const schoolId = tenant.schoolId || user?.school_id;
   const tenantId = tenant.campusId || user?.campus_id;
@@ -108,20 +132,22 @@ const StudentManagement: React.FC = () => {
     }
   }, [schoolId]);
 
-  const handleDelete = useCallback(async (student: StudentType) => {
-    if (!window.confirm(`Delete student "${student.full_name || 'this student'}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDelete = useCallback(async () => {
+    if (!deletingStudent) return;
+    setIsDeleting(true);
     try {
-      await studentService.deleteStudent(student.id);
+      await studentService.deleteStudent(deletingStudent.id);
       toast.success('Student deleted successfully.');
       queryClient.invalidateQueries({ queryKey: ['students'] });
-      setStudents((prev) => prev.filter((s) => s.id !== student.id));
+      setStudents((prev) => prev.filter((s) => s.id !== deletingStudent.id));
+      setDeletingStudent(null);
     } catch (error: any) {
       console.error('[Student Delete Error]:', error.response?.data || error.message || error);
       toast.error(error.response?.data?.message || 'Failed to delete student. Please check permissions and try again.');
+    } finally {
+      setIsDeleting(false);
     }
-  }, [queryClient]);
+  }, [deletingStudent, queryClient]);
 
   const openEdit = useCallback((student: StudentType) => {
     setEditingStudent(student);
@@ -276,7 +302,10 @@ const StudentManagement: React.FC = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.03 }}
-            onClick={() => setSelectedStudent(s)}
+            onClick={() => {
+              setDetailTab('info');
+              setSelectedStudent(s);
+            }}
             className="cursor-pointer rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
           >
             <div className="flex items-start gap-3 mb-3">
@@ -325,6 +354,7 @@ const StudentManagement: React.FC = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    setDetailTab('info');
                     setSelectedStudent(s);
                   }}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
@@ -335,7 +365,7 @@ const StudentManagement: React.FC = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(s);
+                    setDeletingStudent(s);
                   }}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                   title="Delete"
@@ -524,147 +554,205 @@ const StudentManagement: React.FC = () => {
       {/* Student Detail Modal */}
       <Modal
         isOpen={!!selectedStudent}
-        onClose={() => setSelectedStudent(null)}
+        onClose={() => { setSelectedStudent(null); setDetailTab('info'); }}
         title="Student Details"
       >
         {selectedStudent && (
-          <div className="space-y-6">
-            {/* Header Avatar and Basic Info */}
+          <div className="space-y-4">
+            {/* Header */}
             <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-gradient-to-br from-blue-50/50 to-indigo-50/50 border border-slate-100">
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-3xl shadow-md mb-3">
-                {((selectedStudent.full_name || 'U')[0]).toUpperCase()}
-              </div>
-              <h3 className="text-xl font-bold text-slate-800">{selectedStudent.full_name || 'Unnamed'}</h3>
-              <p className="text-xs text-slate-400 mt-1">ID: {selectedStudent.student_id || selectedStudent.roll_number || 'N/A'}</p>
+              {studentDetailLoading ? (
+                <div className="flex h-20 w-20 items-center justify-center"><Loader2 size={32} className="animate-spin text-blue-500" /></div>
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-3xl shadow-md mb-3">
+                  {((displayStudent?.full_name || 'U')[0]).toUpperCase()}
+                </div>
+              )}
+              <h3 className="text-xl font-bold text-slate-800">{displayStudent?.full_name || 'Unnamed'}</h3>
+              <p className="text-xs text-slate-400 mt-1">ID: {displayStudent?.student_id || displayStudent?.roll_number || 'N/A'}</p>
               <span className="mt-2.5 rounded-full bg-emerald-100 px-3.5 py-1 text-xs font-semibold text-emerald-700">
                 Active Student
               </span>
             </div>
 
-            {/* Academic Information */}
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Academic Details</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                    <GraduationCap size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400">Class / Grade</p>
-                    <p className="text-sm font-semibold text-slate-800">{selectedStudent.class_grade || 'N/A'}</p>
+            {/* Tabs */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+              <button
+                onClick={() => setDetailTab('info')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${detailTab === 'info' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <User size={14} /> Info
+              </button>
+              <button
+                onClick={() => setDetailTab('plans')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${detailTab === 'plans' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <FileText size={14} /> Study Plans
+              </button>
+            </div>
+
+            {detailTab === 'info' && (
+              <div className="space-y-4">
+                {/* Academic Information */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Academic Details</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                        <GraduationCap size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400">Class / Grade</p>
+                        <p className="text-sm font-semibold text-slate-800">{displayStudent?.class_grade || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-600">
+                        <Hash size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400">Section</p>
+                        <p className="text-sm font-semibold text-slate-800">{displayStudent?.section || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
+                        <BookOpen size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400">Roll Number</p>
+                        <p className="text-sm font-semibold text-slate-800">{displayStudent?.roll_number || displayStudent?.student_id || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-pink-100 text-pink-600">
+                        <Clock size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400">Academic Year</p>
+                        <p className="text-sm font-semibold text-slate-800">{displayStudent?.academic_year || new Date().getFullYear().toString()}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-600">
-                    <Hash size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400">Section</p>
-                    <p className="text-sm font-semibold text-slate-800">{selectedStudent.section || 'N/A'}</p>
+                {/* Personal Information */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Personal Details</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Mail size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Email Address</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">{displayStudent?.email || 'N/A'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <User size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Username</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">{displayStudent?.username || 'N/A'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Date of Birth</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">
+                        {displayStudent?.dob ? new Date(displayStudent.dob).toLocaleDateString('en-US', {
+                          year: 'numeric', month: 'long', day: 'numeric'
+                        }) : 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <MapPin size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Province / State</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">{displayStudent?.state || 'N/A'}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
-                    <BookOpen size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400">Roll Number</p>
-                    <p className="text-sm font-semibold text-slate-800">{selectedStudent.roll_number || selectedStudent.student_id || 'N/A'}</p>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-pink-100 text-pink-600">
-                    <Clock size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400">Academic Year</p>
-                    <p className="text-sm font-semibold text-slate-800">{selectedStudent.academic_year || new Date().getFullYear().toString()}</p>
+                {/* Guardian Information */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Guardian & Contact Details</h4>
+                  <div className="p-4 rounded-xl bg-blue-50/30 border border-blue-100/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users size={16} className="text-indigo-500" />
+                        <span className="text-xs font-semibold text-slate-500">Guardian Name</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{displayStudent?.guardian_name || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Phone size={16} className="text-indigo-500" />
+                        <span className="text-xs font-semibold text-slate-500">Guardian Contact</span>
+                      </div>
+                      <span className="text-sm font-bold text-indigo-600">{displayStudent?.guardian_contact || displayStudent?.guardian_phone || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Mail size={16} className="text-indigo-500" />
+                        <span className="text-xs font-semibold text-slate-500">Guardian Email</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{displayStudent?.guardian_email || 'N/A'}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Personal Information */}
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Personal Details</h4>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Mail size={16} className="text-slate-400" />
-                    <span className="text-xs font-medium text-slate-500">Email Address</span>
+            {detailTab === 'plans' && (
+              <div>
+                {plansLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 size={28} className="animate-spin text-blue-500 mr-2" />
+                    <span className="text-sm text-gray-500">Loading study plans...</span>
                   </div>
-                  <span className="text-sm font-semibold text-slate-800">{selectedStudent.email || 'N/A'}</span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <User size={16} className="text-slate-400" />
-                    <span className="text-xs font-medium text-slate-500">Username</span>
+                ) : studentPlans.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 mb-3">
+                      <FileText size={24} className="text-gray-400" />
+                    </div>
+                    <h4 className="text-base font-semibold text-gray-900 mb-1">No Study Plans</h4>
+                    <p className="text-sm text-gray-500">This student has no active study plans yet.</p>
                   </div>
-                  <span className="text-sm font-semibold text-slate-800">{selectedStudent.username || 'N/A'}</span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={16} className="text-slate-400" />
-                    <span className="text-xs font-medium text-slate-500">Date of Birth</span>
+                ) : (
+                  <div className="space-y-3">
+                    {studentPlans.map((plan: any, idx: number) => (
+                      <div key={plan.id || idx} className="p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-sm transition-all">
+                        <div className="flex items-start justify-between mb-2">
+                          <h5 className="text-sm font-bold text-gray-900">{plan.title || plan.plan_name || 'Untitled Plan'}</h5>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${plan.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {plan.status || 'Active'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><GraduationCap size={11} /> Grade {plan.grade || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><Clock size={11} /> {plan.mode || 'PARALLEL'}</span>
+                          <span className="flex items-center gap-1"><Calendar size={11} /> {plan.start_date || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><Calendar size={11} /> {plan.end_date || 'N/A'}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <span className="text-sm font-semibold text-slate-800">
-                    {selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    }) : 'N/A'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <MapPin size={16} className="text-slate-400" />
-                    <span className="text-xs font-medium text-slate-500">Province / State</span>
-                  </div>
-                  <span className="text-sm font-semibold text-slate-800">{selectedStudent.state || 'N/A'}</span>
-                </div>
+                )}
               </div>
-            </div>
-
-            {/* Guardian/Parent Information */}
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Guardian & Contact Details</h4>
-              <div className="p-4 rounded-xl bg-blue-50/30 border border-blue-100/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Users size={16} className="text-indigo-500" />
-                    <span className="text-xs font-semibold text-slate-500">Guardian Name</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">{selectedStudent.guardian_name || 'N/A'}</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Phone size={16} className="text-indigo-500" />
-                    <span className="text-xs font-semibold text-slate-500">Guardian Contact</span>
-                  </div>
-                  <span className="text-sm font-bold text-indigo-600">{selectedStudent.guardian_contact || selectedStudent.guardian_phone || 'N/A'}</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Mail size={16} className="text-indigo-500" />
-                    <span className="text-xs font-semibold text-slate-500">Guardian Email</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">{selectedStudent.guardian_email || 'N/A'}</span>
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* Close Button */}
             <div className="flex justify-end pt-2">
               <button
-                onClick={() => setSelectedStudent(null)}
+                onClick={() => { setSelectedStudent(null); setDetailTab('info'); }}
                 className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md hover:opacity-95"
                 style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 100%)' }}
               >
@@ -674,8 +762,45 @@ const StudentManagement: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deletingStudent && (
+          <Modal
+            isOpen={!!deletingStudent}
+            onClose={() => setDeletingStudent(null)}
+            title="Delete Student"
+          >
+            <div className="flex flex-col items-center text-center py-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 mb-4">
+                <AlertTriangle size={28} className="text-red-500" />
+              </div>
+              <p className="text-sm text-gray-500 mb-1">Are you sure you want to delete</p>
+              <p className="text-sm font-bold text-gray-800 mb-4">"{deletingStudent.full_name || 'this student'}"?</p>
+              <p className="text-xs text-red-500 mb-6">This action cannot be undone.</p>
+              <div className="flex items-center gap-3 w-full">
+                <button 
+                  onClick={() => setDeletingStudent(null)} 
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeleting && <Loader2 size={14} className="animate-spin" />}
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   );
 };
 
 export default StudentManagement;
+

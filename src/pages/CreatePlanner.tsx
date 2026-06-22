@@ -4,6 +4,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/services/api';
 import { getChaptersBySubject } from '../api/services/studentService';
+import { studyPlanService } from '../api/services/studyPlanService';
 import { Subject, Chapter, SLO } from '../types';
 import EmptyState from '../components/EmptyState';
 import toast from 'react-hot-toast';
@@ -504,8 +505,8 @@ const CreatePlanner: React.FC = () => {
     console.log('study_time type check:', typeof payload.min_study_time_daily, typeof payload.max_study_time_daily);
 
     try {
-      const response = await api.post('/api/study-plans/create', payload);
-      console.log('Create Plan Response:', response.data);
+      const response = await studyPlanService.createPlan(payload);
+      console.log('Create Plan Response:', response);
       toast.success('Study plan created successfully!');
 
       let destination = '/planners';

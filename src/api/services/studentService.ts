@@ -37,6 +37,19 @@ export const deleteStudent = async (studentId: string | number): Promise<void> =
   await axiosInstance.delete(`/api/auth/students/${studentId}/delete`);
 };
 
+/** GET /api/auth/students/{id} — fetch a single student's full profile */
+export const getStudentById = async (studentId: string | number): Promise<Student> => {
+  const response = await axiosInstance.get(`/api/auth/students/${studentId}`);
+  return response.data as Student;
+};
+
+/** GET /api/study-plans/school/student/{studentId}/plans — fetch all study plans for a specific student */
+export const getStudentPlans = async (studentId: string | number) => {
+  const response = await axiosInstance.get(`/api/study-plans/school/student/${studentId}/plans`);
+  const d = response.data;
+  return Array.isArray(d) ? d : d?.results ?? d?.data ?? d?.plans ?? [];
+};
+
 // --- Curriculum (read-only) ---
 
 /** GET /api/curriculum/chapters/{subjectId} — returns chapters with nested slos[] */
@@ -63,8 +76,10 @@ export const getSlosByChapter = async (chapterId: number) => {
 export const studentService = {
   createStudent,
   getStudents,
+  getStudentById,
   updateStudent,
   deleteStudent,
+  getStudentPlans,
   getChaptersBySubject,
   getSlosByChapter,
 };

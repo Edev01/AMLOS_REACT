@@ -1,17 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
 import { useAuth } from '../context/AuthContext';
 import { School as SchoolType } from '../types';
-import { Plus, Search, Eye, Trash2, Pencil, MapPin, Users, GraduationCap, School, Building2, Mail, X, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Pencil, MapPin, Users, GraduationCap, School, Building2, Mail, X, AlertTriangle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const icons = ['🏫', '🎓', '🌿', '📚', '🏛️', '🎒'];
 const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
-const SCHOOLS_PAGE_SIZE = 9;
+const SCHOOLS_PAGE_SIZE = 12;
 
 interface SchoolsPage {
   schools: SchoolType[];
@@ -110,18 +110,19 @@ const parseSchoolsResponse = (payload: any, currentPage: number) => {
       isServerPaginated: false,
       nextPage: undefined,
       totalCount: rawList.length,
+      totalPages: 1,
     };
   }
 
   const explicitNextPage = getNumber(meta.next_page, meta.nextPage);
-  const totalPages = getNumber(meta.total_pages, meta.last_page);
+  const totalPages = getNumber(meta.total_pages, meta.last_page) || Math.ceil(total / SCHOOLS_PAGE_SIZE) || 1;
   let nextPage = explicitNextPage;
 
   if (!nextPage && meta.next) nextPage = currentPage + 1;
   if (!nextPage && totalPages && currentPage < totalPages) nextPage = currentPage + 1;
   if (!nextPage && total && currentPage * SCHOOLS_PAGE_SIZE < total) nextPage = currentPage + 1;
 
-  return { rawList, isServerPaginated: true, nextPage, totalCount: total };
+  return { rawList, isServerPaginated: true, nextPage, totalCount: total, totalPages };
 };
 
 const getMockSchool = (user: any): SchoolType => ({
@@ -338,23 +339,23 @@ const SchoolManagement: React.FC = () => {
   const [filter, setFilter] = useState<'active' | 'inactive'>('active');
   const [editingSchool, setEditingSchool] = useState<SchoolType | null>(null);
   const [deletingSchool, setDeletingSchool] = useState<SchoolType | null>(null);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const [visibleCount, setVisibleCount] = useState(SCHOOLS_PAGE_SIZE);
+  const [page, setPage] = useState(1);
 
   const isSchoolRole = user?.role === 'SCHOOL';
   const trimmedSearch = search.trim();
 
+  // Reset page when search or filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [trimmedSearch, filter]);
+
   const {
     data: queryData,
     isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery<SchoolsPage>({
-    queryKey: ['schools', isSchoolRole, trimmedSearch],
-    initialPageParam: 1,
-    queryFn: async ({ pageParam }) => {
-      const page = Number(pageParam) || 1;
+    isFetching,
+  } = useQuery({
+    queryKey: ['schools', isSchoolRole, trimmedSearch, page],
+    queryFn: async () => {
       let isForbidden = false;
 
       if (isSchoolRole) {
@@ -392,6 +393,7 @@ const SchoolManagement: React.FC = () => {
           isServerPaginated: parsed.isServerPaginated,
           nextPage: parsed.nextPage,
           totalCount: parsed.totalCount,
+          totalPages: parsed.totalPages,
         };
       } catch (err: any) {
         if (err?.response?.status === 403) isForbidden = true;
@@ -420,9 +422,9 @@ const SchoolManagement: React.FC = () => {
         isForbidden: false,
         isServerPaginated: false,
         totalCount: 0,
+        totalPages: 1,
       };
     },
-    getNextPageParam: (lastPage) => lastPage.nextPage,
   });
 
   // ─── Delete Mutation ──────────────────────────────────────────
@@ -457,59 +459,20 @@ const SchoolManagement: React.FC = () => {
     },
   });
 
-  const schoolMap = new Map<string | number, SchoolType>();
-  queryData?.pages.forEach((page) => {
-    page.schools.forEach((school) => {
-      if (school?.id !== undefined && school?.id !== null) schoolMap.set(school.id, school);
-    });
-  });
-
-  const schools = Array.from(schoolMap.values());
-  const isForbidden = queryData?.pages.some((page) => page.isForbidden) || false;
-  const isServerPaginated = queryData?.pages.some((page) => page.isServerPaginated) || false;
+  const schools = queryData?.schools || [];
+  const isForbidden = queryData?.isForbidden || false;
+  const isServerPaginated = queryData?.isServerPaginated || false;
+  const totalPages = queryData?.totalPages || 1;
   const loading = isLoading;
 
-  const filtered = schools.filter(s => {
+  const filtered = schools.filter((s: SchoolType) => {
     const q = search.toLowerCase();
     return !q || (s.school_name || '').toLowerCase().includes(q) || (s.principal_name || '').toLowerCase().includes(q) || String(s.id).includes(q);
   });
-  const visibleSchools = isServerPaginated ? filtered : filtered.slice(0, visibleCount);
-  const canLoadMore = isServerPaginated ? Boolean(hasNextPage) : visibleCount < filtered.length;
-
-  useEffect(() => {
-    setVisibleCount(SCHOOLS_PAGE_SIZE);
-  }, [trimmedSearch, filter, isSchoolRole]);
-
-  useEffect(() => {
-    const node = loadMoreRef.current;
-    if (!node || loading || isForbidden || !canLoadMore) return undefined;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-
-        if (isServerPaginated) {
-          if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-          return;
-        }
-
-        setVisibleCount((current) => Math.min(current + SCHOOLS_PAGE_SIZE, filtered.length));
-      },
-      { rootMargin: '600px 0px' }
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [
-    canLoadMore,
-    fetchNextPage,
-    filtered.length,
-    hasNextPage,
-    isFetchingNextPage,
-    isForbidden,
-    isServerPaginated,
-    loading,
-  ]);
+  
+  // If not server paginated, do client pagination
+  const visibleSchools = isServerPaginated ? filtered : filtered.slice((page - 1) * SCHOOLS_PAGE_SIZE, page * SCHOOLS_PAGE_SIZE);
+  const actualTotalPages = isServerPaginated ? totalPages : Math.ceil(filtered.length / SCHOOLS_PAGE_SIZE);
 
   return (
     <DashboardLayout activePage="all-schools">
@@ -584,9 +547,56 @@ const SchoolManagement: React.FC = () => {
               </div>
             ))}
           </div>
-          <div ref={loadMoreRef} className="flex min-h-12 items-center justify-center py-4">
-            {isFetchingNextPage && <Loader2 size={22} className="animate-spin text-blue-600" />}
-          </div>
+
+          {/* Pagination Controls */}
+          {actualTotalPages > 1 && (
+            <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-6">
+              <div className="flex items-center text-sm text-gray-500">
+                Page <span className="font-semibold text-gray-900 mx-1">{page}</span> of <span className="font-semibold text-gray-900 mx-1">{actualTotalPages}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="flex items-center justify-center h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  <ChevronLeft size={16} className="mr-1" /> Previous
+                </button>
+                <div className="hidden sm:flex items-center gap-1">
+                  {Array.from({ length: actualTotalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === actualTotalPages || Math.abs(p - page) <= 1)
+                    .map((p, i, arr) => (
+                      <React.Fragment key={p}>
+                        {i > 0 && arr[i - 1] !== p - 1 && <span className="px-2 text-gray-400">...</span>}
+                        <button
+                          onClick={() => setPage(p)}
+                          className={`h-10 w-10 rounded-xl text-sm font-semibold transition ${
+                            page === p
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:text-gray-900'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                </div>
+                <button
+                  onClick={() => setPage(p => Math.min(actualTotalPages, p + 1))}
+                  disabled={page === actualTotalPages}
+                  className="flex items-center justify-center h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  Next <ChevronRight size={16} className="ml-1" />
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {isFetching && !isLoading && (
+            <div className="fixed bottom-4 right-4 bg-white rounded-full p-3 shadow-lg border border-gray-100 flex items-center justify-center">
+              <Loader2 size={20} className="animate-spin text-blue-600" />
+            </div>
+          )}
         </>
       )}
 

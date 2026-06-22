@@ -1,44 +1,67 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, Clock, BookOpen, Layers, GraduationCap, Info, Map } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Calendar, Clock, BookOpen, Layers, GraduationCap, Info, Map, CheckCircle, XCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
-import api from '../api/services/api';
+import { studyPlanService } from '../api/services/studyPlanService';
 
 const ViewPlanner: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [selectedDate, setSelectedDate] = React.useState<string>(new Date().toISOString().split('T')[0]);
 
   const { data: planner, isLoading, isError } = useQuery({
     queryKey: ['planner', id],
     queryFn: async () => {
-      // First try to fetch the specific planner
       try {
-        const response = await api.get(`/api/study-plans/${id}`);
-        let p = response.data;
-        if (p?.data && typeof p.data === 'object' && !Array.isArray(p.data)) {
-          p = p.data;
-        } else if (p?.plan && typeof p.plan === 'object') {
-          p = p.plan;
-        } else if (p?.study_plan && typeof p.study_plan === 'object') {
-          p = p.study_plan;
-        } else if (p?.results && typeof p.results === 'object' && !Array.isArray(p.results)) {
-          p = p.results;
-        }
-        return p;
+        const p = await studyPlanService.getPlanDetails(id!);
+        return p?.data || p?.plan || p?.study_plan || p?.results || p;
       } catch (err) {
         // Fallback: fetch all and find the one
-        const response = await api.get('/api/study-plans');
-        const list = Array.isArray(response.data) ? response.data : 
-                     response.data?.plans ? response.data.plans : 
-                     response.data?.results ? response.data.results : 
-                     response.data?.data ? response.data.data : [];
+        const response = await studyPlanService.listPlans();
+        const list = Array.isArray(response) ? response : 
+                     response?.plans ? response.plans : 
+                     response?.results ? response.results : 
+                     response?.data ? response.data : [];
         const found = list.find((p: any) => String(p.id || p._id || p.plan_id) === String(id));
         if (!found) throw new Error('Planner not found');
         return found;
       }
     },
     enabled: !!id,
+  });
+
+  const { data: schedule, isLoading: scheduleLoading } = useQuery({
+    queryKey: ['planner-schedule', id, selectedDate],
+    queryFn: async () => {
+      try {
+        const response = await studyPlanService.getPlanDaySchedule(id!, selectedDate);
+        return response?.data || response?.schedule || response || null;
+      } catch (err) {
+        return null; // Ignore errors if schedule not generated or empty
+      }
+    },
+    enabled: !!id && !!selectedDate,
+  });
+
+  const completeSloMutation = useMutation({
+    mutationFn: (planSloId: number | string) => studyPlanService.markSloComplete(planSloId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['planner-schedule', id, selectedDate] });
+      toast.success('SLO marked as completed!');
+    },
+    onError: () => toast.error('Failed to mark SLO as completed'),
+  });
+
+  const completePlanMutation = useMutation({
+    mutationFn: () => studyPlanService.markPlanComplete(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['planner', id] });
+      toast.success('Plan marked as completed!');
+    },
+    onError: () => toast.error('Failed to complete plan'),
   });
 
   const handleBack = () => {
@@ -249,16 +272,83 @@ const ViewPlanner: React.FC = () => {
         </div>
       </div>
       
-      {/* Hidden debug view for developers to see raw data format if needed. 
-          Uncomment the below block if data is still not mapping correctly. */}
-      {/* 
-      <div className="mt-8 p-4 bg-gray-900 rounded-xl overflow-x-auto">
-        <h4 className="text-white font-bold mb-2">Raw API Data:</h4>
-        <pre className="text-green-400 text-xs">
-          {JSON.stringify(planner, null, 2)}
-        </pre>
-      </div> 
-      */}
+      {/* Schedule Section */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-900">Daily Schedule</h2>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => completePlanMutation.mutate()}
+              disabled={completePlanMutation.isPending || planner.status === 'completed'}
+              className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition"
+            >
+              {completePlanMutation.isPending ? 'Processing...' : planner.status === 'completed' ? 'Plan Completed' : 'Complete Entire Plan'}
+            </button>
+            <input 
+              type="date" 
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+        
+        {scheduleLoading ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-500">Loading schedule...</div>
+        ) : schedule && (schedule.slos?.length > 0 || schedule.length > 0) ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="p-4 text-sm font-semibold text-gray-600">Subject</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">SLO Title</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">Status</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {(schedule.slos || schedule).map((slo: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-gray-50/50">
+                      <td className="p-4 text-sm text-gray-900 font-medium">{slo.subject_name || 'N/A'}</td>
+                      <td className="p-4 text-sm text-gray-600">{slo.title || slo.slo_name || 'N/A'}</td>
+                      <td className="p-4">
+                        {slo.is_completed || slo.status === 'completed' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700">
+                            <CheckCircle size={14} /> Completed
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-50 text-amber-700">
+                            <Clock size={14} /> Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-right">
+                        {!(slo.is_completed || slo.status === 'completed') && (
+                          <button 
+                            onClick={() => completeSloMutation.mutate(slo.id || slo.plan_slo_id)}
+                            disabled={completeSloMutation.isPending}
+                            className="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition disabled:opacity-50"
+                          >
+                            Mark Complete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gray-50 rounded-2xl border border-gray-100 border-dashed p-8 text-center">
+            <Calendar size={32} className="mx-auto text-gray-400 mb-3" />
+            <h3 className="text-lg font-bold text-gray-900 mb-1">No Schedule</h3>
+            <p className="text-sm text-gray-500">No SLOs scheduled for {selectedDate}.</p>
+          </div>
+        )}
+      </div>
+      
     </DashboardLayout>
   );
 };
