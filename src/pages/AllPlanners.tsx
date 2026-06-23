@@ -8,8 +8,8 @@ import { useTheme } from '../context/ThemeContext';
 import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
-import api from '../api/services/api';
-import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Clock, Layers, X, AlertTriangle, Loader2 } from 'lucide-react';
+import { studyPlanService } from '../api/services/studyPlanService';
+import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Clock, Layers, X, AlertTriangle, Loader2, Star, History, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Planner Type Definition
@@ -203,11 +203,14 @@ const DeletePlannerModal: React.FC<DeletePlannerModalProps> = ({ planner, onClos
   </motion.div>
 );
 
+type PlannerTab = 'all' | 'recommended' | 'history';
+
 const AllPlanners: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, tenant, isSuperAdmin } = useAuth();
   const { isDark } = useTheme();
+  const [activeTab, setActiveTab] = useState<PlannerTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [editingPlanner, setEditingPlanner] = useState<Planner | null>(null);
@@ -217,9 +220,7 @@ const AllPlanners: React.FC = () => {
   const { data: plannersData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['planners'],
     queryFn: async () => {
-      const url = '/api/study-plans';
-      const r = await api.get(url, { timeout: 10000 });
-      const d = r.data;
+      const d = await studyPlanService.listPlans();
 
       let rawList: any[] = [];
       if (Array.isArray(d)) {
@@ -333,7 +334,7 @@ const AllPlanners: React.FC = () => {
   // ─── Delete Mutation ──────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: async (planId: number) => {
-      await api.delete(`/api/study-plans/${planId}/delete`);
+      await studyPlanService.deletePlan(planId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planners'] });
@@ -362,8 +363,7 @@ const AllPlanners: React.FC = () => {
       // in case the backend requires a full object replacement.
       let originalPlanner: any = {};
       try {
-        const detailRes = await api.get(`/api/study-plans/${id}`);
-        const p = detailRes.data;
+        const p = await studyPlanService.getPlanDetails(id);
         if (p?.data && typeof p.data === 'object' && !Array.isArray(p.data)) {
           originalPlanner = p.data;
         } else if (p?.plan && typeof p.plan === 'object') {
@@ -391,7 +391,7 @@ const AllPlanners: React.FC = () => {
         min_study_time_daily: Number(data.min_study_time_daily || data.min_study_time),
         max_study_time_daily: Number(data.max_study_time_daily || data.max_study_time),
       };
-      await api.post(`/api/study-plans/${id}/update`, finalPayload);
+      await studyPlanService.updatePlan(id, finalPayload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planners'] });
@@ -415,237 +415,245 @@ const AllPlanners: React.FC = () => {
     },
   });
 
+  // ─── Recommended Plans Query ──────────────────────────────────
+  const recommendedQuery = useQuery({
+    queryKey: ['planners', 'recommended'],
+    queryFn: async () => {
+      const d = await studyPlanService.getRecommendedPlans();
+      let rawList: any[] = [];
+      if (Array.isArray(d)) rawList = d;
+      else if (d?.plans && Array.isArray(d.plans)) rawList = d.plans;
+      else if (d?.data?.plans && Array.isArray(d.data.plans)) rawList = d.data.plans;
+      else if (d?.results && Array.isArray(d.results)) rawList = d.results;
+      else if (d?.data && Array.isArray(d.data)) rawList = d.data;
+      return rawList;
+    },
+    enabled: activeTab === 'recommended',
+  });
+
+  // ─── History Query ────────────────────────────────────────────
+  const historyQuery = useQuery({
+    queryKey: ['planners', 'history'],
+    queryFn: async () => {
+      const d = await studyPlanService.getPlanHistory();
+      let rawList: any[] = [];
+      if (Array.isArray(d)) rawList = d;
+      else if (d?.plans && Array.isArray(d.plans)) rawList = d.plans;
+      else if (d?.data?.plans && Array.isArray(d.data.plans)) rawList = d.data.plans;
+      else if (d?.results && Array.isArray(d.results)) rawList = d.results;
+      else if (d?.data && Array.isArray(d.data)) rawList = d.data;
+      return rawList;
+    },
+    enabled: activeTab === 'history',
+  });
+
+  // ─── Select Recommended Plan Mutation ─────────────────────────
+  const selectRecommendedMutation = useMutation({
+    mutationFn: async (planId: number | string) => {
+      await studyPlanService.selectRecommendedPlan(planId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['planners'] });
+      toast.success('Recommended plan selected successfully! ✅');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || 'Failed to select recommended plan.';
+      toast.error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    },
+  });
+
+  const tabs: { key: PlannerTab; label: string; icon: React.ReactNode }[] = [
+    { key: 'all', label: 'All Plans', icon: <Layers size={16} /> },
+    { key: 'recommended', label: 'Recommended', icon: <Star size={16} /> },
+    { key: 'history', label: 'History', icon: <History size={16} /> },
+  ];
+
   return (
     <DashboardLayout activePage="all-planner">
       {/* Header Section */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-navy-900">Planner Management</h1>
-        <p className="text-sm text-slate-500 mt-1">Manage all study planners across your platform</p>
+        <h1 className="text-2xl font-bold text-navy-900 dark:text-slate-100">Planner Management</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage all study planners across your platform</p>
       </div>
 
-      {/* Search and Action Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
-        <div className="relative w-full sm:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input
-            type="text"
-            placeholder="Search Planner"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20 transition-all"
-          />
-        </div>
-        {/* Create New Planner button commented out per requirements */}
-        {/* <Button
-          onClick={() => navigate(`${getBasePath()}/create`)}
-          leftIcon={<Plus size={18} />}
-          size="md"
-        >
-          Create New Planner
-        </Button> */}
-      </div>
-
-      {/* Content */}
-      {loading ? (
-        <TableSkeleton rows={6} />
-      ) : fetchError ? (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
-          <div className="text-red-500 text-4xl mb-3">⚠️</div>
-          <h3 className="text-lg font-bold text-red-700 mb-2">Failed to Load Planners</h3>
-          <p className="text-sm text-red-600 mb-4">{fetchError}</p>
+      {/* Tabs */}
+      <div className="flex items-center gap-1 mb-6 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 w-fit">
+        {tabs.map(tab => (
           <button
-            onClick={() => refetch()}
-            className="px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors"
+            key={tab.key}
+            onClick={() => { setActiveTab(tab.key); setCurrentPage(1); setSearchQuery(''); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === tab.key
+                ? 'bg-accent-blue text-white shadow-md'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+            }`}
           >
-            Retry
+            {tab.icon}
+            {tab.label}
           </button>
+        ))}
+      </div>
+
+      {/* Search and Action Bar — only for All Plans tab */}
+      {activeTab === 'all' && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+          <div className="relative w-full sm:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search Planner"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20 transition-all"
+            />
+          </div>
         </div>
-      ) : paginatedPlanners.length === 0 ? (
-        <EmptyState
-          type="data"
-          title="No Planners Found"
-          description={searchQuery ? 'Try adjusting your search query.' : 'No study planners exist yet. Create one to get started.'}
-          onAction={() => navigate(`${getBasePath()}/create`)}
-          actionLabel="Create Planner"
-        />
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card overflow-hidden"
-        >
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="bg-gradient-to-r from-accent-blue to-accent-indigo text-white">
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Planner Name</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Grade</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Duration</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Subjects</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Plan Info</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Created Date</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginatedPlanners.map((planner, index) => (
-                  <motion.tr
-                    key={planner.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="group hover:bg-slate-50/80 transition-colors"
-                  >
+      )}
 
-                    {/* Planner Name */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue/20 to-accent-indigo/20 text-accent-blue">
-                          <BookOpen size={18} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-navy-800 group-hover:text-accent-blue transition-colors">
-                            {planner.name}
-                          </p>
-                          <p className="text-xs text-slate-400">{planner.examType}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Grade */}
-                    <td className="px-6 py-4">
-                      {planner.grade ? (
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${
-                          isDark 
-                            ? 'text-amber-500 border-amber-500/30 bg-amber-500/10' 
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
-                          Grade {planner.grade}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
-                    </td>
-
-                    {/* Duration */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <Calendar size={14} className="text-slate-400" />
-                        <span>{planner.duration}</span>
-                      </div>
-                    </td>
-
-                    {/* Subjects */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5">
-                        <GraduationCap size={14} className="text-slate-400" />
-                        <span className="text-sm text-slate-600">{planner.subjects.join(', ')}</span>
-                      </div>
-                    </td>
-
-                    {/* Plan Info: SLOs + Study Time */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Layers size={13} className="text-accent-blue" />
-                          <span>{planner.sloCount || 0} SLO{planner.sloCount !== 1 ? 's' : ''}</span>
-                        </div>
-                        {(planner.minStudyTime || planner.maxStudyTime) ? (
-                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <Clock size={13} className="text-emerald-500" />
-                            <span>{planner.minStudyTime || 0}m - {planner.maxStudyTime || 0}m daily</span>
-                          </div>
-                        ) : null}
-                      </div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-6 py-4">
-                      <StatusBadge status={planner.status} />
-                    </td>
-
-                    {/* Created Date */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-slate-500">{planner.createdDate}</span>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-1">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => navigate(`${getBasePath()}/${planner.id}`)}
-                          className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
-                          title="View"
-                        >
-                          <Eye size={16} />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => setEditingPlanner(planner)}
-                          className="p-2 text-accent-blue hover:bg-accent-blue/10 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit size={16} />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => setDeletingPlanner(planner)}
-                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={16} />
-                        </motion.button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Footer */}
-          <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
-              Showing <span className="font-semibold text-navy-800">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredPlanners.length)}-{Math.min(currentPage * itemsPerPage, filteredPlanners.length)}</span> of <span className="font-semibold text-navy-800">{filteredPlanners.length}</span> planners
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-navy-800 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft size={16} /> Previous
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === page
-                        ? 'bg-accent-blue text-white'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-navy-800'
-                      }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-navy-800 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Next <ChevronRight size={16} />
-              </button>
+      {/* ─── TAB: All Plans ──────────────────────────────────── */}
+      {activeTab === 'all' && (
+        <>
+          {loading ? (
+            <TableSkeleton rows={6} />
+          ) : fetchError ? (
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl p-8 text-center">
+              <div className="text-red-500 text-4xl mb-3">⚠️</div>
+              <h3 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2">Failed to Load Planners</h3>
+              <p className="text-sm text-red-600 dark:text-red-300 mb-4">{fetchError}</p>
+              <button onClick={() => refetch()} className="px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors">Retry</button>
             </div>
-          </div>
-        </motion.div>
+          ) : paginatedPlanners.length === 0 ? (
+            <EmptyState type="data" title="No Planners Found" description={searchQuery ? 'Try adjusting your search query.' : 'No study planners exist yet. Create one to get started.'} onAction={() => navigate(`${getBasePath()}/create`)} actionLabel="Create Planner" />
+          ) : (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-accent-blue to-accent-indigo text-white">
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Planner Name</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Grade</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Duration</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Subjects</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Plan Info</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Created Date</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {paginatedPlanners.map((planner, index) => (
+                      <motion.tr key={planner.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-white shadow-md"><BookOpen size={18} /></div>
+                            <div>
+                              <p className="text-sm font-semibold text-navy-800 dark:text-slate-100">{planner.name}</p>
+                              <p className="text-xs text-slate-400">{planner.examType}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4"><div className="flex items-center gap-2"><GraduationCap size={15} className="text-accent-indigo" /><span className="text-sm text-navy-800 dark:text-slate-200">{planner.grade || '—'}</span></div></td>
+                        <td className="px-6 py-4"><div className="flex items-center gap-2"><Calendar size={15} className="text-accent-emerald" /><span className="text-sm text-navy-800 dark:text-slate-200">{planner.duration}</span></div></td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-1">
+                            {planner.subjects.slice(0, 3).map((s, i) => (
+                              <span key={i} className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20">{typeof s === 'object' ? (s as any).title || (s as any).name || JSON.stringify(s) : String(s)}</span>
+                            ))}
+                            {planner.subjects.length > 3 && <span className="px-2 py-0.5 text-xs font-medium text-slate-400">+{planner.subjects.length - 3}</span>}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
+                            <div className="flex items-center gap-1"><Layers size={12} /> Mode: {planner.mode || '—'}</div>
+                            <div className="flex items-center gap-1"><Clock size={12} /> {planner.minStudyTime || '?'}–{planner.maxStudyTime || '?'} min/day</div>
+                            <div className="flex items-center gap-1"><BookOpen size={12} /> SLOs: {planner.sloCount ?? '—'}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4"><StatusBadge status={planner.status} /></td>
+                        <td className="px-6 py-4"><span className="text-sm text-slate-500 dark:text-slate-400">{planner.createdDate}</span></td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-center gap-2">
+                            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => navigate(`${getBasePath()}/${planner.id}`)} className="p-2 text-accent-blue hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="View"><Eye size={16} /></motion.button>
+                            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => setEditingPlanner(planner)} className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors" title="Edit"><Edit size={16} /></motion.button>
+                            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => setDeletingPlanner(planner)} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors" title="Delete"><Trash2 size={16} /></motion.button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Pagination Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Showing <span className="font-semibold text-navy-800 dark:text-slate-200">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredPlanners.length)}-{Math.min(currentPage * itemsPerPage, filteredPlanners.length)}</span> of <span className="font-semibold text-navy-800 dark:text-slate-200">{filteredPlanners.length}</span> planners
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-navy-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft size={16} /> Previous</button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <button key={page} onClick={() => setCurrentPage(page)} className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === page ? 'bg-accent-blue text-white' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-navy-800 dark:hover:text-slate-200'}`}>{page}</button>
+                    ))}
+                  </div>
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-navy-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Next <ChevronRight size={16} /></button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </>
+      )}
+
+      {/* ─── TAB: Recommended Plans ─────────────────────────── */}
+      {activeTab === 'recommended' && (
+        <>
+          {recommendedQuery.isLoading ? (
+            <TableSkeleton rows={4} />
+          ) : recommendedQuery.isError ? (
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl p-8 text-center">
+              <div className="text-red-500 text-4xl mb-3">⚠️</div>
+              <h3 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2">Failed to Load Recommended Plans</h3>
+              <p className="text-sm text-red-600 dark:text-red-300 mb-4">{(recommendedQuery.error as any)?.response?.data?.detail || 'Could not fetch recommended plans.'}</p>
+              <button onClick={() => recommendedQuery.refetch()} className="px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors">Retry</button>
+            </div>
+          ) : !recommendedQuery.data || recommendedQuery.data.length === 0 ? (
+            <EmptyState type="data" title="No Recommended Plans" description="There are no recommended study plans available at the moment." />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recommendedQuery.data.map((plan: any) => (
+                <motion.div
+                  key={plan.id || plan._id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-lg transition-all"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md"><Star size={18} /></div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{plan.title || plan.plan_name || plan.name || 'Recommended Plan'}</h3>
+                        <p className="text-xs text-slate-400">Grade {plan.grade || '—'}</p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 uppercase">Recommended</span>
+                  </div>
+                  <div className="space-y-2 text-xs text-slate-500 dark:text-slate-400 mb-4">
+                    {plan.mode && <div className="flex items-center gap-1.5"><Layers size={12} /> Mode: {plan.mode}</div>}
+                    {(plan.start_date || plan.end_date) && <div className="flex items-center gap-1.5"><Calendar size={12} /> {plan.start_date || '?'} → {plan.end_date || '?'}</div>}
+                    {(plan.min_study_time_daily || plan.max_study_time_daily) && <div className="flex items-center gap-1.5"><Clock size={12} /> {plan.min_study_time_daily || '?'}–{plan.max_study_time_daily || '?'} min/day</div>}
+                  </div>
+                  <button
+                    onClick={() => selectRecommendedMutation.mutate(plan.id || plan._id)}
+                    disabled={selectRecommendedMutation.isPending}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-accent-blue text-white text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+                  >
+                    {selectRecommendedMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    Select This Plan
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* ─── Modals ──────────────────────────────────────────── */}

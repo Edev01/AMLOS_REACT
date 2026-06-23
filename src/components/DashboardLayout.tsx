@@ -24,7 +24,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Moon,
-  Sun
+  Sun,
+  UserCog
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -69,6 +70,7 @@ const buildSearchItems = (role: string | undefined, campusId?: string | null) =>
 
   const items = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, path: dashPath, roles: ['all'] },
+    { id: 'role-management', label: 'Role Management', icon: <UserCog size={16} />, path: '/admin/roles', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'schools', label: 'All Schools', icon: <School size={16} />, path: '/admin/schools', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'add-school', label: 'Add School', icon: <School size={16} />, path: '/admin/schools/add', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'planners', label: 'All Planners', icon: <CalendarDays size={16} />, path: plannersPath, roles: ['SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
@@ -235,7 +237,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   const { isDark, toggleTheme } = useTheme();
 
   return (
-    <div className={`min-h-screen font-sans relative transition-colors duration-300 ${isDark ? 'bg-[#0a0f1e]' : 'bg-surface-light'}`}>
+    <div className={`min-h-screen font-sans relative transition-colors duration-300 ${isDark ? 'bg-[#0a0f1e]' : 'bg-[#F1F3F4]'}`}>
       {/* Global Top-Bar Progress Loader for Background Fetching */}
       {isFetching > 0 && (
         <div className="fixed top-0 left-0 w-full h-1 bg-blue-100 z-[100]">
@@ -375,8 +377,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className={`sticky top-4 z-20 flex h-[68px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 rounded-[24px] mr-4 ml-4 lg:ml-0 bg-navy-800 text-white ${
-            scrolled ? 'shadow-lg border border-white/10' : 'border border-transparent'
+          className={`sticky top-4 z-20 flex h-[68px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 rounded-[24px] mr-4 ml-4 lg:ml-0 bg-white text-slate-800 ${
+            scrolled ? 'shadow-lg border border-slate-200' : 'border border-transparent'
           }`}
         >
           {/* Left — Mobile hamburger + Desktop collapse toggle */}
@@ -387,7 +389,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               whileTap={{ scale: 0.95 }}
               type="button"
               onClick={() => setSidebarCollapsed((p:any) => !p)}
-              className="rounded-xl p-2.5 transition-colors text-slate-400 hover:bg-white/10 hover:text-white"
+              className="rounded-xl p-2.5 transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             >
               {sidebarCollapsed ? <Menu size={20} className="lg:hidden" /> : <X size={20} className="lg:hidden" />}
               {sidebarCollapsed ? <ChevronsRight size={18} className="hidden lg:block" /> : <ChevronsLeft size={18} className="hidden lg:block" />}
@@ -403,12 +405,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               className="relative w-full group"
             >
               <div className="relative flex items-center">
-                <Search size={16} className="absolute left-3.5 transition-colors group-hover:text-white text-slate-300" />
-                <div className="w-full rounded-xl border backdrop-blur-sm py-2.5 pl-10 pr-20 text-sm outline-none transition-all duration-200 text-left border-white/30 bg-white/10 text-white placeholder:text-slate-300 hover:bg-white/20 hover:border-white/50 shadow-inner">
+                <Search size={16} className="absolute left-3.5 transition-colors group-hover:text-slate-900 text-slate-400" />
+                <div className="w-full rounded-xl border backdrop-blur-sm py-2.5 pl-10 pr-20 text-sm outline-none transition-all duration-200 text-left border-slate-200 bg-slate-50/50 text-slate-700 placeholder:text-slate-400 hover:bg-white hover:border-slate-300 shadow-inner">
                   Search schools, teachers, quizzes...
                 </div>
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded border text-slate-300 bg-white/20 border-white/30">
+                  <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded border text-slate-500 bg-slate-100 border-slate-200">
                     <Command size={10} />
                     <span>K</span>
                   </kbd>
@@ -426,8 +428,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               whileTap={{ scale: 0.95 }}
               type="button"
               onClick={toggleTheme}
-              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              className="relative rounded-xl p-2.5 transition-all duration-300 text-slate-300 hover:bg-white/10 hover:text-white border border-transparent"
+              title={'Switch to Light Mode'}
+              className="relative rounded-xl p-2.5 transition-all duration-300 text-slate-500 hover:bg-slate-100 hover:text-slate-900 border border-transparent"
             >
               <AnimatePresence mode="wait" initial={false}>
                 {isDark ? (
@@ -461,27 +463,27 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               type="button"
-              className="relative rounded-xl p-2.5 transition-colors text-slate-300 hover:bg-white/10 hover:text-white"
+              className="relative rounded-xl p-2.5 transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             >
               <Bell size={18} />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             </motion.button>
 
             {/* Profile Dropdown */}
-            <div ref={profileRef} className="relative pl-2 border-l border-white/20">
+            <div ref={profileRef} className="relative pl-2 border-l border-slate-200">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setProfileOpen(p => !p)}
-                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors cursor-pointer hover:bg-white/10"
+                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors cursor-pointer hover:bg-slate-100"
               >
                 {/* Text (hidden on xs) */}
                 <div className="hidden sm:block text-right">
-                  <p className="text-sm font-semibold leading-tight text-white">{roleLabel}</p>
-                  <p className="text-[11px] leading-tight text-slate-300">{profileSubtitle}</p>
+                  <p className="text-sm font-semibold leading-tight text-slate-900">{roleLabel}</p>
+                  <p className="text-[11px] leading-tight text-slate-500">{profileSubtitle}</p>
                 </div>
                 {/* Avatar */}
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue border border-white/20">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue border border-transparent">
                   {initials || 'AK'}
                 </div>
                 <ChevronDown
@@ -537,11 +539,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                       <button
                         onClick={() => { setProfileOpen(false); handleLogout(); }}
                         className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-rose-500 transition-colors group ${
-                          isDark ? 'hover:bg-rose-500/10' : 'hover:bg-rose-50'
+                          'hover:bg-rose-500/10'
                         }`}
                       >
                         <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 transition-colors ${
-                          isDark ? 'bg-rose-500/10 group-hover:bg-rose-500/20' : 'bg-rose-50 group-hover:bg-rose-100'
+                          'bg-rose-500/10 group-hover:bg-rose-500/20'
                         }`}>
                           <LogOut size={15} />
                         </div>

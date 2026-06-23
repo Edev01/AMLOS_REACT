@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import Modal from '../components/Modal';
 import api from '../api/services/api';
 import { Chapter, Subject } from '../types';
 import {
@@ -32,9 +33,13 @@ import {
   Shuffle,
   Trash2,
   X,
+  AlertTriangle,
+  Upload,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
-type AssessmentView = 'dashboard' | 'templates' | 'create-template' | 'generated';
+type AssessmentView = 'dashboard' | 'templates' | 'create-template' | 'generated' | 'submissions';
 
 interface AssessmentManagementProps {
   view?: AssessmentView;
@@ -393,6 +398,20 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     readLocalTemplates().map((item) => normalizeTemplate(item))
   );
 
+  // Delete modal state
+  const [deletingTemplate, setDeletingTemplate] = useState<AssessmentTemplate | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Submissions state
+  const [submissionsPage, setSubmissionsPage] = useState(1);
+  const [gradingSubmission, setGradingSubmission] = useState<any | null>(null);
+  const [gradingScore, setGradingScore] = useState('');
+  const [gradingTotal, setGradingTotal] = useState('');
+
+  // Handwritten upload state
+  const [uploadingModelId, setUploadingModelId] = useState<string | number | null>(null);
+  const [handwrittenFile, setHandwrittenFile] = useState<File | null>(null);
+
   const metadataQuery = useQuery({
     queryKey: ['assessments', 'metadata'],
     queryFn: assessmentService.getMetadata,
@@ -408,10 +427,17 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   });
 
   const templatesQuery = useQuery({
-    queryKey: ['assessments', 'templates'],
-    queryFn: assessmentService.listTemplates,
+    queryKey: ['assessments', 'templates', 1],
+    queryFn: () => assessmentService.listTemplates(1), // Fetch first page or all if backend ignores
     retry: 1,
     staleTime: 30 * 1000,
+  });
+
+  const submissionsQuery = useQuery({
+    queryKey: ['assessments', 'submissions', submissionsPage],
+    queryFn: () => assessmentService.listSubmissions(submissionsPage),
+    enabled: view === 'submissions',
+    retry: 1,
   });
 
   const templateDetailQuery = useQuery({
@@ -427,6 +453,13 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     enabled: Boolean(form.subject),
     retry: 1,
     staleTime: 5 * 60 * 1000,
+  });
+
+  const availableQuery = useQuery({
+    queryKey: ['assessments', 'available'],
+    queryFn: assessmentService.listAvailableAssessments,
+    retry: 1,
+    staleTime: 30 * 1000,
   });
 
   const metadata = metadataQuery.data ?? {};
@@ -462,7 +495,11 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   }, [chaptersQuery.data, form.subject, metadataChapters]);
 
   const serverTemplates = useMemo(
-    () => (templatesQuery.data ?? []).map((template) => normalizeTemplate(template)),
+    () => {
+      const data = templatesQuery.data as any;
+      const results = data?.results ?? data ?? [];
+      return (Array.isArray(results) ? results : []).map((template: any) => normalizeTemplate(template));
+    },
     [templatesQuery.data]
   );
 
@@ -585,6 +622,40 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     },
   });
 
+  const gradeMutation = useMutation({
+    mutationFn: async ({ id, score, total_marks }: { id: string | number; score: number; total_marks: number }) => {
+      return assessmentService.gradeSubmission(id, { score, total_marks });
+    },
+    onSuccess: () => {
+      toast.success('Submission graded successfully.');
+      setGradingSubmission(null);
+      setGradingScore('');
+      setGradingTotal('');
+      queryClient.invalidateQueries({ queryKey: ['assessments', 'submissions'] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || 'Failed to grade submission.');
+    },
+  });
+
+  const uploadHandwrittenMutation = useMutation({
+    mutationFn: async ({ modelId, file }: { modelId: string | number; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return assessmentService.submitHandwritten(modelId, formData);
+    },
+    onSuccess: () => {
+      toast.success('Handwritten assessment uploaded successfully.');
+      setUploadingModelId(null);
+      setHandwrittenFile(null);
+      queryClient.invalidateQueries({ queryKey: ['assessments', 'available'] });
+      queryClient.invalidateQueries({ queryKey: ['assessments', 'submissions'] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || 'Failed to upload handwritten assessment.');
+    },
+  });
+
   const updateForm = <K extends keyof AssessmentFormState>(key: K, value: AssessmentFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -652,17 +723,23 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     if (payload) saveMutation.mutate(payload);
   };
 
-  const handleDelete = (template: AssessmentTemplate) => {
-    if (!template.id) return;
-    const confirmed = window.confirm('Delete this assessment template?');
-    if (!confirmed) return;
+  const handleDelete = () => {
+    if (!deletingTemplate?.id) return;
+    setIsDeleting(true);
 
-    if (String(template.id).startsWith('local-')) {
-      removeLocalTemplate(template.id);
+    if (String(deletingTemplate.id).startsWith('local-')) {
+      removeLocalTemplate(deletingTemplate.id);
       toast.success('Template deleted successfully.');
+      setDeletingTemplate(null);
+      setIsDeleting(false);
       return;
     }
-    deleteMutation.mutate(template.id);
+    deleteMutation.mutate(deletingTemplate.id, {
+      onSettled: () => {
+        setIsDeleting(false);
+        setDeletingTemplate(null);
+      }
+    });
   };
 
   const getTemplateSubjectName = (template: AssessmentTemplate) => {
@@ -802,7 +879,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                 <IconButton title="Edit" onClick={() => navigate(`/admin/assessments/templates/create?edit=${template.id}`)}>
                   <Pencil size={17} />
                 </IconButton>
-                <IconButton title="Delete" tone="red" onClick={() => handleDelete(template)}>
+                <IconButton title="Delete" tone="red" onClick={() => setDeletingTemplate(template)}>
                   <Trash2 size={17} />
                 </IconButton>
               </div>
@@ -1011,28 +1088,261 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     );
   };
 
-  const renderGenerated = () => (
-    <>
-      <SectionHeader
-        title="Generated Assessments"
-        subtitle="Student-ready assessments produced from saved templates."
-        action={
-          <PrimaryButton onClick={() => navigate('/admin/assessments/templates/create')}>
-            <Plus size={16} /> Create Template
-          </PrimaryButton>
-        }
-      />
-      <div className="rounded-2xl border border-white/70 bg-white p-10 text-center shadow-soft">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-          <BarChart3 size={24} />
-        </div>
-        <h2 className="mt-4 text-lg font-bold text-gray-900">No generated assessments yet.</h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Saved templates are ready for the random generator service.
-        </p>
-      </div>
-    </>
-  );
+  const renderGenerated = () => {
+    const available = availableQuery.data || [];
+    return (
+      <>
+        <SectionHeader
+          title="Generated Assessments"
+          subtitle="Student-ready assessments produced from saved templates."
+          action={
+            <PrimaryButton onClick={() => navigate('/admin/assessments/templates/create')}>
+              <Plus size={16} /> Create Template
+            </PrimaryButton>
+          }
+        />
+        {availableQuery.isLoading ? (
+          <div className="flex items-center justify-center py-16 text-slate-500">
+            <Loader2 size={20} className="mr-2 animate-spin" /> Loading generated assessments...
+          </div>
+        ) : available.length === 0 ? (
+          <div className="rounded-2xl border border-white/70 bg-white p-10 text-center shadow-soft">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <BarChart3 size={24} />
+            </div>
+            <h2 className="mt-4 text-lg font-bold text-gray-900">No generated assessments yet.</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Saved templates are ready for the random generator service.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="grid grid-cols-[1.5fr_1fr_1fr_0.8fr_0.8fr] gap-4 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-sm font-bold text-white">
+              <span>Title</span>
+              <span>Subject</span>
+              <span>Total Questions</span>
+              <span>Created</span>
+              <span>Status</span>
+            </div>
+            {available.map((assessment: any) => (
+              <div
+                key={String(assessment.id ?? assessment.title)}
+                className="grid grid-cols-[1.5fr_1fr_1fr_0.8fr_0.8fr] items-center gap-4 border-b border-gray-100 px-6 py-5 last:border-b-0"
+              >
+                <div>
+                  <p className="font-bold text-gray-900">{assessment.title || 'Untitled Assessment'}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      onClick={() => setUploadingModelId(assessment.id ?? assessment.model_id)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition"
+                    >
+                      <Upload size={14} /> Upload Handwritten
+                    </button>
+                  </div>
+                </div>
+                <span className="text-slate-600">{assessment.subject_name || 'N/A'}</span>
+                <span className="text-slate-700 font-semibold">{assessment.total_questions || 0} Questions</span>
+                <span className="text-slate-500">{formatDate(assessment.created_at)}</span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600 w-max">
+                  {assessment.status || 'AVAILABLE'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Handwritten Upload Modal */}
+        <AnimatePresence>
+          {uploadingModelId && (
+            <Modal
+              isOpen={!!uploadingModelId}
+              onClose={() => { setUploadingModelId(null); setHandwrittenFile(null); }}
+              title="Upload Handwritten Assessment"
+            >
+              <div className="p-4">
+                <p className="text-sm text-gray-600 mb-4">Upload a scanned copy or image of the handwritten assessment for grading.</p>
+                <div className="mb-4">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setHandwrittenFile(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <SecondaryButton onClick={() => { setUploadingModelId(null); setHandwrittenFile(null); }}>Cancel</SecondaryButton>
+                  <PrimaryButton
+                    onClick={() => {
+                      if (handwrittenFile && uploadingModelId) {
+                        uploadHandwrittenMutation.mutate({ modelId: uploadingModelId, file: handwrittenFile });
+                      }
+                    }}
+                    disabled={!handwrittenFile || uploadHandwrittenMutation.isPending}
+                  >
+                    {uploadHandwrittenMutation.isPending ? 'Uploading...' : 'Upload'}
+                  </PrimaryButton>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </AnimatePresence>
+      </>
+    );
+  };
+
+  const renderSubmissions = () => {
+    const data = submissionsQuery.data;
+    const submissions = data?.results || [];
+    const totalCount = data?.count || 0;
+    const itemsPerPage = 10;
+    const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
+
+    return (
+      <>
+        <SectionHeader
+          title="Submissions & Grading"
+          subtitle="Review and grade student assessment submissions."
+        />
+        {submissionsQuery.isLoading ? (
+          <div className="flex items-center justify-center py-16 text-slate-500">
+            <Loader2 size={20} className="mr-2 animate-spin" /> Loading submissions...
+          </div>
+        ) : submissions.length === 0 ? (
+          <div className="rounded-2xl border border-white/70 bg-white p-10 text-center shadow-soft">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400">
+              <FileText size={24} />
+            </div>
+            <h2 className="mt-4 text-lg font-bold text-gray-900">No Submissions Found</h2>
+            <p className="mt-2 text-sm text-slate-500">There are no assessment submissions yet.</p>
+          </div>
+        ) : (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="bg-gradient-to-r from-slate-600 to-slate-700 text-white">
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Student Name</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Assessment Title</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Submitted At</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Score</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {submissions.map((sub: any, index: number) => (
+                    <motion.tr key={sub.id || index} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: index * 0.03 }} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-800">{sub.student_name || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{sub.assessment_title || 'Untitled Assessment'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{formatDate(sub.submitted_at || sub.created_at)}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
+                          sub.status === 'GRADED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {sub.status || 'PENDING'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-800">
+                        {sub.status === 'GRADED' ? `${sub.score} / ${sub.total_marks}` : '—'}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {sub.status !== 'GRADED' && (
+                          <button
+                            onClick={() => { setGradingSubmission(sub); setGradingScore(''); setGradingTotal(sub.total_marks ? String(sub.total_marks) : ''); }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition"
+                          >
+                            <Pencil size={14} /> Grade
+                          </button>
+                        )}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+                <p className="text-sm text-slate-500">
+                  Page <span className="font-semibold text-navy-800">{submissionsPage}</span> of <span className="font-semibold text-navy-800">{totalPages}</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSubmissionsPage(p => Math.max(1, p - 1))} disabled={submissionsPage === 1} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-navy-800 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    <ChevronLeft size={16} /> Previous
+                  </button>
+                  <button onClick={() => setSubmissionsPage(p => Math.min(totalPages, p + 1))} disabled={submissionsPage === totalPages} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-navy-800 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Grading Modal */}
+        <AnimatePresence>
+          {gradingSubmission && (
+            <Modal
+              isOpen={!!gradingSubmission}
+              onClose={() => setGradingSubmission(null)}
+              title={`Grade Submission - ${gradingSubmission.student_name}`}
+            >
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Assessment</p>
+                    <p className="font-bold text-slate-800">{gradingSubmission.assessment_title}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FieldLabel label="Score">
+                    <input
+                      type="number"
+                      min="0"
+                      value={gradingScore}
+                      onChange={(e) => setGradingScore(e.target.value)}
+                      className={fieldClass}
+                      placeholder="e.g. 85"
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Total Marks">
+                    <input
+                      type="number"
+                      min="1"
+                      value={gradingTotal}
+                      onChange={(e) => setGradingTotal(e.target.value)}
+                      className={fieldClass}
+                      placeholder="e.g. 100"
+                    />
+                  </FieldLabel>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <SecondaryButton onClick={() => setGradingSubmission(null)}>Cancel</SecondaryButton>
+                  <PrimaryButton
+                    onClick={() => {
+                      if (gradingScore && gradingTotal) {
+                        gradeMutation.mutate({
+                          id: gradingSubmission.id,
+                          score: Number(gradingScore),
+                          total_marks: Number(gradingTotal),
+                        });
+                      } else {
+                        toast.error('Please enter both score and total marks.');
+                      }
+                    }}
+                    disabled={!gradingScore || !gradingTotal || gradeMutation.isPending}
+                  >
+                    {gradeMutation.isPending ? 'Saving...' : 'Save Grade'}
+                  </PrimaryButton>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </AnimatePresence>
+      </>
+    );
+  };
 
   const renderTemplateModal = () => {
     if (!selectedTemplate) return null;
@@ -1074,6 +1384,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     if (view === 'templates') return renderTemplates();
     if (view === 'create-template') return renderCreateTemplate();
     if (view === 'generated') return renderGenerated();
+    if (view === 'submissions') return renderSubmissions();
     return renderDashboard();
   };
 
@@ -1082,6 +1393,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     templates: 'all-assessment-templates',
     'create-template': 'create-assessment-template',
     generated: 'generated-assessments',
+    submissions: 'assessment-submissions',
   };
 
   return (
@@ -1097,6 +1409,42 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
       </div>
       {renderContent()}
       {renderTemplateModal()}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deletingTemplate && (
+          <Modal
+            isOpen={!!deletingTemplate}
+            onClose={() => setDeletingTemplate(null)}
+            title="Delete Template"
+          >
+            <div className="flex flex-col items-center text-center py-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 mb-4">
+                <AlertTriangle size={28} className="text-red-500" />
+              </div>
+              <p className="text-sm text-gray-500 mb-1">Are you sure you want to delete</p>
+              <p className="text-sm font-bold text-gray-800 mb-4">"{deletingTemplate.title}"?</p>
+              <p className="text-xs text-red-500 mb-6">This action cannot be undone.</p>
+              <div className="flex items-center gap-3 w-full">
+                <button 
+                  onClick={() => setDeletingTemplate(null)} 
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeleting && <Loader2 size={14} className="animate-spin" />}
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   );
 };

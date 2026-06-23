@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { teacherService } from '../api/services/teacherService';
 import { useAuth } from '../context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
@@ -21,6 +21,8 @@ import {
   ChevronLeft,
   AlertCircle,
   Save,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
@@ -64,6 +66,10 @@ const TeacherManagement: React.FC = () => {
   const [editForm, setEditForm] = useState<Partial<UpdateTeacherPayload> & { academic_year?: string }>({});
   const [editSaving, setEditSaving] = useState(false);
 
+  // Delete modal state
+  const [deletingteacher, setDeletingteacher] = useState<TeacherType | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const schoolId = tenant.schoolId || user?.school_id;
   const tenantId = tenant.campusId || user?.campus_id;
 
@@ -100,20 +106,22 @@ const TeacherManagement: React.FC = () => {
     }
   }, [schoolId]);
 
-  const handleDelete = useCallback(async (teacher: TeacherType) => {
-    if (!window.confirm(`Delete teacher "${teacher.full_name || 'this teacher'}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDelete = useCallback(async () => {
+    if (!deletingteacher) return;
+    setIsDeleting(true);
     try {
-      await teacherService.deleteTeacher(teacher.id);
-      toast.success('teacher deleted successfully.');
+      await teacherService.deleteTeacher(deletingteacher.id);
+      toast.success('Teacher deleted successfully.');
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
-      setteachers((prev) => prev.filter((s) => s.id !== teacher.id));
+      setteachers((prev) => prev.filter((s) => s.id !== deletingteacher.id));
+      setDeletingteacher(null);
     } catch (error: any) {
       console.error('[teacher Delete Error]:', error.response?.data || error.message || error);
       toast.error(error.response?.data?.message || 'Failed to delete teacher. Please check permissions and try again.');
+    } finally {
+      setIsDeleting(false);
     }
-  }, [queryClient]);
+  }, [deletingteacher, queryClient]);
 
   const openEdit = useCallback((teacher: TeacherType) => {
     setEditingteacher(teacher);
@@ -296,7 +304,7 @@ const TeacherManagement: React.FC = () => {
                   <Eye size={15} />
                 </button>
                 <button
-                  onClick={() => handleDelete(s)}
+                  onClick={() => setDeletingteacher(s)}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                   title="Delete"
                 >
@@ -452,6 +460,42 @@ const TeacherManagement: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deletingteacher && (
+          <Modal
+            isOpen={!!deletingteacher}
+            onClose={() => setDeletingteacher(null)}
+            title="Delete Teacher"
+          >
+            <div className="flex flex-col items-center text-center py-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 mb-4">
+                <AlertTriangle size={28} className="text-red-500" />
+              </div>
+              <p className="text-sm text-gray-500 mb-1">Are you sure you want to delete</p>
+              <p className="text-sm font-bold text-gray-800 mb-4">"{deletingteacher.full_name || 'this teacher'}"?</p>
+              <p className="text-xs text-red-500 mb-6">This action cannot be undone.</p>
+              <div className="flex items-center gap-3 w-full">
+                <button 
+                  onClick={() => setDeletingteacher(null)} 
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeleting && <Loader2 size={14} className="animate-spin" />}
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   );
 };
