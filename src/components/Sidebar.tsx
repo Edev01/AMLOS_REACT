@@ -206,7 +206,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           id: 'role-management',
           label: 'Role Management',
           icon: <UserCog size={18} />,
-          path: '/admin/role-management',
+          path: '/admin/roles',
         },
         {
           id: 'hr-management',

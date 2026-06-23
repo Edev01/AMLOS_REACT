@@ -18,6 +18,7 @@ import CMSManagement from './pages/CMSManagement';
 import AssessmentManagement from './pages/AssessmentManagement';
 import SchoolPortal from './pages/SchoolPortal';
 import TeacherDashboard from './pages/TeacherDashboard';
+import RoleManagement from './pages/RoleManagement';
 import CampusDashboard from './pages/CampusDashboard';
 import SchoolAdminDashboard from './pages/SchoolAdminDashboard';
 import SchoolDashboard from './pages/SchoolDashboard';
@@ -50,6 +51,7 @@ function App() {
               ============================================ */}
           <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
             <Route path="/admin/dashboard" element={<DashboardOverview />} />
+            <Route path="/admin/roles" element={<RoleManagement />} />
             <Route path="/super-admin/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/central-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/schools" element={<SchoolManagement />} />

@@ -115,12 +115,12 @@ const parseSchoolsResponse = (payload: any, currentPage: number) => {
   }
 
   const explicitNextPage = getNumber(meta.next_page, meta.nextPage);
-  const totalPages = getNumber(meta.total_pages, meta.last_page) || Math.ceil(total / SCHOOLS_PAGE_SIZE) || 1;
+  const totalPages = getNumber(meta.total_pages, meta.last_page) || Math.ceil((total || 0) / SCHOOLS_PAGE_SIZE) || 1;
   let nextPage = explicitNextPage;
 
   if (!nextPage && meta.next) nextPage = currentPage + 1;
   if (!nextPage && totalPages && currentPage < totalPages) nextPage = currentPage + 1;
-  if (!nextPage && total && currentPage * SCHOOLS_PAGE_SIZE < total) nextPage = currentPage + 1;
+  if (!nextPage && (total || 0) && currentPage * SCHOOLS_PAGE_SIZE < (total || 0)) nextPage = currentPage + 1;
 
   return { rawList, isServerPaginated: true, nextPage, totalCount: total, totalPages };
 };

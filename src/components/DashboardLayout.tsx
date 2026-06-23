@@ -24,7 +24,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Moon,
-  Sun
+  Sun,
+  UserCog
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -69,6 +70,7 @@ const buildSearchItems = (role: string | undefined, campusId?: string | null) =>
 
   const items = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, path: dashPath, roles: ['all'] },
+    { id: 'role-management', label: 'Role Management', icon: <UserCog size={16} />, path: '/admin/roles', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'schools', label: 'All Schools', icon: <School size={16} />, path: '/admin/schools', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'add-school', label: 'Add School', icon: <School size={16} />, path: '/admin/schools/add', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'planners', label: 'All Planners', icon: <CalendarDays size={16} />, path: plannersPath, roles: ['SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },

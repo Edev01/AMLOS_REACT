@@ -54,15 +54,49 @@ const unwrap = <T>(payload: any): T => {
   return payload;
 };
 
+export interface GradeSubmissionPayload {
+  score: number;
+  total_marks: number;
+}
+
+export interface Submission {
+  id: number | string;
+  student_name?: string;
+  student_email?: string;
+  assessment_title?: string;
+  assessment_id?: number | string;
+  score?: number;
+  total_marks?: number;
+  status?: string;
+  submitted_at?: string;
+  graded_at?: string;
+  [key: string]: any;
+}
+
+export interface PaginatedResponse<T> {
+  results: T[];
+  count: number;
+  next: string | null;
+  previous: string | null;
+}
+
 export const assessmentService = {
   getMetadata: async () => {
     const response = await api.get('/api/assessments/metadata');
     return response.data;
   },
 
-  listTemplates: async (): Promise<AssessmentTemplate[]> => {
-    const response = await api.get('/api/assessments/models');
-    return extractAssessmentList(response.data) as AssessmentTemplate[];
+  // Paginated list of assessment models
+  listTemplates: async (page: number = 1): Promise<PaginatedResponse<AssessmentTemplate>> => {
+    const response = await api.get(`/api/assessments/models/all?page=${page}`);
+    const data = response.data;
+    // Normalize response — backend may return different shapes
+    return {
+      results: extractAssessmentList(data) as AssessmentTemplate[],
+      count: data?.count ?? data?.data?.count ?? data?.total ?? 0,
+      next: data?.next ?? data?.data?.next ?? null,
+      previous: data?.previous ?? data?.data?.previous ?? null,
+    };
   },
 
   getTemplate: async (id: number | string): Promise<AssessmentTemplate> => {
@@ -77,9 +111,9 @@ export const assessmentService = {
 
   updateTemplate: async (
     id: number | string,
-    payload: AssessmentTemplatePayload
+    payload: Partial<AssessmentTemplatePayload> & { title?: string; description?: string }
   ): Promise<AssessmentTemplate> => {
-    const response = await api.patch(`/api/assessments/models/${id}`, payload);
+    const response = await api.patch(`/api/assessments/models/${id}/update`, payload);
     return unwrap<AssessmentTemplate>(response.data);
   },
 
@@ -90,5 +124,31 @@ export const assessmentService = {
   listAvailableAssessments: async () => {
     const response = await api.get('/api/assessments/available');
     return extractAssessmentList(response.data);
+  },
+
+  // ───── Submissions ─────
+
+  listSubmissions: async (page: number = 1): Promise<PaginatedResponse<Submission>> => {
+    const response = await api.get(`/api/assessments/submissions?page=${page}`);
+    const data = response.data;
+    const results = data?.results ?? data?.data?.results ?? data?.submissions ?? data?.data?.submissions ?? (Array.isArray(data?.data) ? data.data : []);
+    return {
+      results,
+      count: data?.count ?? data?.data?.count ?? data?.total ?? 0,
+      next: data?.next ?? data?.data?.next ?? null,
+      previous: data?.previous ?? data?.data?.previous ?? null,
+    };
+  },
+
+  gradeSubmission: async (submissionId: number | string, payload: GradeSubmissionPayload) => {
+    const response = await api.patch(`/api/assessments/submissions/${submissionId}/grade`, payload);
+    return response.data;
+  },
+
+  submitHandwritten: async (modelId: number | string, formData: FormData) => {
+    const response = await api.post(`/api/assessments/models/${modelId}/submit-handwritten`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
   },
 };
