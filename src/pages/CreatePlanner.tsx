@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import api from '../api/services/api';
 import { getChaptersBySubject } from '../api/services/studentService';
+import { getGrades } from '../api/services/curriculumService';
 import { studyPlanService } from '../api/services/studyPlanService';
 import { Subject, Chapter, SLO } from '../types';
 import EmptyState from '../components/EmptyState';
@@ -29,40 +30,15 @@ const EXAM_TYPES = [
   { value: 'mock', label: 'Mock Test' },
 ];
 
-const GRADES = [
-  { value: '9', label: '9th' },
-  { value: '10', label: '10th' },
-  { value: '11', label: '11th' },
-  { value: '12', label: '12th' },
-];
-
+// Grades are now fetched dynamically from the CMS database
 type GradeOption = {
   value: string;
   label: string;
 };
 
-const CMS_CLASSES_STORAGE_KEY = 'amlos_cms_classes';
-const DEFAULT_CMS_CLASS_VALUES = ['CSS', 'MDCAT', 'ECAT'];
-
 const formatGradeLabel = (value: string) => {
-  const knownGrade = GRADES.find((grade) => grade.value === value);
-  if (knownGrade) return knownGrade.label;
-  return value;
-};
-
-const readLocalCmsGradeOptions = (): GradeOption[] => {
-  try {
-    const raw = localStorage.getItem(CMS_CLASSES_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .map((item) => String(item?.name || '').trim())
-      .filter(Boolean)
-      .map((value) => ({ value, label: formatGradeLabel(value) }));
-  } catch {
-    return [];
-  }
+  const numericLabels: Record<string, string> = { '9': '9th', '10': '10th', '11': '11th', '12': '12th' };
+  return numericLabels[value] || value;
 };
 
 const STUDY_MODES = [
@@ -110,6 +86,25 @@ const CreatePlanner: React.FC = () => {
   const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
 
+  // Fetch grades from CMS database
+  const [cmsGrades, setCmsGrades] = useState<GradeOption[]>([]);
+
+  useEffect(() => {
+    const fetchCmsGrades = async () => {
+      try {
+        const data = await getGrades();
+        const grades = (Array.isArray(data) ? data : [])
+          .map((g: any) => String(g?.name || '').trim())
+          .filter(Boolean)
+          .map((value) => ({ value, label: formatGradeLabel(value) }));
+        setCmsGrades(grades);
+      } catch (err) {
+        console.error('Failed to fetch CMS grades:', err);
+      }
+    };
+    fetchCmsGrades();
+  }, []);
+
   const gradeOptions = React.useMemo<GradeOption[]>(() => {
     const merged = new Map<string, GradeOption>();
     const addGrade = (value: string, label?: string) => {
@@ -118,13 +113,11 @@ const CreatePlanner: React.FC = () => {
       merged.set(normalized, { value: normalized, label: label || formatGradeLabel(normalized) });
     };
 
-    GRADES.forEach((grade) => addGrade(grade.value, grade.label));
-    DEFAULT_CMS_CLASS_VALUES.forEach((value) => addGrade(value, value));
-    readLocalCmsGradeOptions().forEach((grade) => addGrade(grade.value, grade.label));
+    cmsGrades.forEach((grade) => addGrade(grade.value, grade.label));
     allSubjects.forEach((subject) => addGrade(subject.grade || ''));
 
     return Array.from(merged.values());
-  }, [allSubjects]);
+  }, [cmsGrades, allSubjects]);
 
   const selectedGradeLabel = React.useMemo(
     () => gradeOptions.find((grade) => grade.value === form.grade)?.label || form.grade || '',
