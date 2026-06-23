@@ -325,16 +325,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
   const { isDark } = useTheme();
 
   return (
-    <aside className={`relative flex h-full flex-col rounded-[24px] shadow-2xl transition-all duration-300 ${isDark ? 'bg-white text-slate-800' : 'bg-navy-800 text-white'} w-full`}>
+    <aside className={`relative flex h-full flex-col rounded-[24px] shadow-2xl transition-all duration-300 ${'bg-white text-slate-800'} w-full`}>
       {/* Subtle gradient overlay */}
-      {!isDark && <div className="absolute inset-0 bg-gradient-to-b from-accent-blue/5 via-transparent to-transparent pointer-events-none rounded-[24px]" />}
+      {true && <div className="absolute inset-0 bg-gradient-to-b from-accent-blue/5 via-transparent to-transparent pointer-events-none rounded-[24px]" />}
       
       {/* Brand Header with Glass Effect */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className={`relative flex items-center gap-3 px-6 py-6 border-b rounded-t-[24px] ${isDark ? 'border-slate-100' : 'border-white/5'}`}
+        className={`relative flex items-center gap-3 px-6 py-6 border-b rounded-t-[24px] ${'border-slate-100'}`}
       >
         <div className={`flex items-center justify-center rounded-xl shadow-glow-blue flex-shrink-0 ${collapsed ? 'h-8 w-8' : 'h-10 w-10'} ${
           isSuperAdmin 
@@ -345,8 +345,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <h1 className={`text-lg font-bold leading-tight truncate ${isDark ? 'text-slate-900' : 'text-white'}`}>AMLOS</h1>
-            <p className={`text-[11px] font-medium tracking-wide truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+            <h1 className={`text-lg font-bold leading-tight truncate ${'text-slate-900'}`}>AMLOS</h1>
+            <p className={`text-[11px] font-medium tracking-wide truncate ${'text-slate-500'}`}>
               {portalLabel}
             </p>
           </div>
@@ -355,10 +355,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
 
       {/* Tenant Context Banner (for Campus Admins) */}
       {!collapsed && isTenantContext && tenant.campusName && (
-        <div className={`mx-4 mt-4 rounded-lg border px-3 py-2 ${isDark ? 'bg-blue-50 border-blue-100' : 'bg-blue-500/10 border-blue-500/20'}`}>
+        <div className={`mx-4 mt-4 rounded-lg border px-3 py-2 ${'bg-blue-50 border-blue-100'}`}>
           <div className="flex items-center gap-2">
-            <Building2 size={14} className={isDark ? 'text-blue-600' : 'text-blue-400'} />
-            <span className={`text-xs font-medium truncate ${isDark ? 'text-blue-700' : 'text-blue-300'}`}>
+            <Building2 size={14} className={'text-blue-600'} />
+            <span className={`text-xs font-medium truncate ${'text-blue-700'}`}>
               {tenant.campusName}
             </span>
           </div>
@@ -421,8 +421,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                 }}
                 className={`relative flex w-full items-center justify-between rounded-lg py-2.5 text-[13px] font-medium transition-all duration-200 z-10 ${
                   itemActive || parentActive
-                    ? (isDark ? 'text-accent-blue font-semibold' : 'text-white')
-                    : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-white/5')
+                    ? ('text-accent-blue font-semibold')
+                    : ('text-slate-600 hover:text-slate-900 hover:bg-slate-100')
                 } ${collapsed ? 'px-0 justify-center' : 'px-4'}`}
               >
                 <div className={`flex items-center ${collapsed ? 'justify-center w-full' : 'gap-3'}`}>
@@ -432,7 +432,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                   {!collapsed && <span className="whitespace-nowrap">{item.label}</span>}
                 </div>
                 {!collapsed && hasChildren && (
-                  <motion.span animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }} className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                  <motion.span animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }} className={'text-slate-400'}>
                     <ChevronDown size={14} />
                   </motion.span>
                 )}
@@ -440,14 +440,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
 
               {/* Collapsed Hover Tooltip */}
               {collapsed && !isExpanded && (
-                <div className={`absolute left-[54px] top-1/2 -translate-y-1/2 hidden whitespace-nowrap rounded-[8px] px-3 py-2 text-[13px] font-bold shadow-lg border group-hover:block z-[100] pointer-events-none ${isDark ? 'bg-white text-slate-800 border-slate-200' : 'bg-[#1e293b] text-white border-white/10'}`}>
+                <div className={`absolute left-[54px] top-1/2 -translate-y-1/2 hidden whitespace-nowrap rounded-[8px] px-3 py-2 text-[13px] font-bold shadow-lg border group-hover:block z-[100] pointer-events-none ${'bg-white text-slate-800 border-slate-200'}`}>
                   {item.label}
                 </div>
               )}
 
               {/* Collapsed Click Popover for children */}
               {collapsed && hasChildren && isExpanded && (
-                <div className={`absolute left-[54px] top-0 min-w-[180px] rounded-[16px] shadow-[0_8px_30px_rgb(0,0,0,0.4)] border z-[100] overflow-hidden ${isDark ? 'bg-white border-slate-200' : 'bg-[#1e293b] border-white/10'}`}>
+                <div className={`absolute left-[54px] top-0 min-w-[180px] rounded-[16px] shadow-[0_8px_30px_rgb(0,0,0,0.4)] border z-[100] overflow-hidden ${'bg-white border-slate-200'}`}>
                   <div className="p-2">
                     <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                       {item.label}
@@ -463,8 +463,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                           }}
                           className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors border border-transparent ${
                             childActive
-                              ? (isDark ? 'text-accent-blue font-semibold bg-accent-blue/10 border-accent-blue/20' : 'text-accent-blue bg-accent-blue/10 border-transparent')
-                              : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 hover:text-white hover:bg-white/5')
+                              ? ('text-accent-blue font-semibold bg-accent-blue/10 border-accent-blue/20')
+                              : ('text-slate-600 hover:text-slate-900 hover:bg-slate-100')
                           }`}
                         >
                           <span>{child.label}</span>
@@ -485,7 +485,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                     transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
                     className="overflow-hidden"
                   >
-                    <div className={`ml-4 space-y-0.5 border-l pl-3 py-1 mt-1 ${isDark ? 'border-slate-200' : 'border-white/10'}`}>
+                    <div className={`ml-4 space-y-0.5 border-l pl-3 py-1 mt-1 ${'border-slate-200'}`}>
                       {item.children!.map((child, childIndex) => {
                         const childActive = isActive(child.path, child.id);
                         return (
@@ -498,8 +498,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
                             onClick={() => navigate(child.path)}
                             className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-[12.5px] transition-all duration-200 border ${
                               childActive
-                                ? (isDark ? 'text-accent-blue font-semibold bg-accent-blue/10 border-accent-blue/20' : 'text-blue-400 font-semibold bg-blue-500/20 border-blue-500/20')
-                                : (isDark ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent' : 'text-slate-400 hover:text-white hover:bg-white/5 border-transparent')
+                                ? ('text-accent-blue font-semibold bg-accent-blue/10 border-accent-blue/20')
+                                : ('text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent')
                             }`}
                           >
                             <span>{child.label}</span>
@@ -519,11 +519,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
       </nav>
       
       {/* Bottom Actions if any */}
-      <div className={`mt-auto border-t p-4 rounded-b-[24px] ${isDark ? 'border-slate-100' : 'border-white/5'}`}>
+      <div className={`mt-auto border-t p-4 rounded-b-[24px] ${'border-slate-100'}`}>
         <button
           onClick={handleLogout}
           className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all ${
-            isDark ? 'text-slate-600 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-white/5 hover:text-red-400'
+            'text-slate-600 hover:bg-red-50 hover:text-red-600'
           } ${collapsed ? 'justify-center' : ''}`}
           title={collapsed ? 'Logout' : undefined}
         >

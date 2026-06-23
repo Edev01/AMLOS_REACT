@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import api from '../api/services/api';
 import { getChaptersBySubject } from '../api/services/studentService';
 import { studyPlanService } from '../api/services/studyPlanService';
@@ -88,6 +89,7 @@ const getSubjectIcon = (name: string) => {
 const CreatePlanner: React.FC = () => {
   const navigate = useNavigate();
   const { user, tenant, isSuperAdmin } = useAuth();
+  const { isDark } = useTheme();
 
   // Step & Form
   const [step, setStep] = useState(1);
@@ -651,7 +653,7 @@ const CreatePlanner: React.FC = () => {
                   {step > (s?.n || 0) ? <Check size={16} /> : (s?.n || i + 1)}
                 </div>
                 <div className="hidden sm:block">
-                  <p className="text-sm font-semibold text-gray-900">{s?.title || ''}</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{s?.title || ''}</p>
                   <p className="text-[10px] text-gray-400">{s?.sub || ''}</p>
                 </div>
               </div>
@@ -874,7 +876,7 @@ const CreatePlanner: React.FC = () => {
                   >
                     <div className="flex items-center gap-3 mb-2">
                       {getSubjectIcon(s?.name || '')}
-                      <p className="font-semibold text-gray-900">{s?.name || 'Unknown'}</p>
+                      <p className="font-semibold text-gray-900 dark:text-slate-100">{s?.name || 'Unknown'}</p>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">{s?.description || `Grade ${s?.grade || 'N/A'}`}</p>
                     {selectedSubjects?.includes(s?.id || 0) && (
@@ -1022,20 +1024,20 @@ const CreatePlanner: React.FC = () => {
             </div>
 
             {metrics && metrics.isExceeded && (
-              <div className="mb-6 p-5 border border-red-200 bg-red-50/50 rounded-2xl flex flex-col md:flex-row items-start gap-4">
-                <div className="p-2 rounded-xl bg-red-100 text-red-600 shrink-0">
+              <div className="mb-6 p-5 border border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/10 rounded-2xl flex flex-col md:flex-row items-start gap-4">
+                <div className="p-2 rounded-xl bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 shrink-0">
                   <SlidersHorizontal size={24} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-bold text-red-800">Daily Study Time Limit Exceeded</h3>
-                  <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                  <h3 className="text-sm font-bold text-red-800 dark:text-red-400">Daily Study Time Limit Exceeded</h3>
+                  <p className="text-xs text-red-700 dark:text-red-300 mt-1 leading-relaxed">
                     The selected SLOs require an estimated <strong>{metrics.totalHours.toFixed(1)} hours</strong> of study.
                     Over the plan duration of <strong>{metrics.days} days</strong>, this requires <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>.
                     However, your defined maximum limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
                   </p>
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
                     <div>
-                      <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                      <label className="block text-[11px] font-bold text-red-800 dark:text-red-400 uppercase tracking-wide mb-1">
                         Increase Daily Limit (minutes)
                       </label>
                       <input
@@ -1043,23 +1045,23 @@ const CreatePlanner: React.FC = () => {
                         value={form.max_study_time_daily}
                         onChange={e => setFormField('max_study_time_daily', e.target.value)}
                         placeholder="e.g. 384"
-                        className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                        className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
                       />
-                      <p className="text-[10px] text-red-600 mt-1">
+                      <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
                         Suggested: Set to at least <strong>{metrics.suggestedMaxMinutes} min</strong>
                       </p>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                      <label className="block text-[11px] font-bold text-red-800 dark:text-red-400 uppercase tracking-wide mb-1">
                         Extend End Date
                       </label>
                       <input
                         type="date"
                         value={form.end_date}
                         onChange={e => setFormField('end_date', e.target.value)}
-                        className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                        className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
                       />
-                      <p className="text-[10px] text-red-600 mt-1">
+                      <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
                         Suggested: Set to <strong>{metrics.suggestedEndDateString}</strong> or later
                       </p>
                     </div>
@@ -1108,7 +1110,7 @@ const CreatePlanner: React.FC = () => {
                           </div>
                         )}
                         {getSubjectIcon(subject.name || '')}
-                        <span className="font-semibold text-gray-900">{subject.name || ''}</span>
+                        <span className="font-semibold text-gray-900 dark:text-slate-100">{subject.name || ''}</span>
                         <span className="text-xs text-gray-500">
                           {isChaptersLoading ? 'Loading...' : `(${chapters?.length || 0} chapters${totalSubjectSlos > 0 ? `, ${selectedSubjectSlos}/${totalSubjectSlos} SLOs selected` : ''})`}
                         </span>
@@ -1209,20 +1211,20 @@ const CreatePlanner: React.FC = () => {
               <h2 className="text-lg font-bold text-gray-900 mb-6">Planner Preview</h2>
 
               {metrics && metrics.isExceeded && (
-                <div className="mb-6 p-5 border border-red-200 bg-red-50/50 rounded-2xl flex flex-col md:flex-row items-start gap-4">
-                  <div className="p-2 rounded-xl bg-red-100 text-red-600 shrink-0">
+                <div className="mb-6 p-5 border border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/10 rounded-2xl flex flex-col md:flex-row items-start gap-4">
+                  <div className="p-2 rounded-xl bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 shrink-0">
                     <SlidersHorizontal size={24} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-sm font-bold text-red-800">Daily Study Time Limit Exceeded</h3>
-                    <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                    <h3 className="text-sm font-bold text-red-800 dark:text-red-400">Daily Study Time Limit Exceeded</h3>
+                    <p className="text-xs text-red-700 dark:text-red-300 mt-1 leading-relaxed">
                       The selected SLOs require an estimated <strong>{metrics.totalHours.toFixed(1)} hours</strong> of study.
                       Over the plan duration of <strong>{metrics.days} days</strong>, this requires <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>.
                       However, your defined maximum limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
                     </p>
                     <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
                       <div>
-                        <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                        <label className="block text-[11px] font-bold text-red-800 dark:text-red-400 uppercase tracking-wide mb-1">
                           Increase Daily Limit (minutes)
                         </label>
                         <input
@@ -1230,23 +1232,23 @@ const CreatePlanner: React.FC = () => {
                           value={form.max_study_time_daily}
                           onChange={e => setFormField('max_study_time_daily', e.target.value)}
                           placeholder="e.g. 384"
-                          className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                          className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
                         />
-                        <p className="text-[10px] text-red-600 mt-1">
+                        <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
                           Suggested: Set to at least <strong>{metrics.suggestedMaxMinutes} min</strong>
                         </p>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-red-800 uppercase tracking-wide mb-1">
+                        <label className="block text-[11px] font-bold text-red-800 dark:text-red-400 uppercase tracking-wide mb-1">
                           Extend End Date
                         </label>
                         <input
                           type="date"
                           value={form.end_date}
                           onChange={e => setFormField('end_date', e.target.value)}
-                          className="w-full rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                          className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
                         />
-                        <p className="text-[10px] text-red-600 mt-1">
+                        <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
                           Suggested: Set to <strong>{metrics.suggestedEndDateString}</strong> or later
                         </p>
                       </div>
@@ -1256,58 +1258,58 @@ const CreatePlanner: React.FC = () => {
               )}
 
               {metrics && !metrics.isExceeded && (
-                <div className="mb-6 p-4 border border-emerald-100 bg-emerald-50/30 rounded-xl flex items-center gap-3">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">✓</span>
-                  <p className="text-xs text-emerald-800">
+                <div className="mb-6 p-4 border border-emerald-100 dark:border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-500/10 rounded-xl flex items-center gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold">✓</span>
+                  <p className="text-xs text-emerald-800 dark:text-emerald-400">
                     Based on selected SLOs, students will study about <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>. This is within your daily limit of <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
                   </p>
                 </div>
               )}
 
-              <div className="bg-gray-50 rounded-xl p-6 space-y-4">
+              <div className="bg-gray-50 dark:bg-slate-800/50 rounded-xl p-6 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Planner Name</p>
-                    <p className="text-sm font-semibold text-gray-900">{form.plan_name || '—'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">Planner Name</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{form.plan_name || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Grade</p>
-                    <p className="text-sm font-semibold text-gray-900">
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">Grade</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                       {selectedGradeLabel || '—'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Exam Type</p>
-                    <p className="text-sm font-semibold text-gray-900">
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">Exam Type</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                       {(EXAM_TYPES || []).find(et => et?.value === form.exam_type)?.label || form.exam_type || '—'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Plan Type</p>
-                    <p className="text-sm font-semibold text-gray-900">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${(isSuperAdmin || user?.role === 'SUPER_ADMIN') ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">Plan Type</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${(isSuperAdmin || user?.role === 'SUPER_ADMIN') ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400' : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300'
                         }`}>
                         {(isSuperAdmin || user?.role === 'SUPER_ADMIN') ? 'RECOMMENDED (Global)' : 'CUSTOM'}
                       </span>
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Study Time</p>
-                    <p className="text-sm font-semibold text-gray-900">{form.min_study_time_daily || '30'} - {form.max_study_time_daily || '120'} min/day</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">Study Time</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{form.min_study_time_daily || '30'} - {form.max_study_time_daily || '120'} min/day</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Start Date</p>
-                    <p className="text-sm font-semibold text-gray-900">{form.start_date || '—'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">Start Date</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{form.start_date || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">End Date</p>
-                    <p className="text-sm font-semibold text-gray-900">{form.end_date || '—'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">End Date</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{form.end_date || '—'}</p>
                   </div>
                 </div>
 
                 <div className="border-t border-gray-200 pt-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Study Mode</p>
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                     {(STUDY_MODES || []).find(m => m.value === form.mode)?.label || form.mode}
                   </p>
                   {form.mode === 'SEQUENTIAL' && subjectOrder.length > 0 && (
@@ -1339,7 +1341,7 @@ const CreatePlanner: React.FC = () => {
 
                 <div className="border-t border-gray-200 pt-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected Subjects</p>
-                  <p className="text-sm font-semibold text-gray-900">{(selectedSubjects?.length || 0)} subjects hello</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{(selectedSubjects?.length || 0)} subjects hello</p>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {(selectedSubjects || []).map(id => {
                       const sub = (allSubjects || []).find((s: Subject) => s?.id === id);
@@ -1354,7 +1356,7 @@ const CreatePlanner: React.FC = () => {
 
                 <div className="border-t border-gray-200 pt-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected SLOs</p>
-                  <p className="text-sm font-semibold text-gray-900">{(selectedSloIds?.length || 0)} SLOs</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{(selectedSloIds?.length || 0)} SLOs</p>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {(selectedSloIds || []).map(sloId => (
                       <span key={sloId} className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-md">
@@ -1374,7 +1376,7 @@ const CreatePlanner: React.FC = () => {
             type="button"
             onClick={prevStep}
             disabled={step === 1}
-            className="inline-flex items-center gap-2 rounded-xl bg-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 disabled:opacity-40 hover:bg-gray-300 transition"
+            className="inline-flex items-center gap-2 rounded-xl bg-gray-200 dark:bg-slate-800 px-6 py-2.5 text-sm font-semibold text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-300 dark:hover:bg-slate-700 transition"
           >
             <ArrowLeft size={16} /> Previous
           </button>

@@ -5,6 +5,7 @@
 @tailwind utilities;
 
 @layer base {
+
   *,
   *::before,
   *::after {
@@ -22,7 +23,7 @@
     --bg-primary: #f8fafc;
     --bg-secondary: #ffffff;
     --bg-card: #ffffff;
-    --bg-header: rgba(255,255,255,0.8);
+    --bg-header: rgba(255, 255, 255, 0.8);
     --text-primary: #0f172a;
     --text-secondary: #475569;
     --text-muted: #94a3b8;
@@ -51,57 +52,170 @@
   }
 
   /* Global Tailwind Overrides for Dark Mode */
-  html.dark .bg-white { background-color: var(--bg-card) !important; }
-  html.dark .bg-slate-50, html.dark .bg-slate-100, html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: var(--bg-secondary) !important; }
-  html.dark .bg-slate-50\/50, html.dark .bg-slate-50\/60, html.dark .bg-slate-50\/70, html.dark .bg-slate-50\/80,
-  html.dark .bg-gray-50\/50, html.dark .bg-gray-50\/60, html.dark .bg-gray-50\/70, html.dark .bg-gray-50\/80 { background-color: var(--bg-secondary) !important; }
-  
-  /* Component-specific glass backgrounds for dark mode */
-  html.dark .glass-card, html.dark .stat-card-premium { background-color: var(--bg-card) !important; border-color: var(--border-color) !important; }
-  html.dark .glass-card:hover, html.dark .stat-card-premium:hover { background-color: var(--bg-secondary) !important; }
-  /* Tinted backgrounds in dark mode */
-  html.dark .bg-blue-50, html.dark .bg-blue-100, html.dark .bg-blue-50\/30, html.dark .bg-blue-50\/50, html.dark .bg-blue-50\/60 { background-color: rgba(59, 130, 246, 0.15) !important; }
-  html.dark .bg-amber-50, html.dark .bg-amber-100, html.dark .bg-amber-50\/30, html.dark .bg-amber-50\/50 { background-color: rgba(245, 158, 11, 0.15) !important; }
-  html.dark .bg-emerald-50, html.dark .bg-emerald-100, html.dark .bg-emerald-50\/30, html.dark .bg-emerald-50\/50 { background-color: rgba(16, 185, 129, 0.15) !important; }
-  html.dark .bg-red-50, html.dark .bg-red-100, html.dark .bg-red-50\/30, html.dark .bg-red-50\/50 { background-color: rgba(239, 68, 68, 0.15) !important; }
-  html.dark .bg-purple-50, html.dark .bg-purple-100, html.dark .bg-purple-50\/30, html.dark .bg-purple-50\/50 { background-color: rgba(168, 85, 247, 0.15) !important; }
-  
-  html.dark .text-slate-900, html.dark .text-slate-800, html.dark .text-navy-800,
-  html.dark .text-gray-900, html.dark .text-gray-800, html.dark .text-black { color: var(--text-primary) !important; }
-  
-  html.dark .text-slate-700, html.dark .text-slate-600,
-  html.dark .text-gray-700, html.dark .text-gray-600 { color: var(--text-secondary) !important; }
-  
-  html.dark .text-slate-500, html.dark .text-slate-400,
-  html.dark .text-gray-500, html.dark .text-gray-400 { color: #cbd5e1 !important; } /* Lightened text */
-  
-  html.dark .border-slate-100, html.dark .border-slate-200, html.dark .border-slate-300,
-  html.dark .border-gray-100, html.dark .border-gray-200, html.dark .border-gray-300 { border-color: var(--border-color) !important; }
-  
-  html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]), 
-  html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
-  html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]), 
-  html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-color) !important; }
-  
-  html.dark .bg-surface-light { background-color: var(--bg-primary) !important; }
-  html.dark .shadow-sm, html.dark .shadow, html.dark .shadow-md, html.dark .shadow-lg { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5) !important; }
-  
-  html.dark .hover\:bg-slate-50:hover, html.dark .hover\:bg-gray-50:hover { background-color: var(--hover-bg) !important; }
-  html.dark .hover\:bg-slate-100:hover, html.dark .hover\:bg-gray-100:hover { background-color: var(--hover-bg) !important; }
-  
-  /* Opacity hover variants fix */
-  html.dark .hover\:bg-slate-50\/50:hover, html.dark .hover\:bg-slate-50\/60:hover, html.dark .hover\:bg-slate-50\/70:hover, html.dark .hover\:bg-slate-50\/80:hover { background-color: var(--hover-bg) !important; }
-  html.dark .hover\:bg-gray-50\/50:hover, html.dark .hover\:bg-gray-50\/60:hover, html.dark .hover\:bg-gray-50\/70:hover, html.dark .hover\:bg-gray-50\/80:hover { background-color: var(--hover-bg) !important; }
-  html.dark .hover\:bg-blue-50\/50:hover, html.dark .hover\:bg-slate-50\/70:hover { background-color: rgba(255, 255, 255, 0.05) !important; }
+  html.dark .bg-white {
+    background-color: var(--bg-card) !important;
+  }
 
-  
-  html.dark input, html.dark select, html.dark textarea {
+  html.dark .bg-slate-50,
+  html.dark .bg-slate-100,
+  html.dark .bg-gray-50,
+  html.dark .bg-gray-100 {
+    background-color: var(--bg-secondary) !important;
+  }
+
+  html.dark .bg-slate-50\/50,
+  html.dark .bg-slate-50\/60,
+  html.dark .bg-slate-50\/70,
+  html.dark .bg-slate-50\/80,
+  html.dark .bg-gray-50\/50,
+  html.dark .bg-gray-50\/60,
+  html.dark .bg-gray-50\/70,
+  html.dark .bg-gray-50\/80 {
+    background-color: var(--bg-secondary) !important;
+  }
+
+  /* Component-specific glass backgrounds for dark mode */
+  html.dark .glass-card,
+  html.dark .stat-card-premium {
+    background-color: var(--bg-card) !important;
+    border-color: var(--border-color) !important;
+  }
+
+  html.dark .glass-card:hover,
+  html.dark .stat-card-premium:hover {
+    background-color: var(--bg-secondary) !important;
+  }
+
+  /* Tinted backgrounds in dark mode */
+  html.dark .bg-blue-50,
+  html.dark .bg-blue-100,
+  html.dark .bg-blue-50\/30,
+  html.dark .bg-blue-50\/50,
+  html.dark .bg-blue-50\/60 {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+  }
+
+  html.dark .bg-amber-50,
+  html.dark .bg-amber-100,
+  html.dark .bg-amber-50\/30,
+  html.dark .bg-amber-50\/50 {
+    background-color: rgba(245, 158, 11, 0.15) !important;
+  }
+
+  html.dark .bg-emerald-50,
+  html.dark .bg-emerald-100,
+  html.dark .bg-emerald-50\/30,
+  html.dark .bg-emerald-50\/50 {
+    background-color: rgba(16, 185, 129, 0.15) !important;
+  }
+
+  html.dark .bg-red-50,
+  html.dark .bg-red-100,
+  html.dark .bg-red-50\/30,
+  html.dark .bg-red-50\/50 {
+    background-color: rgba(239, 68, 68, 0.15) !important;
+  }
+
+  html.dark .bg-purple-50,
+  html.dark .bg-purple-100,
+  html.dark .bg-purple-50\/30,
+  html.dark .bg-purple-50\/50 {
+    background-color: rgba(168, 85, 247, 0.15) !important;
+  }
+
+  html.dark .text-slate-900,
+  html.dark .text-slate-800,
+  html.dark .text-navy-800,
+  html.dark .text-gray-900,
+  html.dark .text-gray-800,
+  html.dark .text-black {
+    color: var(--text-primary) !important;
+  }
+
+  html.dark .text-slate-700,
+  html.dark .text-slate-600,
+  html.dark .text-gray-700,
+  html.dark .text-gray-600 {
+    color: var(--text-secondary) !important;
+  }
+
+  html.dark .text-slate-500,
+  html.dark .text-slate-400,
+  html.dark .text-gray-500,
+  html.dark .text-gray-400 {
+    color: #cbd5e1 !important;
+  }
+
+  /* Lightened text */
+
+  html.dark .border-slate-100,
+  html.dark .border-slate-200,
+  html.dark .border-slate-300,
+  html.dark .border-gray-100,
+  html.dark .border-gray-200,
+  html.dark .border-gray-300 {
+    border-color: var(--border-color) !important;
+  }
+
+  html.dark .divide-slate-100> :not([hidden])~ :not([hidden]),
+  html.dark .divide-slate-200> :not([hidden])~ :not([hidden]),
+  html.dark .divide-gray-100> :not([hidden])~ :not([hidden]),
+  html.dark .divide-gray-200> :not([hidden])~ :not([hidden]) {
+    border-color: var(--border-color) !important;
+  }
+
+  html.dark .bg-surface-light {
+    background-color: var(--bg-primary) !important;
+  }
+
+  html.dark .shadow-sm,
+  html.dark .shadow,
+  html.dark .shadow-md,
+  html.dark .shadow-lg {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  html.dark .hover\:bg-slate-50:hover,
+  html.dark .hover\:bg-gray-50:hover {
+    background-color: var(--hover-bg) !important;
+  }
+
+  html.dark .hover\:bg-slate-100:hover,
+  html.dark .hover\:bg-gray-100:hover {
+    background-color: var(--hover-bg) !important;
+  }
+
+  /* Opacity hover variants fix */
+  html.dark .hover\:bg-slate-50\/50:hover,
+  html.dark .hover\:bg-slate-50\/60:hover,
+  html.dark .hover\:bg-slate-50\/70:hover,
+  html.dark .hover\:bg-slate-50\/80:hover {
+    background-color: var(--hover-bg) !important;
+  }
+
+  html.dark .hover\:bg-gray-50\/50:hover,
+  html.dark .hover\:bg-gray-50\/60:hover,
+  html.dark .hover\:bg-gray-50\/70:hover,
+  html.dark .hover\:bg-gray-50\/80:hover {
+    background-color: var(--hover-bg) !important;
+  }
+
+  html.dark .hover\:bg-blue-50\/50:hover,
+  html.dark .hover\:bg-slate-50\/70:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+  }
+
+
+  html.dark input,
+  html.dark select,
+  html.dark textarea {
     background-color: var(--input-bg) !important;
     color: var(--text-primary) !important;
     border-color: var(--border-color) !important;
   }
-  
-  html.dark input::placeholder, html.dark textarea::placeholder {
+
+  html.dark input::placeholder,
+  html.dark textarea::placeholder {
     color: var(--text-muted) !important;
   }
 
@@ -118,15 +232,18 @@
     width: 8px;
     height: 8px;
   }
+
   ::-webkit-scrollbar-track {
     background: transparent;
   }
+
   ::-webkit-scrollbar-thumb {
     background: rgba(148, 163, 184, 0.3);
     border-radius: 100px;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
+
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.5);
     border: 2px solid transparent;
@@ -152,11 +269,12 @@ select {
 }
 
 @layer components {
+
   /* Premium Stat Card with Glass Effect */
   .stat-card-premium {
-    @apply bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 p-5 
-           shadow-soft transition-all duration-300 ease-out cursor-pointer;
+    @apply bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 p-5 shadow-soft transition-all duration-300 ease-out cursor-pointer;
   }
+
   .stat-card-premium:hover {
     @apply shadow-soft-lg -translate-y-1 bg-white;
     transform: scale(1.02);
@@ -164,9 +282,9 @@ select {
 
   /* Glassmorphism Card */
   .glass-card {
-    @apply bg-white/70 backdrop-blur-md rounded-2xl border border-white/40 
-           shadow-soft transition-all duration-300;
+    @apply bg-white/70 backdrop-blur-md rounded-2xl border border-white/40 shadow-soft transition-all duration-300;
   }
+
   .glass-card:hover {
     @apply shadow-soft-lg bg-white/80;
   }
@@ -175,6 +293,7 @@ select {
   .table-row-premium {
     @apply transition-colors duration-200;
   }
+
   .table-row-premium:hover {
     @apply bg-slate-50/80;
   }
@@ -183,14 +302,17 @@ select {
   .status-badge {
     @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
   }
+
   .status-badge-active {
     @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
   }
+
   .status-badge-pending {
     @apply bg-amber-50 text-amber-700 border border-amber-200;
     box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
   }
+
   .status-badge-inactive {
     @apply bg-slate-50 text-slate-600 border border-slate-200;
   }
@@ -199,11 +321,13 @@ select {
   .glow-dot {
     @apply w-2 h-2 rounded-full;
   }
+
   .glow-dot-active {
     @apply bg-emerald-500;
     animation: pulse-dot 2s ease-in-out infinite;
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
   }
+
   .glow-dot-pending {
     @apply bg-amber-500;
     animation: pulse-dot 2s ease-in-out infinite;
@@ -212,10 +336,9 @@ select {
 
   /* Premium Input */
   .input-premium {
-    @apply w-full rounded-xl border border-slate-200 bg-white/60 backdrop-blur-sm 
-           py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all duration-200
-           placeholder:text-slate-400;
+    @apply w-full rounded-xl border border-slate-200 bg-white/60 backdrop-blur-sm py-2.5 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400;
   }
+
   .input-premium:focus {
     @apply border-accent-blue/50 bg-white shadow-soft ring-2 ring-accent-blue/10;
   }
@@ -224,36 +347,37 @@ select {
   .search-command {
     @apply relative flex items-center;
   }
+
   .search-command input {
-    @apply w-full rounded-xl border border-slate-200/60 bg-slate-50/80 
-           backdrop-blur-sm py-2.5 pl-10 pr-12 text-sm text-slate-700 
-           outline-none transition-all duration-200;
+    @apply w-full rounded-xl border border-slate-200/60 bg-slate-50/80 backdrop-blur-sm py-2.5 pl-10 pr-12 text-sm text-slate-700 outline-none transition-all duration-200;
   }
+
   .search-command input:focus {
     @apply bg-white border-accent-blue/30 shadow-soft ring-1 ring-accent-blue/20;
   }
+
   .search-command kbd {
-    @apply absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 
-           text-[10px] font-medium text-slate-400 bg-slate-100 
-           rounded border border-slate-200;
+    @apply absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-100 rounded border border-slate-200;
   }
 
   /* Sidebar Item with Slide Effect */
   .sidebar-item {
-    @apply relative flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium 
-           text-slate-400 transition-all duration-200 rounded-lg;
+    @apply relative flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-slate-400 transition-all duration-200 rounded-lg;
   }
+
   .sidebar-item::before {
     content: '';
-    @apply absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 
-           bg-accent-blue rounded-r-full transition-all duration-300;
+    @apply absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 bg-accent-blue rounded-r-full transition-all duration-300;
   }
+
   .sidebar-item:hover {
     @apply text-white bg-white/5;
   }
+
   .sidebar-item-active {
     @apply text-white bg-accent-blue/20;
   }
+
   .sidebar-item-active::before {
     @apply h-6;
   }
@@ -265,12 +389,10 @@ select {
 
   /* Shimmer Loading Effect */
   .shimmer {
-    background: linear-gradient(
-      90deg,
-      rgba(226, 232, 240, 0.6) 25%,
-      rgba(241, 245, 249, 0.8) 50%,
-      rgba(226, 232, 240, 0.6) 75%
-    );
+    background: linear-gradient(90deg,
+        rgba(226, 232, 240, 0.6) 25%,
+        rgba(241, 245, 249, 0.8) 50%,
+        rgba(226, 232, 240, 0.6) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite linear;
   }
@@ -290,31 +412,35 @@ select {
 }
 
 @layer utilities {
+
   /* Glass utilities */
   .glass {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     background: rgba(255, 255, 255, 0.7);
   }
+
   .glass-strong {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     background: rgba(255, 255, 255, 0.85);
   }
+
   .glass-dark {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     background: rgba(15, 23, 42, 0.8);
   }
-  
+
   /* Soft shadows */
   .shadow-elevated {
-    box-shadow: 
+    box-shadow:
       0 4px 6px -1px rgba(0, 0, 0, 0.05),
       0 10px 20px -4px rgba(0, 0, 0, 0.08);
   }
+
   .shadow-floating {
-    box-shadow: 
+    box-shadow:
       0 10px 25px -5px rgba(0, 0, 0, 0.08),
       0 20px 40px -10px rgba(0, 0, 0, 0.1);
   }
@@ -322,13 +448,27 @@ select {
 
 /* Keyframe animations */
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fadeIn {
@@ -336,10 +476,13 @@ select {
 }
 
 @keyframes pulse-dot {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.7;
     transform: scale(1.1);
@@ -350,6 +493,7 @@ select {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }

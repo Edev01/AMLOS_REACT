@@ -13,14 +13,6 @@ import {
   Trash2,
   Pencil,
   Mail,
-import Modal from '../components/Modal';
-import {
-  Plus,
-  Search,
-  Eye,
-  Trash2,
-  Pencil,
-  Mail,
   Phone,
   Users,
   GraduationCap,
