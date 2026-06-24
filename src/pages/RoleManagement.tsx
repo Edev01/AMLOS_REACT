@@ -8,14 +8,12 @@ import Modal from '../components/Modal';
 import { userService } from '../api/services/userService';
 
 const AVAILABLE_ROLES = [
-  'SUPER_ADMIN',
-  'ADMIN',
-  'HR',
-  'SCHOOL_ADMIN',
-  'CAMPUS_ADMIN',
-  'SCHOOL',
-  'TEACHER',
-  'STUDENT',
+  { label: 'Admin', value: 'ADMIN' },
+  { label: 'Hr', value: 'HR' },
+  { label: 'Finance', value: 'FINANCE' },
+  { label: 'School', value: 'SCHOOL' },
+  { label: 'Teacher', value: 'TEACHER' },
+  { label: 'Student', value: 'STUDENT' },
 ];
 
 const RoleManagement: React.FC = () => {
@@ -72,6 +70,8 @@ const RoleManagement: React.FC = () => {
     usersList = usersData;
   } else if (usersData?.results && Array.isArray(usersData.results)) {
     usersList = usersData.results;
+  } else if (usersData?.data?.results && Array.isArray(usersData.data.results)) {
+    usersList = usersData.data.results;
   } else if (usersData?.data && Array.isArray(usersData.data)) {
     usersList = usersData.data;
   }
@@ -136,10 +136,14 @@ const RoleManagement: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-100 to-blue-100 flex items-center justify-center text-blue-700 font-bold">
-                          {(user.first_name?.[0] || user.username?.[0] || user.name?.[0] || 'U').toUpperCase()}
+                          {(user.first_name?.[0] || user.username?.[0] || user.name?.[0] || user.email?.[0] || 'U').toUpperCase()}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900">{user.first_name} {user.last_name} {user.name ? `(${user.name})` : ''}</p>
+                          <p className="font-bold text-slate-900">
+                            {user.first_name || user.last_name 
+                              ? `${user.first_name} ${user.last_name}`.trim() 
+                              : (user.name || user.email || 'Unknown User')}
+                          </p>
                           <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
                             <Mail size={12} /> {user.email || user.username || 'No email provided'}
                           </div>
@@ -147,9 +151,9 @@ const RoleManagement: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                       <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
                         <Shield size={12} />
-                        {user.role || 'NONE'}
+                        {AVAILABLE_ROLES.find(r => r.value === user.role)?.label || user.role || 'None'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -179,10 +183,14 @@ const RoleManagement: React.FC = () => {
             <div className="p-2">
               <div className="flex items-start gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 mb-6">
                 <div className="h-10 w-10 shrink-0 rounded-full bg-white shadow-sm flex items-center justify-center text-blue-600 font-bold border border-slate-200">
-                  {(selectedUser.first_name?.[0] || selectedUser.username?.[0] || 'U').toUpperCase()}
+                  {(selectedUser.first_name?.[0] || selectedUser.username?.[0] || selectedUser.name?.[0] || selectedUser.email?.[0] || 'U').toUpperCase()}
                 </div>
                 <div>
-                  <p className="font-bold text-slate-900">{selectedUser.first_name} {selectedUser.last_name}</p>
+                  <p className="font-bold text-slate-900">
+                    {selectedUser.first_name || selectedUser.last_name 
+                      ? `${selectedUser.first_name} ${selectedUser.last_name}`.trim() 
+                      : (selectedUser.name || selectedUser.email || 'Unknown User')}
+                  </p>
                   <p className="text-xs text-slate-500">{selectedUser.email || selectedUser.username}</p>
                 </div>
               </div>
@@ -196,7 +204,7 @@ const RoleManagement: React.FC = () => {
                     className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-3 px-4 pr-10 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     {AVAILABLE_ROLES.map((role) => (
-                      <option key={role} value={role}>{role}</option>
+                      <option key={role.value} value={role.value}>{role.label}</option>
                     ))}
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">

@@ -10,3 +10,6 @@ Production-ready React admin portal with SuperAdmin and School Admin roles.
 1. `npm install`
 2. Create `.env` from `.env.example` and set your `VITE_API_BASE_URL`
 3. `npm run dev`
+
+
+
