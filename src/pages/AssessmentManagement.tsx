@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import Modal from '../components/Modal';
 import api from '../api/services/api';
+import { getGrades } from '../api/services/curriculumService';
 import { Chapter, Subject } from '../types';
 import {
   assessmentService,
@@ -65,7 +66,7 @@ interface CurriculumChapter extends Chapter {
 
 const LOCAL_TEMPLATES_KEY = 'amlos_assessment_templates';
 
-const DEFAULT_CLASSES = ['9', '10', '11', '12', 'CSS', 'MDCAT', 'ECAT'];
+// Grades are now fetched dynamically from the CMS database
 
 const ASSESSMENT_TYPES: Array<{ value: AssessmentType; label: string; ratio: number }> = [
   { value: 'CHAPTER_WISE', label: 'Chapter Wise', ratio: 0 },
@@ -426,6 +427,13 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     staleTime: 5 * 60 * 1000,
   });
 
+  const gradesQuery = useQuery({
+    queryKey: ['assessments', 'cms-grades'],
+    queryFn: getGrades,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const templatesQuery = useQuery({
     queryKey: ['assessments', 'templates', 1],
     queryFn: () => assessmentService.listTemplates(1), // Fetch first page or all if backend ignores
@@ -472,12 +480,15 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   }, [subjectsQuery.data, metadataSubjects]);
 
   const classOptions = useMemo(() => {
+    const fromCmsGrades = (gradesQuery.data ?? [])
+      .map((g: any) => normalizeGrade(g?.name ?? g?.grade ?? g?.title ?? g))
+      .filter(Boolean);
     const fromMetadata = metadataClasses
-      .map((item) => normalizeGrade(item?.name ?? item?.grade ?? item?.title ?? item))
+      .map((item: any) => normalizeGrade(item?.name ?? item?.grade ?? item?.title ?? item))
       .filter(Boolean);
     const fromSubjects = subjects.map((subject) => normalizeGrade(getSubjectGrade(subject))).filter(Boolean);
-    return Array.from(new Set([...DEFAULT_CLASSES, ...fromMetadata, ...fromSubjects]));
-  }, [metadataClasses, subjects]);
+    return Array.from(new Set([...fromCmsGrades, ...fromMetadata, ...fromSubjects]));
+  }, [gradesQuery.data, metadataClasses, subjects]);
 
   const filteredSubjects = useMemo(() => {
     if (!form.grade) return subjects;

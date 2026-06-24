@@ -118,7 +118,7 @@ export const assessmentService = {
   },
 
   deleteTemplate: async (id: number | string): Promise<void> => {
-    await api.delete(`/api/assessments/models/${id}`);
+    await api.delete(`/api/assessments/models/${id}/delete`);
   },
 
   listAvailableAssessments: async () => {

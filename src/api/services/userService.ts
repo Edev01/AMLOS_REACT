@@ -13,7 +13,7 @@ export const userService = {
   },
 
   updateUserRole: async (userId: number | string, payload: UserRolePayload) => {
-    const response = await api.put(`/api/auth/users/${userId}/role`, payload);
+    const response = await api.patch(`/api/auth/users/${userId}/role`, payload);
     return response.data;
   }
 };
