@@ -5,10 +5,12 @@ export interface UserRolePayload {
 }
 
 export const userService = {
-  searchUsers: async (query: string) => {
-    const response = await api.get('/api/auth/users', {
-      params: { search: query }
-    });
+  searchUsers: async (query: string, page: number = 1) => {
+    const params: Record<string, string | number> = { page };
+    if (query) {
+      params.search = query;
+    }
+    const response = await api.get('/api/auth/users', { params });
     return response.data;
   },
 

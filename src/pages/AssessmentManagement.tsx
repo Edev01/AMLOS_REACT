@@ -844,13 +844,12 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
         className="mb-5"
       />
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="grid grid-cols-[1.4fr_0.7fr_1fr_1fr_0.8fr_0.8fr_0.8fr] gap-4 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-sm font-bold text-white">
-          <span>Template Name</span>
+        <div className="grid grid-cols-[1.6fr_0.8fr_1fr_1.2fr_1fr_0.8fr] gap-4 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-sm font-bold text-white text-center">
+          <span className="text-left">Template Name</span>
           <span>Class</span>
           <span>Subject</span>
           <span>Assessment Type</span>
           <span>Questions</span>
-          <span>Created</span>
           <span>Actions</span>
         </div>
         {templatesQuery.isLoading ? (
@@ -863,9 +862,9 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
           filteredTemplates.map((template) => (
             <div
               key={String(template.id ?? template.title)}
-              className="grid grid-cols-[1.4fr_0.7fr_1fr_1fr_0.8fr_0.8fr_0.8fr] items-center gap-4 border-b border-gray-100 px-6 py-5 last:border-b-0"
+              className="grid grid-cols-[1.6fr_0.8fr_1fr_1.2fr_1fr_0.8fr] items-center gap-4 border-b border-gray-100 px-6 py-5 last:border-b-0 text-center"
             >
-              <div>
+              <div className="text-left">
                 <p className="font-bold text-gray-900">{template.title}</p>
                 <p className="text-xs font-semibold uppercase text-slate-400">
                   {template.cognitive_levels?.join(', ') || 'Random Rule'}
@@ -873,17 +872,18 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
               </div>
               <span className="font-semibold text-slate-700">{template.grade || 'N/A'}</span>
               <span className="text-slate-600">{getTemplateSubjectName(template)}</span>
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600">
-                {formatAssessmentType(template.assessment_type)}
-              </span>
+              <div>
+                <span className="inline-block rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600">
+                  {formatAssessmentType(template.assessment_type)}
+                </span>
+              </div>
               <span className="text-slate-700">
                 {template.total_questions ?? 0}
                 <span className="ml-1 text-xs text-slate-400">
                   ({template.mcq_count ?? 0}/{template.short_count ?? 0}/{template.long_count ?? 0})
                 </span>
               </span>
-              <span className="text-slate-500">{formatDate(template.created_at)}</span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center gap-2">
                 <IconButton title="View" tone="blue" onClick={() => setSelectedTemplate(template)}>
                   <Eye size={17} />
                 </IconButton>
@@ -1379,6 +1379,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
               ['Chapters', selectedTemplate.chapter_ids?.length ?? 0],
               ['Cognitive Levels', selectedTemplate.cognitive_levels?.join(', ') || 'N/A'],
               ['Sources', selectedTemplate.categories?.join(', ') || 'N/A'],
+              ['Created At', formatDate(selectedTemplate.created_at)],
             ].map(([label, value]) => (
               <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
