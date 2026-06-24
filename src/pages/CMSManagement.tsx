@@ -29,6 +29,7 @@ import {
   X,
   Clock,
   AlertTriangle,
+  Download,
 } from 'lucide-react';
 
 type CMSView =
@@ -1153,6 +1154,32 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   );
 
   // ── SLOs ──
+  const handleExportSlos = () => {
+    if (!filteredSloRows || filteredSloRows.length === 0) return;
+    const headers = ['SLO', 'Chapter', 'Subject', 'Difficulty', 'Est. Time'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredSloRows.map((slo: any) => {
+        const title = `"${(getSloTitle(slo) || '').replace(/"/g, '""')}"`;
+        const chapter = `"${(slo.chapter_name || slo.chapter || 'N/A').replace(/"/g, '""')}"`;
+        const subject = `"${(slo.subject_name || 'N/A').replace(/"/g, '""')}"`;
+        const difficulty = `"${(slo.difficulty_frequency || slo.priority || 'N/A').replace(/"/g, '""')}"`;
+        const time = `"${getSloTime(slo) ? `${getSloTime(slo)}m` : 'N/A'}"`;
+        return [title, chapter, subject, difficulty, time].join(',');
+      })
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'filtered_slos.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const renderSlos = () => (
     <>
       <SectionHeader
@@ -1160,6 +1187,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         subtitle="SLOs are the objectives selected by the planner flow."
         action={
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportSlos}
+              disabled={!hasSearchedSlos || filteredSloRows.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-green-300 bg-white px-4 py-2.5 text-sm font-bold text-green-600 shadow-sm transition hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download size={16} /> Export
+            </button>
             <button
               onClick={() => navigate('/admin/cms/slos/upload')}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-2.5 text-sm font-bold text-blue-600 shadow-sm transition hover:bg-blue-50"
@@ -1216,24 +1250,24 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           <table className="w-full min-w-[900px] text-left">
             <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
               <tr>
-                <th className="px-6 py-4 text-sm font-bold">SLO</th>
-                <th className="px-6 py-4 text-sm font-bold">Chapter</th>
-                <th className="px-6 py-4 text-sm font-bold">Subject</th>
-                <th className="px-6 py-4 text-sm font-bold">Difficulty</th>
-                <th className="px-6 py-4 text-sm font-bold">Est. Time</th>
-                <th className="px-6 py-4 text-sm font-bold">Actions</th>
+                <th className="px-6 py-4 text-sm font-bold text-left w-[40%]">SLO</th>
+                <th className="px-6 py-4 text-sm font-bold text-center whitespace-nowrap">Chapter</th>
+                <th className="px-6 py-4 text-sm font-bold text-center">Subject</th>
+                <th className="px-6 py-4 text-sm font-bold text-center">Difficulty</th>
+                <th className="px-6 py-4 text-sm font-bold text-center whitespace-nowrap">Est. Time</th>
+                <th className="px-6 py-4 text-sm font-bold text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredSloRows.map((slo, index) => (
                 <tr key={slo.id || `${slo.chapter_id}-${index}`} className="hover:bg-slate-50/70">
-                  <td className="px-6 py-4 text-sm font-semibold text-slate-900">{getSloTitle(slo)}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{slo.chapter_name || slo.chapter || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{slo.subject_name || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{slo.difficulty_frequency || slo.priority || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{getSloTime(slo) ? `${getSloTime(slo)}m` : 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-slate-900 text-left">{getSloTitle(slo)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 text-center whitespace-nowrap">{slo.chapter_name || slo.chapter || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 text-center">{slo.subject_name || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 text-center">{slo.difficulty_frequency || slo.priority || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 text-center whitespace-nowrap">{getSloTime(slo) ? `${getSloTime(slo)}m` : 'N/A'}</td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-center gap-1">
                       <IconButton title="Edit SLO" onClick={() => setEditingSlo(slo)}><Pencil size={15} /></IconButton>
                       <IconButton title="Delete SLO" tone="red" onClick={() => setDeletingSlo(slo)}><Trash2 size={15} /></IconButton>
                     </div>

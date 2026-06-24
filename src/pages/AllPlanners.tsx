@@ -471,13 +471,13 @@ const AllPlanners: React.FC = () => {
   return (
     <DashboardLayout activePage="all-planner">
       {/* Header Section */}
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold text-navy-900 dark:text-slate-100">Planner Management</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage all study planners across your platform</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 mb-6 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 w-fit">
+      <div className="flex items-center justify-center gap-1 mb-6 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 w-fit mx-auto">
         {tabs.map(tab => (
           <button
             key={tab.key}
@@ -496,7 +496,7 @@ const AllPlanners: React.FC = () => {
 
       {/* Search and Action Bar — only for All Plans tab */}
       {activeTab === 'all' && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
           <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
@@ -531,12 +531,10 @@ const AllPlanners: React.FC = () => {
                   <thead>
                     <tr className="bg-gradient-to-r from-accent-blue to-accent-indigo text-white">
                       <th className="px-6 py-4 text-left text-sm font-semibold">Planner Name</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold">Grade</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold">Duration</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold">Subjects</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold">Plan Info</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold">Created Date</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold">Grade</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold">Subjects</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold">Status</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold">Created Date</th>
                       <th className="px-6 py-4 text-center text-sm font-semibold">Actions</th>
                     </tr>
                   </thead>
@@ -544,33 +542,25 @@ const AllPlanners: React.FC = () => {
                     {paginatedPlanners.map((planner, index) => (
                       <motion.tr key={planner.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-white shadow-md"><BookOpen size={18} /></div>
-                            <div>
+                          <div className="flex items-center justify-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-white shadow-md"><BookOpen size={18} /></div>
+                            <div className="text-left">
                               <p className="text-sm font-semibold text-navy-800 dark:text-slate-100">{planner.name}</p>
                               <p className="text-xs text-slate-400">{planner.examType}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4"><div className="flex items-center gap-2"><GraduationCap size={15} className="text-accent-indigo" /><span className="text-sm text-navy-800 dark:text-slate-200">{planner.grade || '—'}</span></div></td>
-                        <td className="px-6 py-4"><div className="flex items-center gap-2"><Calendar size={15} className="text-accent-emerald" /><span className="text-sm text-navy-800 dark:text-slate-200">{planner.duration}</span></div></td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-1">
+                        <td className="px-6 py-4 text-center"><div className="flex items-center justify-center gap-2"><GraduationCap size={15} className="text-accent-indigo" /><span className="text-sm text-navy-800 dark:text-slate-200">{planner.grade || '—'}</span></div></td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex flex-col items-center justify-center gap-1.5">
                             {planner.subjects.slice(0, 3).map((s, i) => (
-                              <span key={i} className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20">{typeof s === 'object' ? (s as any).title || (s as any).name || JSON.stringify(s) : String(s)}</span>
+                              <span key={i} className="px-2.5 py-0.5 text-[11px] font-medium rounded-md bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 max-w-[120px] truncate">{typeof s === 'object' ? (s as any).title || (s as any).name || JSON.stringify(s) : String(s)}</span>
                             ))}
-                            {planner.subjects.length > 3 && <span className="px-2 py-0.5 text-xs font-medium text-slate-400">+{planner.subjects.length - 3}</span>}
+                            {planner.subjects.length > 3 && <span className="px-2 py-0.5 text-[10px] font-medium text-slate-400">+{planner.subjects.length - 3} more</span>}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
-                            <div className="flex items-center gap-1"><Layers size={12} /> Mode: {planner.mode || '—'}</div>
-                            <div className="flex items-center gap-1"><Clock size={12} /> {planner.minStudyTime || '?'}–{planner.maxStudyTime || '?'} min/day</div>
-                            <div className="flex items-center gap-1"><BookOpen size={12} /> SLOs: {planner.sloCount ?? '—'}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4"><StatusBadge status={planner.status} /></td>
-                        <td className="px-6 py-4"><span className="text-sm text-slate-500 dark:text-slate-400">{planner.createdDate}</span></td>
+                        <td className="px-6 py-4 text-center"><StatusBadge status={planner.status} /></td>
+                        <td className="px-6 py-4 text-center"><span className="text-sm text-slate-500 dark:text-slate-400">{planner.createdDate}</span></td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
                             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => navigate(`${getBasePath()}/${planner.id}`)} className="p-2 text-accent-blue hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="View"><Eye size={16} /></motion.button>

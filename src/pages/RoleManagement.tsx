@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, UserCog, Shield, Loader2, AlertTriangle, Mail } from 'lucide-react';
+import { Search, UserCog, Shield, Loader2, AlertTriangle, Mail, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import Modal from '../components/Modal';
@@ -23,18 +23,20 @@ const RoleManagement: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('');
   
+  const [currentPage, setCurrentPage] = useState(1);
+
   // Simple debounce for search
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
+      setCurrentPage(1); // Reset to page 1 on new search
     }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
   const { data: usersData, isLoading } = useQuery({
-    queryKey: ['users', debouncedSearch],
-    queryFn: () => userService.searchUsers(debouncedSearch),
-    enabled: debouncedSearch.length >= 2,
+    queryKey: ['users', debouncedSearch, currentPage],
+    queryFn: () => userService.searchUsers(debouncedSearch, currentPage),
     staleTime: 1000 * 60, // 1 minute
   });
 
@@ -66,15 +68,23 @@ const RoleManagement: React.FC = () => {
 
   // Extract users array from response
   let usersList: any[] = [];
+  let totalCount = 0;
   if (Array.isArray(usersData)) {
     usersList = usersData;
+    totalCount = usersList.length;
   } else if (usersData?.results && Array.isArray(usersData.results)) {
     usersList = usersData.results;
+    totalCount = usersData.count || 0;
   } else if (usersData?.data?.results && Array.isArray(usersData.data.results)) {
     usersList = usersData.data.results;
+    totalCount = usersData?.data?.count || 0;
   } else if (usersData?.data && Array.isArray(usersData.data)) {
     usersList = usersData.data;
+    totalCount = usersList.length;
   }
+
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(totalCount / itemsPerPage) || 1;
 
   return (
     <DashboardLayout activePage="role-management">
@@ -100,15 +110,7 @@ const RoleManagement: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto min-h-[300px]">
-          {debouncedSearch.length < 2 ? (
-            <div className="flex flex-col items-center justify-center p-12 text-center text-slate-500">
-              <div className="h-16 w-16 bg-blue-50 rounded-full flex items-center justify-center mb-4 text-blue-500">
-                <Search size={28} />
-              </div>
-              <p className="font-medium text-slate-700">Type at least 2 characters to search</p>
-              <p className="text-sm mt-1">Search via names or emails to find users.</p>
-            </div>
-          ) : isLoading ? (
+          {isLoading ? (
             <div className="flex items-center justify-center p-12 text-blue-600">
               <Loader2 className="animate-spin mr-2" size={24} />
               <span className="font-medium">Searching users...</span>
@@ -170,6 +172,57 @@ const RoleManagement: React.FC = () => {
             </table>
           )}
         </div>
+        
+        {!isLoading && usersList.length > 0 && totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-slate-50">
+            <p className="text-sm text-slate-500">
+              Showing <span className="font-medium text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium text-slate-900">{Math.min(currentPage * itemsPerPage, totalCount)}</span> of <span className="font-medium text-slate-900">{totalCount}</span> users
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={16} /> Previous
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  // Logic to show a window of pages around current page
+                  let pageNum = i + 1;
+                  if (totalPages > 5) {
+                    if (currentPage > 3) {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    if (pageNum > totalPages) {
+                      pageNum = totalPages - 4 + i;
+                    }
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === pageNum 
+                          ? 'bg-blue-600 text-white' 
+                          : 'text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Confirmation Modal */}
