@@ -78,7 +78,6 @@ const buildSearchItems = (role: string | undefined, campusId?: string | null) =>
     { id: 'assessment-management', label: 'Assessment Management', icon: <ClipboardList size={16} />, path: '/admin/assessments', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'create-assessment-template', label: 'Create Template', icon: <ClipboardList size={16} />, path: '/admin/assessments/templates/create', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'all-assessment-templates', label: 'All Templates', icon: <ClipboardList size={16} />, path: '/admin/assessments/templates', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { id: 'generated-assessments', label: 'Generated Assessments', icon: <ClipboardList size={16} />, path: '/admin/assessments/generated', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'cms-dashboard', label: 'CMS Dashboard', icon: <FileText size={16} />, path: '/admin/cms', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'cms-classes', label: 'All Classes', icon: <FileText size={16} />, path: '/admin/cms/classes', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { id: 'cms-subjects', label: 'All Subjects', icon: <FileText size={16} />, path: '/admin/cms/subjects', roles: ['SUPER_ADMIN', 'ADMIN'] },

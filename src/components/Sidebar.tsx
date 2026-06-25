@@ -187,7 +187,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           children: [
             { id: 'create-assessment-template', label: 'Create Template', path: '/admin/assessments/templates/create' },
             { id: 'all-assessment-templates', label: 'All Templates', path: '/admin/assessments/templates' },
-            { id: 'generated-assessments', label: 'Generated Assessments', path: '/admin/assessments/generated' },
           ],
         },
         {

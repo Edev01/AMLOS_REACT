@@ -203,14 +203,11 @@ const DeletePlannerModal: React.FC<DeletePlannerModalProps> = ({ planner, onClos
   </motion.div>
 );
 
-type PlannerTab = 'all' | 'recommended' | 'history';
-
 const AllPlanners: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, tenant, isSuperAdmin } = useAuth();
   const { isDark } = useTheme();
-  const [activeTab, setActiveTab] = useState<PlannerTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [editingPlanner, setEditingPlanner] = useState<Planner | null>(null);
@@ -363,15 +360,14 @@ const AllPlanners: React.FC = () => {
       // in case the backend requires a full object replacement.
       let originalPlanner: any = {};
       try {
-        const p = await studyPlanService.getPlanDetails(id);
-        if (p?.data && typeof p.data === 'object' && !Array.isArray(p.data)) {
-          originalPlanner = p.data;
-        } else if (p?.plan && typeof p.plan === 'object') {
-          originalPlanner = p.plan;
-        } else if (p?.study_plan && typeof p.study_plan === 'object') {
-          originalPlanner = p.study_plan;
-        } else {
-          originalPlanner = p || {};
+        const response = await studyPlanService.listPlans();
+        const list = Array.isArray(response) ? response : 
+                     response?.plans ? response.plans : 
+                     response?.results ? response.results : 
+                     response?.data ? response.data : [];
+        const found = list.find((p: any) => String(p.id || p._id || p.plan_id) === String(id));
+        if (found) {
+          originalPlanner = found;
         }
       } catch (e) {
         console.warn("Could not fetch detail planner before update. Data might be lost.");
@@ -415,104 +411,27 @@ const AllPlanners: React.FC = () => {
     },
   });
 
-  // ─── Recommended Plans Query ──────────────────────────────────
-  const recommendedQuery = useQuery({
-    queryKey: ['planners', 'recommended'],
-    queryFn: async () => {
-      const d = await studyPlanService.getRecommendedPlans();
-      let rawList: any[] = [];
-      if (Array.isArray(d)) rawList = d;
-      else if (d?.plans && Array.isArray(d.plans)) rawList = d.plans;
-      else if (d?.data?.plans && Array.isArray(d.data.plans)) rawList = d.data.plans;
-      else if (d?.results && Array.isArray(d.results)) rawList = d.results;
-      else if (d?.data && Array.isArray(d.data)) rawList = d.data;
-      return rawList;
-    },
-    enabled: activeTab === 'recommended',
-  });
-
-  // ─── History Query ────────────────────────────────────────────
-  const historyQuery = useQuery({
-    queryKey: ['planners', 'history'],
-    queryFn: async () => {
-      const d = await studyPlanService.getPlanHistory();
-      let rawList: any[] = [];
-      if (Array.isArray(d)) rawList = d;
-      else if (d?.plans && Array.isArray(d.plans)) rawList = d.plans;
-      else if (d?.data?.plans && Array.isArray(d.data.plans)) rawList = d.data.plans;
-      else if (d?.results && Array.isArray(d.results)) rawList = d.results;
-      else if (d?.data && Array.isArray(d.data)) rawList = d.data;
-      return rawList;
-    },
-    enabled: activeTab === 'history',
-  });
-
-  // ─── Select Recommended Plan Mutation ─────────────────────────
-  const selectRecommendedMutation = useMutation({
-    mutationFn: async (planId: number | string) => {
-      await studyPlanService.selectRecommendedPlan(planId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['planners'] });
-      toast.success('Recommended plan selected successfully! ✅');
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.detail || err?.response?.data?.message || 'Failed to select recommended plan.';
-      toast.error(typeof msg === 'string' ? msg : JSON.stringify(msg));
-    },
-  });
-
-  const tabs: { key: PlannerTab; label: string; icon: React.ReactNode }[] = [
-    { key: 'all', label: 'All Plans', icon: <Layers size={16} /> },
-    { key: 'recommended', label: 'Recommended', icon: <Star size={16} /> },
-    { key: 'history', label: 'History', icon: <History size={16} /> },
-  ];
-
   return (
     <DashboardLayout activePage="all-planner">
       {/* Header Section */}
-      <div className="mb-6 text-center">
+      <div className="mb-6 text-left">
         <h1 className="text-2xl font-bold text-navy-900 dark:text-slate-100">Planner Management</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage all study planners across your platform</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center justify-center gap-1 mb-6 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 w-fit mx-auto">
-        {tabs.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => { setActiveTab(tab.key); setCurrentPage(1); setSearchQuery(''); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              activeTab === tab.key
-                ? 'bg-accent-blue text-white shadow-md'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Search and Action Bar — only for All Plans tab */}
-      {activeTab === 'all' && (
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
-          <div className="relative w-full sm:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder="Search Planner"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20 transition-all"
-            />
-          </div>
+      {/* Search and Action Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-start gap-4 mb-6">
+        <div className="relative w-full sm:w-96">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input
+            type="text"
+            placeholder="Search Planner"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20 transition-all"
+          />
         </div>
-      )}
-
-      {/* ─── TAB: All Plans ──────────────────────────────────── */}
-      {activeTab === 'all' && (
-        <>
+      </div>
           {loading ? (
             <TableSkeleton rows={6} />
           ) : fetchError ? (
@@ -590,62 +509,6 @@ const AllPlanners: React.FC = () => {
               </div>
             </motion.div>
           )}
-        </>
-      )}
-
-      {/* ─── TAB: Recommended Plans ─────────────────────────── */}
-      {activeTab === 'recommended' && (
-        <>
-          {recommendedQuery.isLoading ? (
-            <TableSkeleton rows={4} />
-          ) : recommendedQuery.isError ? (
-            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl p-8 text-center">
-              <div className="text-red-500 text-4xl mb-3">⚠️</div>
-              <h3 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2">Failed to Load Recommended Plans</h3>
-              <p className="text-sm text-red-600 dark:text-red-300 mb-4">{(recommendedQuery.error as any)?.response?.data?.detail || 'Could not fetch recommended plans.'}</p>
-              <button onClick={() => recommendedQuery.refetch()} className="px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors">Retry</button>
-            </div>
-          ) : !recommendedQuery.data || recommendedQuery.data.length === 0 ? (
-            <EmptyState type="data" title="No Recommended Plans" description="There are no recommended study plans available at the moment." />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recommendedQuery.data.map((plan: any) => (
-                <motion.div
-                  key={plan.id || plan._id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-lg transition-all"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md"><Star size={18} /></div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{plan.title || plan.plan_name || plan.name || 'Recommended Plan'}</h3>
-                        <p className="text-xs text-slate-400">Grade {plan.grade || '—'}</p>
-                      </div>
-                    </div>
-                    <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 uppercase">Recommended</span>
-                  </div>
-                  <div className="space-y-2 text-xs text-slate-500 dark:text-slate-400 mb-4">
-                    {plan.mode && <div className="flex items-center gap-1.5"><Layers size={12} /> Mode: {plan.mode}</div>}
-                    {(plan.start_date || plan.end_date) && <div className="flex items-center gap-1.5"><Calendar size={12} /> {plan.start_date || '?'} → {plan.end_date || '?'}</div>}
-                    {(plan.min_study_time_daily || plan.max_study_time_daily) && <div className="flex items-center gap-1.5"><Clock size={12} /> {plan.min_study_time_daily || '?'}–{plan.max_study_time_daily || '?'} min/day</div>}
-                  </div>
-                  <button
-                    onClick={() => selectRecommendedMutation.mutate(plan.id || plan._id)}
-                    disabled={selectRecommendedMutation.isPending}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-accent-blue text-white text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-                  >
-                    {selectRecommendedMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                    Select This Plan
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
       {/* ─── Modals ──────────────────────────────────────────── */}
       <AnimatePresence>
         {editingPlanner && (

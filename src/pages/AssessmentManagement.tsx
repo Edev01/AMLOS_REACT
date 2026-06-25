@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import Modal from '../components/Modal';
 import api from '../api/services/api';
+import { useAuth } from '../context/AuthContext';
 import { getGrades } from '../api/services/curriculumService';
 import { Chapter, Subject } from '../types';
 import {
@@ -388,6 +389,7 @@ const IconButton: React.FC<{
 const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'dashboard' }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
 
@@ -652,7 +654,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   const uploadHandwrittenMutation = useMutation({
     mutationFn: async ({ modelId, file }: { modelId: string | number; file: File }) => {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('submission_file', file);
       return assessmentService.submitHandwritten(modelId, formData);
     },
     onSuccess: () => {
@@ -883,7 +885,10 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                   ({template.mcq_count ?? 0}/{template.short_count ?? 0}/{template.long_count ?? 0})
                 </span>
               </span>
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                <IconButton title="Upload Handwritten Submission" tone="slate" onClick={() => setUploadingModelId(template.id)}>
+                  <Upload size={17} />
+                </IconButton>
                 <IconButton title="View" tone="blue" onClick={() => setSelectedTemplate(template)}>
                   <Eye size={17} />
                 </IconButton>
@@ -1162,41 +1167,6 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
           </div>
         )}
 
-        {/* Handwritten Upload Modal */}
-        <AnimatePresence>
-          {uploadingModelId && (
-            <Modal
-              isOpen={!!uploadingModelId}
-              onClose={() => { setUploadingModelId(null); setHandwrittenFile(null); }}
-              title="Upload Handwritten Assessment"
-            >
-              <div className="p-4">
-                <p className="text-sm text-gray-600 mb-4">Upload a scanned copy or image of the handwritten assessment for grading.</p>
-                <div className="mb-4">
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={(e) => setHandwrittenFile(e.target.files?.[0] || null)}
-                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"
-                  />
-                </div>
-                <div className="flex justify-end gap-3 mt-6">
-                  <SecondaryButton onClick={() => { setUploadingModelId(null); setHandwrittenFile(null); }}>Cancel</SecondaryButton>
-                  <PrimaryButton
-                    onClick={() => {
-                      if (handwrittenFile && uploadingModelId) {
-                        uploadHandwrittenMutation.mutate({ modelId: uploadingModelId, file: handwrittenFile });
-                      }
-                    }}
-                    disabled={!handwrittenFile || uploadHandwrittenMutation.isPending}
-                  >
-                    {uploadHandwrittenMutation.isPending ? 'Uploading...' : 'Upload'}
-                  </PrimaryButton>
-                </div>
-              </div>
-            </Modal>
-          )}
-        </AnimatePresence>
       </>
     );
   };
@@ -1257,7 +1227,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                         {sub.status === 'GRADED' ? `${sub.score} / ${sub.total_marks}` : '—'}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {sub.status !== 'GRADED' && (
+                        {sub.status !== 'GRADED' && user?.role === 'TEACHER' && (
                           <button
                             onClick={() => { setGradingSubmission(sub); setGradingScore(''); setGradingTotal(sub.total_marks ? String(sub.total_marks) : ''); }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition"
@@ -1421,6 +1391,42 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
       </div>
       {renderContent()}
       {renderTemplateModal()}
+
+      {/* Handwritten Upload Modal */}
+      <AnimatePresence>
+        {uploadingModelId && (
+          <Modal
+            isOpen={!!uploadingModelId}
+            onClose={() => { setUploadingModelId(null); setHandwrittenFile(null); }}
+            title="Upload Handwritten Assessment"
+          >
+            <div className="p-4">
+              <p className="text-sm text-gray-600 mb-4">Upload a scanned copy or image of the handwritten assessment for grading.</p>
+              <div className="mb-4">
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setHandwrittenFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"
+                />
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <SecondaryButton onClick={() => { setUploadingModelId(null); setHandwrittenFile(null); }}>Cancel</SecondaryButton>
+                <PrimaryButton
+                  onClick={() => {
+                    if (handwrittenFile && uploadingModelId) {
+                      uploadHandwrittenMutation.mutate({ modelId: uploadingModelId, file: handwrittenFile });
+                    }
+                  }}
+                  disabled={!handwrittenFile || uploadHandwrittenMutation.isPending}
+                >
+                  {uploadHandwrittenMutation.isPending ? 'Uploading...' : 'Upload'}
+                </PrimaryButton>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
