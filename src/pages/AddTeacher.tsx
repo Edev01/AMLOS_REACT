@@ -23,9 +23,13 @@ import {
   ChevronLeft,
   ChevronDown,
   LogOut,
+  Camera,
+  Loader2,
+  X,
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { teacherService } from '../api/services/teacherService';
+import { userService } from '../api/services/userService';
 import { useAuth } from '../context/AuthContext';
 import { CreateTeacherPayload } from '../types';
 import toast from 'react-hot-toast';
@@ -121,6 +125,10 @@ const AddTeacher: React.FC = () => {
   const { user, tenant, logout } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
   // Resolve schoolId from auth context (multi-tenant) with multiple fallbacks
   const schoolId =
@@ -156,7 +164,7 @@ const AddTeacher: React.FC = () => {
       }
 
       try {
-        const payload: CreateTeacherPayload = {
+        const payload: CreateTeacherPayload & { profile_image?: string } = {
           email: values.email,
           username: values.username,
           password: values.password,
@@ -167,6 +175,7 @@ const AddTeacher: React.FC = () => {
           experience_years: values.experience_years,
           salary: values.salary,
           // note: backend needs phone if it supports it, assuming it's part of it or ignored
+          ...(profileImageUrl ? { profile_image: profileImageUrl } : {}),
         };
 
         await teacherService.createTeacher(payload);
@@ -208,6 +217,46 @@ const AddTeacher: React.FC = () => {
     formik.touched[name] && formik.errors[name] ? formik.errors[name] : undefined;
 
   const isLastStep = currentStep === steps.length;
+
+  // ── Image upload handler ─────────────────────────────────────────────────
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be less than 5MB.');
+        return;
+      }
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+
+      // Immediately upload image to get URL
+      setIsUploadingImage(true);
+      try {
+        const res = await userService.uploadImage(file);
+        const url = res?.url || res?.image_url || res?.file_url || res?.path || res?.profile_image;
+        if (url) {
+          setProfileImageUrl(url);
+          toast.success('Image uploaded successfully!');
+        } else {
+          toast.error('Upload succeeded but no URL returned.');
+        }
+      } catch {
+        toast.error('Failed to upload image. Please try again.');
+        setImageFile(null);
+        setImagePreview(null);
+      } finally {
+        setIsUploadingImage(false);
+      }
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setProfileImageUrl(null);
+  };
 
   // ── Stepper render ──────────────────────────────────────────────────────
   const renderStepper = () => (
@@ -266,6 +315,59 @@ const AddTeacher: React.FC = () => {
         transition={{ duration: 0.3 }}
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
       >
+        {/* Profile Picture Upload - only on Step 1 */}
+        {currentStep === 1 && (
+          <div className="md:col-span-2 lg:col-span-3 mb-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">
+              Profile Picture <span className="text-gray-400 normal-case">(optional)</span>
+            </label>
+            <div className="flex items-center gap-5">
+              <div className="relative group">
+                {imagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Profile preview"
+                      className="h-20 w-20 rounded-2xl object-cover border-2 border-blue-200 shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all duration-200">
+                    <Camera size={24} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+              <div className="text-sm text-gray-500">
+                <p className="font-medium text-gray-700">Upload teacher photo</p>
+                <p className="text-xs mt-0.5">JPG, PNG up to 5MB</p>
+                {isUploadingImage && (
+                  <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                    <Loader2 size={12} className="animate-spin" /> Uploading...
+                  </p>
+                )}
+                {!isUploadingImage && profileImageUrl && (
+                  <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                    <CheckCircle2 size={12} /> Uploaded successfully
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {fields.map((f) => {
           const err = fieldError(f.name);
           const touched = formik.touched[f.name];
