@@ -427,6 +427,58 @@ const SchoolManagement: React.FC = () => {
     },
   });
 
+  const { data: allTeachers = [] } = useQuery({
+    queryKey: ['all-teachers'],
+    queryFn: async () => {
+      try {
+        const response = await api.get('/api/auth/teachers');
+        const d = response.data;
+        return Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
+      } catch (e) {
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: allStudents = [] } = useQuery({
+    queryKey: ['all-students-for-schools'],
+    queryFn: async () => {
+      try {
+        const response = await api.get('/api/auth/students');
+        const d = response.data;
+        return Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
+      } catch (e) {
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const getTeacherCount = (school: any) => {
+    const sid = String(school?.id ?? '');
+    const sname = (school?.school_name ?? '').toLowerCase();
+    if (!allTeachers || allTeachers.length === 0) return school?.teachers_count ?? 0;
+    const count = allTeachers.filter((t: any) => {
+      const tSchoolId = String(t.school_id ?? t.school ?? t.school?.id ?? '');
+      const tSchoolName = (t.school_name ?? t.school?.name ?? '').toLowerCase();
+      return tSchoolId === sid || (sname && tSchoolName === sname);
+    }).length;
+    return count || school?.teachers_count || 0;
+  };
+
+  const getStudentCount = (school: any) => {
+    const sid = String(school?.id ?? '');
+    const sname = (school?.school_name ?? '').toLowerCase();
+    if (!allStudents || allStudents.length === 0) return school?.students_count ?? 0;
+    const count = allStudents.filter((s: any) => {
+      const sSchoolId = String(s.school_id ?? s.school ?? s.school?.id ?? '');
+      const sSchoolName = (s.school_name ?? s.school?.name ?? '').toLowerCase();
+      return sSchoolId === sid || (sname && sSchoolName === sname);
+    }).length;
+    return count || school?.students_count || 0;
+  };
+
   // ─── Delete Mutation ──────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: async (schoolId: number) => {
@@ -532,9 +584,8 @@ const SchoolManagement: React.FC = () => {
                 <div className="flex items-center gap-1.5 mb-3"><MapPin size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.address || 'N/A'}</p></div>
                 <div className="flex items-center gap-1.5 mb-3"><Mail size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.email || 'N/A'}</p></div>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{s.students_count ?? 0}</span></div>
-                  {/* Teacher badge commented out per requirements */}
-                  {/* <div className="flex items-center gap-1.5 rounded-lg bg-pink-100 px-3 py-1.5"><GraduationCap size={12} className="text-pink-600" /><span className="text-xs font-bold text-pink-700">{s.teachers_count ?? 0}</span></div> */}
+                  <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{getStudentCount(s)}</span></div>
+                  <div className="flex items-center gap-1.5 rounded-lg bg-pink-100 px-3 py-1.5"><GraduationCap size={12} className="text-pink-600" /><span className="text-xs font-bold text-pink-700">{getTeacherCount(s)}</span></div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="rounded-full bg-green-100 px-3 py-1 text-[10px] font-semibold text-green-700">Active</span>

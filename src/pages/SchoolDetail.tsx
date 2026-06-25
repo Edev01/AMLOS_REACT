@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
 import { School as SchoolType } from '../types';
-import { ArrowLeft, Users, GraduationCap, Search } from 'lucide-react';
+import { ArrowLeft, Users, GraduationCap, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 const EMAIL_RE_STRICT = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
 const EMAIL_RE_LOOSE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i;
 
@@ -107,15 +107,57 @@ const SchoolDetail: React.FC = () => {
     queryKey: ['school-students', id],
     queryFn: async ({ signal }) => {
       if (!id) return [];
+      try {
+        const response = await api.get(`/api/auth/schools/${id}/students`, { signal });
+        const data = response.data?.data?.students
+          ?? response.data?.students
+          ?? response.data?.data
+          ?? response.data
+          ?? [];
+        const list = Array.isArray(data) ? data : [];
+        if (list.length > 0) return list;
+      } catch {
+        // fallthrough to general endpoint
+      }
+      // Fallback: fetch all students and filter by this school
+      try {
+        const fallback = await api.get('/api/auth/students', { signal });
+        const d = fallback.data;
+        const all = Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
+        return all.filter((s: any) => String(s.school_id ?? s.school ?? s.school?.id ?? '') === String(id));
+      } catch {
+        return [];
+      }
+    },
+    enabled: Boolean(id),
+    staleTime: 5 * 60 * 1000,
+  });
 
-      const response = await api.get(`/api/auth/schools/${id}/students`, { signal });
-      const data = response.data?.data?.students
-        ?? response.data?.students
-        ?? response.data?.data
-        ?? response.data
-        ?? [];
-
-      return Array.isArray(data) ? data : [];
+  const { data: teachers = [] } = useQuery<any[]>({
+    queryKey: ['school-teachers', id],
+    queryFn: async ({ signal }) => {
+      if (!id) return [];
+      try {
+        const response = await api.get(`/api/auth/schools/${id}/teachers`, { signal });
+        const data = response.data?.data?.teachers
+          ?? response.data?.teachers
+          ?? response.data?.data
+          ?? response.data
+          ?? [];
+        const list = Array.isArray(data) ? data : [];
+        if (list.length > 0) return list;
+      } catch {
+        // fallthrough to general endpoint
+      }
+      // Fallback: fetch all teachers and filter by this school
+      try {
+        const fallback = await api.get('/api/auth/teachers', { signal });
+        const d = fallback.data;
+        const all = Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
+        return all.filter((t: any) => String(t.school_id ?? t.school ?? t.school?.id ?? '') === String(id));
+      } catch {
+        return [];
+      }
     },
     enabled: Boolean(id),
     staleTime: 5 * 60 * 1000,
@@ -123,7 +165,7 @@ const SchoolDetail: React.FC = () => {
 
   const stats = [
     { label:'Total Students', value: students.length, change:'', icon:<Users size={20}/>, bg:'bg-blue-100', ic:'text-blue-600' },
-    { label:'Total Teachers', value:'--', change:'', icon:<GraduationCap size={20}/>, bg:'bg-green-100', ic:'text-green-600' },
+    { label:'Total Teachers', value: teachers.length, change:'', icon:<GraduationCap size={20}/>, bg:'bg-green-100', ic:'text-green-600' },
   ];
 
   const filteredStudents = useMemo(() => {
@@ -143,6 +185,16 @@ const SchoolDetail: React.FC = () => {
       return values.some((value) => String(value ?? '').toLowerCase().includes(query));
     });
   }, [students, studentSearch]);
+
+  const [studentPage, setStudentPage] = useState(1);
+  const studentsPerPage = 10;
+
+  useEffect(() => {
+    setStudentPage(1);
+  }, [studentSearch]);
+
+  const totalPages = Math.ceil(filteredStudents.length / studentsPerPage) || 1;
+  const paginatedStudents = filteredStudents.slice((studentPage - 1) * studentsPerPage, studentPage * studentsPerPage);
 
   return (
     <DashboardLayout activePage="all-schools">
@@ -216,16 +268,16 @@ const SchoolDetail: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Student Name</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Grade</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Student Name</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Email</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Grade</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredStudents.map((student, idx) => (
+                {paginatedStudents.map((student, idx) => (
                   <tr key={student.id || idx} className="hover:bg-blue-50/50 transition-colors">
-                    <td className="py-4 px-6">
+                    <td className="py-4 px-6 text-left">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-sm">
                           {(getStudentName(student)[0] || 'U').toUpperCase()}
@@ -235,13 +287,13 @@ const SchoolDetail: React.FC = () => {
                         </span>
                       </div>
                     </td>
-                    <td className="py-4 px-6 text-sm text-gray-500">
+                    <td className="py-4 px-6 text-sm text-gray-500 text-center">
                       {getStudentEmail(student)}
                     </td>
-                    <td className="py-4 px-6 text-sm text-gray-500">
+                    <td className="py-4 px-6 text-sm text-gray-500 text-center">
                       {getStudentGrade(student)}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-4 px-6 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                         getStudentStatus(student) === 'inactive' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
                       }`}>
@@ -252,6 +304,56 @@ const SchoolDetail: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        
+        {!loading && filteredStudents.length > 0 && totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-slate-50">
+            <p className="text-sm text-slate-500">
+              Showing <span className="font-medium text-slate-900">{(studentPage - 1) * studentsPerPage + 1}</span> to <span className="font-medium text-slate-900">{Math.min(studentPage * studentsPerPage, filteredStudents.length)}</span> of <span className="font-medium text-slate-900">{filteredStudents.length}</span> students
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setStudentPage(p => Math.max(1, p - 1))}
+                disabled={studentPage === 1}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={16} /> Previous
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum = i + 1;
+                  if (totalPages > 5) {
+                    if (studentPage > 3) {
+                      pageNum = studentPage - 2 + i;
+                    }
+                    if (pageNum > totalPages) {
+                      pageNum = totalPages - 4 + i;
+                    }
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setStudentPage(pageNum)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+                        studentPage === pageNum 
+                          ? 'bg-blue-600 text-white' 
+                          : 'text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setStudentPage(p => Math.min(totalPages, p + 1))}
+                disabled={studentPage === totalPages}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         )}
       </div>
