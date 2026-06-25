@@ -157,6 +157,7 @@ const AddStudent: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
   // Resolve schoolId from auth context (multi-tenant) with multiple fallbacks
   const schoolId =
@@ -192,21 +193,7 @@ const AddStudent: React.FC = () => {
       }
 
       try {
-        // Upload profile picture first if selected
-        let profilePictureUrl: string | undefined;
-        if (imageFile) {
-          setIsUploadingImage(true);
-          try {
-            const uploadRes = await userService.uploadImage(imageFile);
-            profilePictureUrl = uploadRes?.url || uploadRes?.image_url || uploadRes?.file_url || uploadRes?.path;
-          } catch (uploadErr) {
-            toast.error('Failed to upload profile picture. Student will be created without it.');
-          } finally {
-            setIsUploadingImage(false);
-          }
-        }
-
-        const payload: Omit<CreateStudentPayload, 'school_id'> & { profile_picture_url?: string } = {
+        const payload: Omit<CreateStudentPayload, 'school_id'> & { profile_image?: string } = {
           email: values.email,
           username: values.username,
           password: values.password,
@@ -220,7 +207,7 @@ const AddStudent: React.FC = () => {
           guardian_name: values.guardianName,
           guardian_phone: values.guardianPhone,
           guardian_email: values.guardianEmail,
-          ...(profilePictureUrl ? { profile_picture_url: profilePictureUrl } : {}),
+          ...(profileImageUrl ? { profile_image: profileImageUrl } : {}),
         };
 
         await studentService.createStudent(schoolId, payload);
@@ -234,7 +221,7 @@ const AddStudent: React.FC = () => {
   });
 
   // ── Image upload handler ─────────────────────────────────────────────────
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -245,12 +232,32 @@ const AddStudent: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = () => setImagePreview(reader.result as string);
       reader.readAsDataURL(file);
+
+      // Immediately upload image to get URL
+      setIsUploadingImage(true);
+      try {
+        const res = await userService.uploadImage(file);
+        const url = res?.url || res?.image_url || res?.file_url || res?.path || res?.profile_image;
+        if (url) {
+          setProfileImageUrl(url);
+          toast.success('Image uploaded successfully!');
+        } else {
+          toast.error('Upload succeeded but no URL returned.');
+        }
+      } catch {
+        toast.error('Failed to upload image. Please try again.');
+        setImageFile(null);
+        setImagePreview(null);
+      } finally {
+        setIsUploadingImage(false);
+      }
     }
   };
 
   const removeImage = () => {
     setImageFile(null);
     setImagePreview(null);
+    setProfileImageUrl(null);
   };
 
   // ── Step navigation ───────────────────────────────────────────────────────
@@ -381,6 +388,11 @@ const AddStudent: React.FC = () => {
                 {isUploadingImage && (
                   <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
                     <Loader2 size={12} className="animate-spin" /> Uploading...
+                  </p>
+                )}
+                {!isUploadingImage && profileImageUrl && (
+                  <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                    <CheckCircle2 size={12} /> Uploaded successfully
                   </p>
                 )}
               </div>

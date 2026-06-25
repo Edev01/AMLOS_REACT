@@ -21,9 +21,11 @@ import {
   Image as ImageIcon,
   Eye,
   EyeOff,
+  Loader2,
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
+import { userService } from '../api/services/userService';
 import { useAuth } from '../context/AuthContext';
 import { ISchoolData, CreateSchoolPayload } from '../types';
 import { ENDPOINTS } from '../config/api.config';
@@ -144,11 +146,13 @@ const AddSchool: React.FC = () => {
   const [logoFile, setLogoFile] = useState<SchoolLogoFile | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Logo Upload Handlers ─────────────────────────────────────────────────
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
       toast.error('Only PNG or JPG files are allowed.');
       return;
@@ -159,6 +163,25 @@ const AddSchool: React.FC = () => {
     }
     const preview = URL.createObjectURL(file);
     setLogoFile({ file, preview });
+
+    // Immediately upload image to get URL
+    setIsUploadingImage(true);
+    try {
+      const res = await userService.uploadImage(file);
+      const url = res?.url || res?.image_url || res?.file_url || res?.path || res?.profile_image;
+      if (url) {
+        setProfileImageUrl(url);
+        toast.success('Image uploaded successfully!');
+      } else {
+        toast.error('Upload succeeded but no URL returned.');
+      }
+    } catch {
+      toast.error('Failed to upload image. Please try again.');
+      setLogoFile(null);
+      URL.revokeObjectURL(preview);
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -176,6 +199,7 @@ const AddSchool: React.FC = () => {
   const removeLogo = () => {
     if (logoFile) URL.revokeObjectURL(logoFile.preview);
     setLogoFile(null);
+    setProfileImageUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -205,7 +229,7 @@ const AddSchool: React.FC = () => {
           established_year:    number;   // backend expects integer
         }
 
-        const payload: SchoolCreatePayload = {
+        const payload: SchoolCreatePayload & { profile_image?: string } = {
           school_name:         values.schoolName,
           username:            values.principalName,
           principal_name:      values.principalName,             // redundancy
@@ -219,6 +243,7 @@ const AddSchool: React.FC = () => {
           zip_code:            parseInt(values.zipCode, 10) || 0,
           registration_number: values.registrationNumber || `REG-${Date.now()}`,
           established_year:    parseInt(values.establishedYear, 10) || new Date().getFullYear(),
+          ...(profileImageUrl ? { profile_image: profileImageUrl } : {}),
         };
 
         console.log('SENDING_TO_BACKEND:', payload);
@@ -361,8 +386,22 @@ const AddSchool: React.FC = () => {
                       {(logoFile.file.size / 1024).toFixed(1)} KB
                     </p>
                     <div className="flex items-center gap-1.5 mt-1.5">
-                      <CheckCircle2 size={12} className="text-emerald-400" />
-                      <span className="text-xs text-emerald-300">Ready to upload</span>
+                      {isUploadingImage ? (
+                        <>
+                          <Loader2 size={12} className="text-blue-300 animate-spin" />
+                          <span className="text-xs text-blue-300">Uploading...</span>
+                        </>
+                      ) : profileImageUrl ? (
+                        <>
+                          <CheckCircle2 size={12} className="text-emerald-400" />
+                          <span className="text-xs text-emerald-300">Uploaded successfully</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle size={12} className="text-yellow-400" />
+                          <span className="text-xs text-yellow-300">Upload failed</span>
+                        </>
+                      )}
                     </div>
                   </div>
                   <button
