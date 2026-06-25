@@ -23,9 +23,13 @@ import {
   ChevronLeft,
   ChevronDown,
   LogOut,
+  Camera,
+  Loader2,
+  X,
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { studentService } from '../api/services/studentService';
+import { userService } from '../api/services/userService';
 import { useAuth } from '../context/AuthContext';
 import { IStudentData, CreateStudentPayload } from '../types';
 import toast from 'react-hot-toast';
@@ -150,6 +154,9 @@ const AddStudent: React.FC = () => {
   const { user, tenant, logout } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Resolve schoolId from auth context (multi-tenant) with multiple fallbacks
   const schoolId =
@@ -185,7 +192,21 @@ const AddStudent: React.FC = () => {
       }
 
       try {
-        const payload: Omit<CreateStudentPayload, 'school_id'> = {
+        // Upload profile picture first if selected
+        let profilePictureUrl: string | undefined;
+        if (imageFile) {
+          setIsUploadingImage(true);
+          try {
+            const uploadRes = await userService.uploadImage(imageFile);
+            profilePictureUrl = uploadRes?.url || uploadRes?.image_url || uploadRes?.file_url || uploadRes?.path;
+          } catch (uploadErr) {
+            toast.error('Failed to upload profile picture. Student will be created without it.');
+          } finally {
+            setIsUploadingImage(false);
+          }
+        }
+
+        const payload: Omit<CreateStudentPayload, 'school_id'> & { profile_picture_url?: string } = {
           email: values.email,
           username: values.username,
           password: values.password,
@@ -199,6 +220,7 @@ const AddStudent: React.FC = () => {
           guardian_name: values.guardianName,
           guardian_phone: values.guardianPhone,
           guardian_email: values.guardianEmail,
+          ...(profilePictureUrl ? { profile_picture_url: profilePictureUrl } : {}),
         };
 
         await studentService.createStudent(schoolId, payload);
@@ -210,6 +232,26 @@ const AddStudent: React.FC = () => {
       }
     },
   });
+
+  // ── Image upload handler ─────────────────────────────────────────────────
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be less than 5MB.');
+        return;
+      }
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+  };
 
   // ── Step navigation ───────────────────────────────────────────────────────
   const handleNext = async () => {
@@ -298,6 +340,54 @@ const AddStudent: React.FC = () => {
         transition={{ duration: 0.3 }}
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
       >
+        {/* Profile Picture Upload - only on Step 1 */}
+        {currentStep === 1 && (
+          <div className="md:col-span-2 lg:col-span-3 mb-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">
+              Profile Picture <span className="text-gray-400 normal-case">(optional)</span>
+            </label>
+            <div className="flex items-center gap-5">
+              <div className="relative group">
+                {imagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Profile preview"
+                      className="h-20 w-20 rounded-2xl object-cover border-2 border-blue-200 shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all duration-200">
+                    <Camera size={24} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+              <div className="text-sm text-gray-500">
+                <p className="font-medium text-gray-700">Upload student photo</p>
+                <p className="text-xs mt-0.5">JPG, PNG up to 5MB</p>
+                {isUploadingImage && (
+                  <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                    <Loader2 size={12} className="animate-spin" /> Uploading...
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {fields.map((f) => {
           const err = fieldError(f.name);
           const touched = formik.touched[f.name];
@@ -464,7 +554,7 @@ const AddStudent: React.FC = () => {
             className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors"
           >
             <LogOut size={14} />
-            Log Out & Re-authenticate
+            Log Out &amp; Re-authenticate
           </button>
         </motion.div>
       )}
@@ -509,7 +599,7 @@ const AddStudent: React.FC = () => {
               )}
               <button
                 type="button"
-                onClick={() => { formik.resetForm(); setCurrentStep(1); }}
+                onClick={() => { formik.resetForm(); setCurrentStep(1); removeImage(); }}
                 className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 shadow-sm"
               >
                 Reset
@@ -537,26 +627,23 @@ const AddStudent: React.FC = () => {
               {isLastStep && (
                 <motion.button
                   type="submit"
-                  disabled={formik.isSubmitting || !schoolId}
+                  disabled={formik.isSubmitting || !schoolId || isUploadingImage}
                   whileHover={{ scale: formik.isSubmitting ? 1 : 1.02 }}
                   whileTap={{ scale: formik.isSubmitting ? 1 : 0.98 }}
                   className="relative flex items-center justify-center gap-2 rounded-xl px-8 py-2.5 text-sm font-bold text-white shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{
-                    background: formik.isSubmitting
+                    background: formik.isSubmitting || isUploadingImage
                       ? '#94a3b8'
                       : 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)',
-                    boxShadow: formik.isSubmitting
+                    boxShadow: formik.isSubmitting || isUploadingImage
                       ? 'none'
                       : '0 8px 20px -4px rgba(37, 99, 235, 0.45)',
                   }}
                 >
-                  {formik.isSubmitting ? (
+                  {formik.isSubmitting || isUploadingImage ? (
                     <>
-                      <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                      </svg>
-                      Saving…
+                      <Loader2 size={16} className="animate-spin" />
+                      {isUploadingImage ? 'Uploading Image…' : 'Saving…'}
                     </>
                   ) : (
                     <>

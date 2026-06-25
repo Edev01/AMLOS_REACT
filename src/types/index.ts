@@ -239,6 +239,7 @@ export interface IStudentData {
   guardianEmail: string;
   username: string;
   password: string;
+  profile_picture_url?: string;
 }
 
 /** Payload for POST /api/auth/students/create — exact backend contract */
@@ -257,6 +258,7 @@ export interface CreateStudentPayload {
   guardian_name: string;
   guardian_phone: string;
   guardian_email: string;
+  profile_picture_url?: string;
 }
 
 /** Payload for PATCH /api/auth/students/update */

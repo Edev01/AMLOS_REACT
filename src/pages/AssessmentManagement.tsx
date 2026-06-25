@@ -36,7 +36,7 @@ import {
   Trash2,
   X,
   AlertTriangle,
-  Upload,
+
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -411,9 +411,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   const [gradingScore, setGradingScore] = useState('');
   const [gradingTotal, setGradingTotal] = useState('');
 
-  // Handwritten upload state
-  const [uploadingModelId, setUploadingModelId] = useState<string | number | null>(null);
-  const [handwrittenFile, setHandwrittenFile] = useState<File | null>(null);
+
 
   const metadataQuery = useQuery({
     queryKey: ['assessments', 'metadata'],
@@ -651,23 +649,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     },
   });
 
-  const uploadHandwrittenMutation = useMutation({
-    mutationFn: async ({ modelId, file }: { modelId: string | number; file: File }) => {
-      const formData = new FormData();
-      formData.append('submission_file', file);
-      return assessmentService.submitHandwritten(modelId, formData);
-    },
-    onSuccess: () => {
-      toast.success('Handwritten assessment uploaded successfully.');
-      setUploadingModelId(null);
-      setHandwrittenFile(null);
-      queryClient.invalidateQueries({ queryKey: ['assessments', 'available'] });
-      queryClient.invalidateQueries({ queryKey: ['assessments', 'submissions'] });
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.detail || 'Failed to upload handwritten assessment.');
-    },
-  });
+
 
   const updateForm = <K extends keyof AssessmentFormState>(key: K, value: AssessmentFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -886,9 +868,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                 </span>
               </span>
               <div className="flex flex-wrap items-center justify-center gap-1.5">
-                <IconButton title="Upload Handwritten Submission" tone="slate" onClick={() => setUploadingModelId(template.id)}>
-                  <Upload size={17} />
-                </IconButton>
+
                 <IconButton title="View" tone="blue" onClick={() => setSelectedTemplate(template)}>
                   <Eye size={17} />
                 </IconButton>
@@ -1147,14 +1127,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
               >
                 <div>
                   <p className="font-bold text-gray-900">{assessment.title || 'Untitled Assessment'}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <button
-                      onClick={() => setUploadingModelId(assessment.id ?? assessment.model_id)}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition"
-                    >
-                      <Upload size={14} /> Upload Handwritten
-                    </button>
-                  </div>
+
                 </div>
                 <span className="text-slate-600">{assessment.subject_name || 'N/A'}</span>
                 <span className="text-slate-700 font-semibold">{assessment.total_questions || 0} Questions</span>
@@ -1392,41 +1365,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
       {renderContent()}
       {renderTemplateModal()}
 
-      {/* Handwritten Upload Modal */}
-      <AnimatePresence>
-        {uploadingModelId && (
-          <Modal
-            isOpen={!!uploadingModelId}
-            onClose={() => { setUploadingModelId(null); setHandwrittenFile(null); }}
-            title="Upload Handwritten Assessment"
-          >
-            <div className="p-4">
-              <p className="text-sm text-gray-600 mb-4">Upload a scanned copy or image of the handwritten assessment for grading.</p>
-              <div className="mb-4">
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={(e) => setHandwrittenFile(e.target.files?.[0] || null)}
-                  className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"
-                />
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <SecondaryButton onClick={() => { setUploadingModelId(null); setHandwrittenFile(null); }}>Cancel</SecondaryButton>
-                <PrimaryButton
-                  onClick={() => {
-                    if (handwrittenFile && uploadingModelId) {
-                      uploadHandwrittenMutation.mutate({ modelId: uploadingModelId, file: handwrittenFile });
-                    }
-                  }}
-                  disabled={!handwrittenFile || uploadHandwrittenMutation.isPending}
-                >
-                  {uploadHandwrittenMutation.isPending ? 'Uploading...' : 'Upload'}
-                </PrimaryButton>
-              </div>
-            </div>
-          </Modal>
-        )}
-      </AnimatePresence>
+
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
