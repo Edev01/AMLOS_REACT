@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 import { LogOut, Home, Users, BookOpen } from 'lucide-react';
 import { styled } from '@stitches/react';
 
@@ -23,8 +24,9 @@ const Sidebar: React.FC = () => {
   const location = useLocation();
 
   const handleLogout = () => {
+    toast.success('Logged out successfully. See you soon!');
     logout();
-    navigate('/login');
+    setTimeout(() => navigate('/login'), 1500);
   };
 
   return (

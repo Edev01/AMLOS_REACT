@@ -6,6 +6,7 @@ import { ENDPOINTS, buildFullUrl } from '../config/api.config';
 import { AuthResponse, Role } from '../types';
 import { ROLE_DASHBOARD_MAP } from '../types';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 // Modern Education Illustration Component
 const EducationIllustration: React.FC = () => (
@@ -205,6 +206,7 @@ const Login: React.FC = () => {
       // IMPORTANT: login() is synchronous — it writes to localStorage and
       // sets the axios token BEFORE returning. Safe to navigate immediately.
       login(response.data, emailValue);
+      toast.success('Signed in successfully! Welcome back 👋');
       
       // Log for debugging
       console.log('[Login] Auth Success:', {
@@ -284,17 +286,17 @@ const Login: React.FC = () => {
     <div className="h-screen w-screen bg-[#F8FAFC] p-4 sm:p-6 lg:p-8 flex items-center justify-center overflow-hidden">
       <div className="flex h-full w-full max-w-7xl max-h-[90vh] lg:max-h-[800px] overflow-hidden rounded-3xl bg-white shadow-[0_25px_80px_rgba(11,17,32,0.15)] font-['Inter']">
         {/* Left panel — Branding (hidden on mobile) */}
-        <div className="relative hidden lg:flex lg:w-[45%] flex-col justify-between bg-[#0B1120] p-10 xl:p-14 overflow-hidden h-full">
+        <div className="relative hidden lg:flex lg:w-[45%] flex-col justify-between bg-blue-50 p-10 xl:p-14 overflow-hidden h-full">
           {/* Geometric mesh gradient background */}
           <div className="absolute inset-0 opacity-40">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,#1E3A5F_0%,transparent_50%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_80%,#3B82F6_0%,transparent_40%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_30%,#8B5CF6_0%,transparent_35%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,#BFDBFE_0%,transparent_50%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_80%,#93C5FD_0%,transparent_40%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_30%,#C4B5FD_0%,transparent_35%)]" />
           </div>
           
           {/* Grid pattern overlay */}
           <div 
-            className="absolute inset-0 opacity-[0.03]"
+            className="absolute inset-0 opacity-[0.05]"
             style={{
               backgroundImage: `linear-gradient(#3B82F6 1px, transparent 1px), linear-gradient(90deg, #3B82F6 1px, transparent 1px)`,
               backgroundSize: '40px 40px'
@@ -303,7 +305,7 @@ const Login: React.FC = () => {
 
           {/* Logo */}
           <div className="relative z-10">
-            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 px-4 py-3">
+            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/60 backdrop-blur-sm border border-blue-100 px-4 py-3 shadow-sm">
               <div className="grid h-10 w-10 place-content-center rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6]">
                 <svg viewBox="0 0 24 24" className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -312,8 +314,8 @@ const Login: React.FC = () => {
                 </svg>
               </div>
               <div>
-                <p className="text-xl font-bold text-white">AMLOS</p>
-                <p className="text-xs text-[#94A3B8]">Enterprise Platform</p>
+                <p className="text-xl font-bold text-slate-900">AMLOS</p>
+                <p className="text-xs text-slate-500">Enterprise Platform</p>
               </div>
             </div>
           </div>
@@ -327,13 +329,13 @@ const Login: React.FC = () => {
             </div>
             
             <div className="mt-4 text-center">
-              <h2 className="text-2xl xl:text-3xl font-bold text-white tracking-tight">
+              <h2 className="text-2xl xl:text-3xl font-bold text-slate-900 tracking-tight">
                 Empowering{' '}
-                <span className="bg-gradient-to-r from-[#60A5FA] to-[#A78BFA] bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                   Educational Excellence
                 </span>
               </h2>
-              <p className="mt-3 text-[#94A3B8] text-xs xl:text-sm leading-relaxed max-w-sm mx-auto">
+              <p className="mt-3 text-slate-600 text-xs xl:text-sm leading-relaxed max-w-sm mx-auto">
                 One platform to manage your entire academic ecosystem. Connect schools, track progress, and drive success.
               </p>
             </div>
@@ -343,11 +345,11 @@ const Login: React.FC = () => {
           <div className="relative z-10">
             <div className="flex items-center gap-6 text-sm">
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[#94A3B8]">Secure Connection</span>
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-slate-600">Secure Connection</span>
               </div>
-              <div className="h-4 w-px bg-white/10" />
-              <span className="text-[#64748B]">v2.4.0</span>
+              <div className="h-4 w-px bg-slate-300" />
+              <span className="text-slate-500">v2.4.0</span>
             </div>
           </div>
         </div>
@@ -390,92 +392,66 @@ const Login: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} noValidate className="space-y-4">
-              {/* Email field - Label above input */}
-              <div>
-                <label htmlFor="email" className="block text-xs font-semibold text-[#475569] mb-1.5">
+            <form onSubmit={handleSubmit} noValidate className="space-y-6">
+              {/* Email field - Floating Label */}
+              <div className="auth-input-group">
+                <input
+                  id="email"
+                  type="text"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
+                  className={`auth-input ${submitted && fieldErrors.email ? 'border-red-400 focus:border-red-400' : ''}`}
+                />
+                <label htmlFor="email" className="auth-user-label bg-white">
                   Email / Username
                 </label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none">
-                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="2" y="4" width="20" height="16" rx="4" />
-                      <path d="m2 8 8 5 8-5" />
-                    </svg>
-                  </div>
-                  <input
-                    id="email"
-                    type="text"
-                    autoComplete="username"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
-                    }}
-                    placeholder="e.g. admin@school.com"
-                    className={`w-full rounded-xl border bg-white pl-12 pr-4 py-2.5 text-sm text-[#0F172A] outline-none transition-all duration-200 placeholder:text-[#94A3B8] ${
-                      submitted && fieldErrors.email
-                        ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-100'
-                        : 'border-slate-200 focus:border-[#3B82F6] focus:ring-4 focus:ring-[#3B82F6]/10 hover:border-slate-300'
-                    }`}
-                  />
-                </div>
                 {submitted && fieldErrors.email && (
-                  <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>
+                  <p className="absolute -bottom-5 left-1 text-[11px] text-red-500">{fieldErrors.email}</p>
                 )}
               </div>
 
-              {/* Password field - Label above input */}
-              <div>
-                <label htmlFor="password" className="block text-xs font-semibold text-[#475569] mb-1.5">
+              {/* Password field - Floating Label */}
+              <div className="auth-input-group mt-6">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                  }}
+                  className={`auth-input pr-12 ${submitted && fieldErrors.password ? 'border-red-400 focus:border-red-400' : ''}`}
+                />
+                <label htmlFor="password" className="auth-user-label bg-white">
                   Password
                 </label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#64748B] transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? (
                     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="11" width="18" height="10" rx="2" />
-                      <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+                      <path d="M3 3l18 18" />
+                      <path d="M10.5 10.5a3 3 0 0 0 4 4" />
+                      <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c5.5 0 10 5.5 10 7s-1.7 3.38-4.2 5.02" />
+                      <path d="M6.61 6.61C3.95 8.3 2 10.88 2 12c0 1.18 2.17 4 5.2 5.75" />
                     </svg>
-                  </div>
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
-                    }}
-                    placeholder="Enter your password"
-                    className={`w-full rounded-xl border bg-white pl-12 pr-12 py-2.5 text-sm text-[#0F172A] outline-none transition-all duration-200 placeholder:text-[#94A3B8] ${
-                      submitted && fieldErrors.password
-                        ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-100'
-                        : 'border-slate-200 focus:border-[#3B82F6] focus:ring-4 focus:ring-[#3B82F6]/10 hover:border-slate-300'
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#64748B] transition-colors"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? (
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 3l18 18" />
-                        <path d="M10.5 10.5a3 3 0 0 0 4 4" />
-                        <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c5.5 0 10 5.5 10 7s-1.7 3.38-4.2 5.02" />
-                        <path d="M6.61 6.61C3.95 8.3 2 10.88 2 12c0 1.18 2.17 4 5.2 5.75" />
-                      </svg>
-                    ) : (
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
+                  ) : (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
                 {submitted && fieldErrors.password && (
-                  <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
+                  <p className="absolute -bottom-5 left-1 text-[11px] text-red-500">{fieldErrors.password}</p>
                 )}
               </div>
 

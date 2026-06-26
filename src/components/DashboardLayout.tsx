@@ -28,6 +28,7 @@ import {
   UserCog
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useIsFetching } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
@@ -201,8 +202,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   }, []);
 
   const handleLogout = useCallback(() => {
-    logout();
-    navigate('/login');
+    toast.success('Logged out successfully. See you soon!', { duration: 3000 });
+    setTimeout(() => {
+      logout();
+      navigate('/login');
+    }, 1500);
   }, [logout, navigate]);
 
   const roleLabelMap: Record<string, string> = {

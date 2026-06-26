@@ -6,6 +6,8 @@ import { Student } from '../types';
 import { Users, BookOpen, GraduationCap, Calendar } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useNavigate } from 'react-router-dom';
+import { teacherService } from '../api/services/teacherService';
+import { Teacher } from '../types';
 
 
 const containerVariants = {
@@ -31,6 +33,7 @@ const SchoolDashboard: React.FC = () => {
   const [greeting, setGreeting] = useState('Good morning');
   const [currentDate, setCurrentDate] = useState('');
   const [students, setStudents] = useState<Student[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const rawSchoolId = tenant.schoolId || user?.school_id || '';
   const schoolNameFromId =
     rawSchoolId && /[A-Za-z]/.test(String(rawSchoolId)) ? String(rawSchoolId) : '';
@@ -68,6 +71,14 @@ const SchoolDashboard: React.FC = () => {
       .catch(err => {
         console.error('Failed to fetch students for dashboard:', err);
       });
+      
+    teacherService.getTeachers()
+      .then(data => {
+        if (Array.isArray(data)) setTeachers(data);
+      })
+      .catch(err => {
+        console.error('Failed to fetch teachers for dashboard:', err);
+      });
   }, []);
 
   const uniqueClasses = new Set<string>();
@@ -82,6 +93,7 @@ const SchoolDashboard: React.FC = () => {
 
   const stats = [
     { label: 'Total Students', value: students.length.toLocaleString(), change: '+12%', icon: Users, color: 'bg-blue-500' },
+    { label: 'Total Teachers', value: teachers.length.toLocaleString(), change: '0', icon: GraduationCap, color: 'bg-emerald-500' },
     { label: 'Active Classes', value: String(totalClasses), change: '0', icon: BookOpen, color: 'bg-purple-500' },
   ];
 

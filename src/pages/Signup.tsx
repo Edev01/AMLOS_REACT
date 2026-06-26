@@ -13,7 +13,7 @@ const Signup: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, user } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -47,26 +47,32 @@ const Signup: React.FC = () => {
 
     setIsLoading(true);
 
-    // Real API signup and login
+    // Signup — on success redirect to login (no auto-login to avoid field mismatch errors)
     try {
       await api.post('/api/auth/admin/signup', { email: email.trim(), username: username.trim(), password });
-      toast.success('Account created! Logging you in...');
-      const loginRes = await api.post('/api/auth/login', { username: username.trim(), password });
-      login(loginRes.data, username.trim());
-      navigate('/dashboard', { replace: true });
-    } catch (err: any) { 
-      setError(err?.response?.data?.detail || err?.response?.data?.message || 'Signup failed.'); 
+      toast.success('Account created successfully! Please sign in. 🎉');
+      navigate('/login', { replace: true });
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        (typeof err?.response?.data === 'object'
+          ? Object.values(err?.response?.data).flat().join(' ')
+          : null) ||
+        'Signup failed. Please try again.';
+      setError(msg);
+    } finally {
+      setIsLoading(false);
     }
-    finally { setIsLoading(false); }
   };
 
   return (
     <div className="h-screen w-screen bg-slate-100 p-4 sm:p-6 lg:p-8 flex items-center justify-center overflow-hidden">
       <div className="flex h-full w-full max-w-7xl max-h-[90vh] lg:max-h-[800px] overflow-hidden rounded-[28px] bg-white shadow-[0_18px_60px_rgba(2,8,23,0.16)] font-['Inter']">
         {/* Left panel — branding (hidden on mobile) */}
-        <div className="relative hidden lg:flex lg:w-[46%] flex-col justify-between bg-slate-900 bg-[radial-gradient(circle_at_20%_10%,rgba(56,189,248,0.16),transparent_34%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.2),transparent_36%),linear-gradient(135deg,#0f172a_0%,#111827_45%,#0b1022_100%)] p-10 text-white h-full overflow-hidden">
+        <div className="relative hidden lg:flex lg:w-[46%] flex-col justify-between bg-blue-50 bg-[radial-gradient(circle_at_20%_10%,rgba(56,189,248,0.16),transparent_34%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.2),transparent_36%),linear-gradient(135deg,#eff6ff_0%,#dbeafe_45%,#bfdbfe_100%)] p-10 text-slate-900 h-full overflow-hidden">
           <div>
-            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-2 backdrop-blur-md">
+            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/60 px-4 py-2 backdrop-blur-md shadow-sm border border-blue-100">
               <div className="grid h-10 w-10 place-content-center rounded-xl bg-indigo-500">
                 <svg viewBox="0 0 24 24" className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M3 9l9-5 9 5-9 5-9-5z" />
@@ -74,20 +80,20 @@ const Signup: React.FC = () => {
                 </svg>
               </div>
               <div>
-                <p className="text-xl font-extrabold leading-none">AMLOS</p>
-                <p className="text-sm text-slate-200">Admin Portal</p>
+                <p className="text-xl font-extrabold leading-none text-slate-900">AMLOS</p>
+                <p className="text-sm text-slate-600">Admin Portal</p>
               </div>
             </div>
           </div>
 
-          <div className="my-auto rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-lg">
-            <h2 className="text-2xl font-bold mb-3">Join AMLOS Today</h2>
-            <p className="text-sm leading-relaxed text-slate-200">
+          <div className="my-auto rounded-3xl border border-blue-200 bg-white/50 p-8 shadow-xl backdrop-blur-lg">
+            <h2 className="text-2xl font-bold mb-3 text-slate-900">Join AMLOS Today</h2>
+            <p className="text-sm leading-relaxed text-slate-700">
               Create your admin account and get started managing schools, students, and educational resources on the AMLOS platform.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="11" width="18" height="10" rx="2" />
               <path d="M7 11V8a5 5 0 0 1 10 0v3" />
@@ -120,68 +126,60 @@ const Signup: React.FC = () => {
 
             {error && <div className="mb-4 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</div>}
 
-            <form onSubmit={handleSubmit} noValidate className="space-y-3.5">
+            <form onSubmit={handleSubmit} noValidate className="space-y-6">
               {/* Email */}
-              <div>
-                <label htmlFor="signup-email" className="mb-1.5 block text-xs font-semibold text-slate-700">Email</label>
-                <div className="flex items-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
-                  <svg className="h-5 w-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="2" y="4" width="20" height="16" rx="2" />
-                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                  </svg>
-                  <input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    placeholder="admin@example.com"
-                    className="ml-3 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" />
-                </div>
+              <div className="auth-input-group">
+                <input
+                  id="signup-email"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="auth-input"
+                />
+                <label htmlFor="signup-email" className="auth-user-label bg-white">Email</label>
               </div>
 
               {/* Username */}
-              <div>
-                <label htmlFor="signup-username" className="mb-1.5 block text-xs font-semibold text-slate-700">Username</label>
-                <div className="flex items-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
-                  <svg className="h-5 w-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  <input id="signup-username" type="text" value={username} onChange={e => setUsername(e.target.value)}
-                    placeholder="adminuser"
-                    className="ml-3 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" />
-                </div>
+              <div className="auth-input-group">
+                <input
+                  id="signup-username"
+                  type="text"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  className="auth-input"
+                />
+                <label htmlFor="signup-username" className="auth-user-label bg-white">Username</label>
               </div>
 
               {/* Password */}
-              <div>
-                <label htmlFor="signup-password" className="mb-1.5 block text-xs font-semibold text-slate-700">Password</label>
-                <div className="flex items-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
-                  <svg className="h-5 w-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="11" width="18" height="10" rx="2" />
-                    <path d="M7 11V8a5 5 0 0 1 10 0v3" />
-                  </svg>
-                  <input id="signup-password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                    placeholder="Create a password"
-                    className="ml-3 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" />
-                  <button type="button" onClick={() => setShowPassword(p => !p)} className="ml-3 text-slate-500 hover:text-slate-700">
-                    {showPassword ? (
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l18 18"/><path d="M10.5 10.5a3 3 0 0 0 4 4"/></svg>
-                    ) : (
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
-                    )}
-                  </button>
-                </div>
+              <div className="auth-input-group">
+                <input
+                  id="signup-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="auth-input pr-12"
+                />
+                <label htmlFor="signup-password" className="auth-user-label bg-white">Password</label>
+                <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  {showPassword ? (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l18 18"/><path d="M10.5 10.5a3 3 0 0 0 4 4"/></svg>
+                  ) : (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  )}
+                </button>
               </div>
 
               {/* Confirm Password */}
-              <div>
-                <label htmlFor="signup-confirm" className="mb-1.5 block text-xs font-semibold text-slate-700">Confirm Password</label>
-                <div className="flex items-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
-                  <svg className="h-5 w-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="11" width="18" height="10" rx="2" />
-                    <path d="M7 11V8a5 5 0 0 1 10 0v3" />
-                  </svg>
-                  <input id="signup-confirm" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm your password"
-                    className="ml-3 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" />
-                </div>
+              <div className="auth-input-group">
+                <input
+                  id="signup-confirm"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  className="auth-input"
+                />
+                <label htmlFor="signup-confirm" className="auth-user-label bg-white">Confirm Password</label>
               </div>
 
               <button type="submit" disabled={isLoading}
