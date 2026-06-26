@@ -306,54 +306,64 @@ const SchoolDetail: React.FC = () => {
             </table>
           </div>
         )}
-        
-        {!loading && filteredStudents.length > 0 && totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-slate-50">
-            <p className="text-sm text-slate-500">
-              Showing <span className="font-medium text-slate-900">{(studentPage - 1) * studentsPerPage + 1}</span> to <span className="font-medium text-slate-900">{Math.min(studentPage * studentsPerPage, filteredStudents.length)}</span> of <span className="font-medium text-slate-900">{filteredStudents.length}</span> students
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setStudentPage(p => Math.max(1, p - 1))}
-                disabled={studentPage === 1}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft size={16} /> Previous
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum = i + 1;
-                  if (totalPages > 5) {
-                    if (studentPage > 3) {
-                      pageNum = studentPage - 2 + i;
-                    }
-                    if (pageNum > totalPages) {
-                      pageNum = totalPages - 4 + i;
-                    }
-                  }
+      </div>
+
+      {/* Teachers Table */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-8">
+        <div className="p-6 border-b border-gray-100 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Enrolled Teachers</h2>
+            <p className="text-xs text-gray-500 mt-1">List of all teachers currently assigned to this school.</p>
+          </div>
+        </div>
+
+        {teachers.length === 0 ? (
+          <div className="text-center py-16 text-gray-500 text-sm">
+            No teachers found for this school.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Teacher Name</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Email</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Subject</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {teachers.map((teacher: any, idx: number) => {
+                  const tName = teacher.first_name || teacher.teacher_name || teacher.user?.first_name || teacher.user?.username || teacher.username || 'Unnamed';
+                  const tLast = teacher.last_name || teacher.user?.last_name || '';
+                  const fullName = `${tName} ${tLast}`.trim();
+                  const tEmail = teacher.email || teacher.user?.email || 'N/A';
+                  const tSubject = teacher.subject || teacher.subject_name || teacher.specialization || 'N/A';
+                  const tStatus = teacher.status || teacher.user?.status || 'active';
                   return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setStudentPage(pageNum)}
-                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
-                        studentPage === pageNum 
-                          ? 'bg-blue-600 text-white' 
-                          : 'text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
+                    <tr key={teacher.id || idx} className="hover:bg-green-50/50 transition-colors">
+                      <td className="py-4 px-6 text-left">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-green-700 font-bold text-sm">
+                            {(fullName[0] || 'T').toUpperCase()}
+                          </div>
+                          <span className="font-semibold text-gray-900 text-sm">{fullName}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 text-sm text-gray-500 text-center">{tEmail}</td>
+                      <td className="py-4 px-6 text-sm text-gray-500 text-center">{tSubject}</td>
+                      <td className="py-4 px-6 text-center">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          tStatus === 'inactive' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {tStatus.toUpperCase()}
+                        </span>
+                      </td>
+                    </tr>
                   );
                 })}
-              </div>
-              <button
-                onClick={() => setStudentPage(p => Math.min(totalPages, p + 1))}
-                disabled={studentPage === totalPages}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next <ChevronRight size={16} />
-              </button>
-            </div>
+              </tbody>
+            </table>
           </div>
         )}
       </div>

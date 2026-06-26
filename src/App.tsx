@@ -33,9 +33,10 @@ function App() {
     <AuthProvider>
       <Toaster
           position="top-right"
+          containerStyle={{ top: 72, right: 16 }}
           toastOptions={{
             duration: 4000,
-            style: { fontFamily: 'Inter, sans-serif', fontSize: '14px', borderRadius: '12px' },
+            style: { fontFamily: 'Inter, sans-serif', fontSize: '14px', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' },
             success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
             error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
           }}

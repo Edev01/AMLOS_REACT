@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 import { useTheme } from '../context/ThemeContext';
 import { hasCrossTenantAccess } from '../types';
 import {
@@ -93,8 +94,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
   };
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    toast.success('Logged out successfully. See you soon!', { duration: 3000 });
+    setTimeout(() => {
+      logout();
+      navigate('/login');
+    }, 1500);
   };
 
   const isActive = (path?: string, id?: string) => {

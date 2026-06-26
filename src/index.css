@@ -444,6 +444,53 @@ select {
       0 10px 25px -5px rgba(0, 0, 0, 0.08),
       0 20px 40px -10px rgba(0, 0, 0, 0.1);
   }
+
+  /* Auth Floating Inputs (Light Theme) */
+  .auth-input-group {
+    position: relative;
+    width: 100%;
+  }
+
+  .auth-input {
+    width: 100%;
+    border: solid 1.5px #cbd5e1;
+    border-radius: 1rem;
+    background-color: #ffffff;
+    padding: 1rem;
+    font-size: 0.875rem; /* Matched typical form size */
+    color: #0f172a;
+    transition: border 150ms cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* Fix Chrome Autofill Background */
+  .auth-input:-webkit-autofill,
+  .auth-input:-webkit-autofill:hover,
+  .auth-input:-webkit-autofill:focus,
+  .auth-input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px #ffffff inset !important;
+    -webkit-text-fill-color: #0f172a !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  .auth-user-label {
+    position: absolute;
+    left: 15px;
+    color: #64748b;
+    pointer-events: none;
+    transform: translateY(1rem);
+    transition: 150ms cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .auth-input:focus, .auth-input:valid {
+    outline: none;
+    border: 1.5px solid #3b82f6;
+  }
+
+  .auth-input:focus ~ .auth-user-label, .auth-input:valid ~ .auth-user-label {
+    transform: translateY(-50%) scale(0.8);
+    padding: 0 .2em;
+    color: #3b82f6;
+  }
 }
 
 /* Keyframe animations */

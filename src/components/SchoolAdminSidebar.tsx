@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 import { useTheme } from '../context/ThemeContext';
 import {
   LogOut,
@@ -66,8 +67,11 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
   };
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    toast.success('Logged out successfully. See you soon!', { duration: 3000 });
+    setTimeout(() => {
+      logout();
+      navigate('/login');
+    }, 1500);
   };
 
   const isActive = (path?: string, id?: string) => {
