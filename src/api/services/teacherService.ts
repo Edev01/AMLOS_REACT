@@ -22,6 +22,24 @@ export const getTeachers = async (): Promise<Teacher[]> => {
   return rawList as Teacher[];
 };
 
+export const getTeacherById = async (id: string | number): Promise<Teacher> => {
+  try {
+    const response = await axiosInstance.get(`/api/auth/teachers/${id}`);
+    const d = response.data;
+    // Handle both cases: { data: teacher } or just teacher
+    return d.data || d;
+  } catch (error: any) {
+    // Fallback if the detail endpoint doesn't exist yet
+    if (error.response?.status === 404 || error.response?.status === 405) {
+      const allTeachers = await getTeachers();
+      const teacher = allTeachers.find(t => String(t.id) === String(id));
+      if (!teacher) throw new Error("Teacher not found");
+      return teacher;
+    }
+    throw error;
+  }
+};
+
 /** PATCH /api/auth/teachers/{id} */
 export const updateTeacher = async (teacherId: string | number, payload: any): Promise<Teacher> => {
   const response = await axiosInstance.patch(`/api/auth/teachers/${teacherId}`, payload);

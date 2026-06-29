@@ -24,7 +24,7 @@ export const userService = {
     formData.append('image', file);
     const response = await api.post('/api/auth/upload-image', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined,   // Remove the global 'application/json' default so browser sets multipart/form-data with boundary
       },
     });
     return response.data;

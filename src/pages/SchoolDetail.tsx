@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
 import { School as SchoolType } from '../types';
-import { ArrowLeft, Users, GraduationCap, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Users, GraduationCap, Search, ChevronLeft, ChevronRight, Lock, Save, MapPin, Phone, Building, Calendar, Mail } from 'lucide-react';
+import toast from 'react-hot-toast';
 const EMAIL_RE_STRICT = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
 const EMAIL_RE_LOOSE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i;
 
@@ -83,6 +84,38 @@ const SchoolDetail: React.FC = () => {
   const routeSchoolForCurrentId =
     routeSchool && String(routeSchool.id) === id ? normalizeSchool(routeSchool) : undefined;
 
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: Record<string, any>) => {
+      await api.patch(`/api/auth/schools/${id}/update`, data);
+    },
+    onSuccess: () => {
+      toast.success('School password updated successfully! ✅');
+      setNewPassword('');
+      setConfirmPassword('');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || 'Failed to update school password.';
+      toast.error(msg);
+    },
+  });
+
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match.');
+      return;
+    }
+    updateMutation.mutate({ password: newPassword });
+  };
+
   const { data: queriedSchool } = useQuery<SchoolType | null>({
     queryKey: ['school-detail', id],
     queryFn: async ({ signal }) => {
@@ -133,35 +166,12 @@ const SchoolDetail: React.FC = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: teachers = [] } = useQuery<any[]>({
-    queryKey: ['school-teachers', id],
-    queryFn: async ({ signal }) => {
-      if (!id) return [];
-      try {
-        const response = await api.get(`/api/auth/schools/${id}/teachers`, { signal });
-        const data = response.data?.data?.teachers
-          ?? response.data?.teachers
-          ?? response.data?.data
-          ?? response.data
-          ?? [];
-        const list = Array.isArray(data) ? data : [];
-        if (list.length > 0) return list;
-      } catch {
-        // fallthrough to general endpoint
-      }
-      // Fallback: fetch all teachers and filter by this school
-      try {
-        const fallback = await api.get('/api/auth/teachers', { signal });
-        const d = fallback.data;
-        const all = Array.isArray(d) ? d : d?.results ?? d?.data ?? [];
-        return all.filter((t: any) => String(t.school_id ?? t.school ?? t.school?.id ?? '') === String(id));
-      } catch {
-        return [];
-      }
-    },
-    enabled: Boolean(id),
-    staleTime: 5 * 60 * 1000,
-  });
+  const teachers = useMemo(() => {
+    if (school?.teachers && Array.isArray(school.teachers)) {
+      return school.teachers;
+    }
+    return [];
+  }, [school]);
 
   const stats = [
     { label:'Total Students', value: students.length, change:'', icon:<Users size={20}/>, bg:'bg-blue-100', ic:'text-blue-600' },
@@ -209,7 +219,11 @@ const SchoolDetail: React.FC = () => {
           <ArrowLeft size={20}/>
         </button>
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-2xl">🏫</div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 overflow-hidden text-2xl">
+            {school?.profile_image ? (
+              <img src={school.profile_image} alt={school.school_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = '🏫'; }} />
+            ) : '🏫'}
+          </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{school?.school_name || 'School Detail'}</h1>
             <p className="text-xs text-gray-500">Principal: {school?.principal_name || 'N/A'} · {school?.email || ''}</p>
@@ -231,6 +245,121 @@ const SchoolDetail: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* School Information & Security */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        
+        {/* School Info */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
+            <Building size={20} className="text-blue-500" />
+            School Details
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-5 gap-x-6">
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">School Name</p>
+              <p className="text-sm font-semibold text-gray-900">{school?.school_name || school?.name || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Principal / Admin</p>
+              <p className="text-sm font-semibold text-gray-900">{school?.principal_name || school?.admin_name || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Email Address</p>
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Mail size={14} className="text-gray-400" />
+                {school?.email || school?.contact_email || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Phone Number</p>
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Phone size={14} className="text-gray-400" />
+                {school?.phone || school?.phone_number || school?.contact_phone || 'N/A'}
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Full Address</p>
+              <div className="flex items-start gap-2 text-sm font-semibold text-gray-900">
+                <MapPin size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                <span>
+                  {school?.address || 'N/A'}
+                  {(school?.city || school?.state || school?.zip) && (
+                    <span className="block text-xs text-gray-500 font-normal mt-0.5">
+                      {[school?.city, school?.state, school?.zip].filter(Boolean).join(', ')}
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Registration No.</p>
+              <p className="text-sm font-semibold text-gray-900">{school?.registration_number || school?.registration_id || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Status</p>
+              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                String(school?.status || '').toLowerCase() === 'active'
+                  ? 'bg-green-100 text-green-700' 
+                  : String(school?.status || '').toLowerCase() === 'inactive'
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-gray-100 text-gray-700'
+              }`}>
+                {school?.status || 'Unknown'}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Joined Date</p>
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Calendar size={14} className="text-gray-400" />
+                {school?.created_at ? new Date(school.created_at).toLocaleDateString() : 'N/A'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Change Password */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col">
+          <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+            <Lock size={20} className="text-amber-500" />
+            Security
+          </h2>
+          <p className="text-xs text-gray-500 mb-6">Update the password for the school's admin account.</p>
+
+          <form onSubmit={handlePasswordChange} className="space-y-4 flex-1 flex flex-col">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">New Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
+            <div className="mt-auto pt-4">
+              <button
+                type="submit"
+                disabled={updateMutation.isPending || !newPassword || !confirmPassword}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save size={16} />
+                {updateMutation.isPending ? 'Updating...' : 'Update Password'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
       {/* Students Table */}

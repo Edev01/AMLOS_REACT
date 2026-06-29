@@ -235,7 +235,7 @@ const AddTeacher: React.FC = () => {
       setIsUploadingImage(true);
       try {
         const res = await userService.uploadImage(file);
-        const url = res?.url || res?.image_url || res?.file_url || res?.path || res?.profile_image;
+        const url = res?.data?.url || res?.url || res?.image_url || res?.file_url || res?.path || res?.profile_image;
         if (url) {
           setProfileImageUrl(url);
           toast.success('Image uploaded successfully!');

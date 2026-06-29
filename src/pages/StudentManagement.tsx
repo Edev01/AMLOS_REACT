@@ -232,12 +232,14 @@ const StudentManagement: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
-          <p className="text-sm text-gray-500 font-medium">Loading students…</p>
+      <DashboardLayout activePage="all-students">
+        <div className="flex h-[80vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+            <p className="text-sm text-gray-500 font-medium">Loading students…</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
@@ -262,7 +264,7 @@ const StudentManagement: React.FC = () => {
   }
 
   return (
-    <DashboardLayout activePage="students">
+    <DashboardLayout activePage="all-students">
       <div className="mb-6">
         <select
           value={filter}
@@ -309,8 +311,20 @@ const StudentManagement: React.FC = () => {
             className="cursor-pointer rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
           >
             <div className="flex items-start gap-3 mb-3">
-              <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${bgs[i % bgs.length]}`}>
-                {icons[i % icons.length]}
+              <div className={`flex h-11 w-11 shrink-0 overflow-hidden items-center justify-center rounded-xl text-xl ${!s.profile_image ? bgs[i % bgs.length] : 'bg-gray-100'}`}>
+                {s.profile_image ? (
+                  <img 
+                    src={s.profile_image} 
+                    alt={s.full_name} 
+                    className="h-full w-full object-cover" 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      (e.target as HTMLImageElement).parentElement!.innerHTML = `<span class="flex items-center justify-center w-full h-full ${bgs[i % bgs.length]}">${icons[i % icons.length]}</span>`;
+                    }}
+                  />
+                ) : (
+                  icons[i % icons.length]
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-base font-bold text-gray-900 truncate">{s.full_name || 'Unnamed'}</h3>
@@ -564,8 +578,12 @@ const StudentManagement: React.FC = () => {
               {studentDetailLoading ? (
                 <div className="flex h-20 w-20 items-center justify-center"><Loader2 size={32} className="animate-spin text-blue-500" /></div>
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-3xl shadow-md mb-3">
-                  {((displayStudent?.full_name || 'U')[0]).toUpperCase()}
+                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-3xl shadow-md mb-3 overflow-hidden">
+                  {displayStudent?.profile_image ? (
+                    <img src={displayStudent.profile_image} alt={displayStudent.full_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = ((displayStudent?.full_name || 'U')[0]).toUpperCase(); }} />
+                  ) : (
+                    ((displayStudent?.full_name || 'U')[0]).toUpperCase()
+                  )}
                 </div>
               )}
               <h3 className="text-xl font-bold text-slate-800">{displayStudent?.full_name || 'Unnamed'}</h3>

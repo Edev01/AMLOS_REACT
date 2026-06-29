@@ -153,15 +153,12 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
   };
 
   const [editFormData, setEditFormData] = useState({
-    reg_id: getRegIdString((school as any).reg_id),
     school_name: school.school_name || '',
     principal_name: school.principal_name || '',
     email: school.email || '',
     address: school.address || '',
     website: school.website || '',
     phone_number: (school as any).phone_number || (school as any).phone || '',
-    city: (school as any).city || '',
-    state: (school as any).state || '',
   });
 
   const handleChange = (e: React.ChangeEvent<any>) => {
@@ -190,8 +187,6 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
     { name: 'email', label: 'Email', type: 'email' },
     { name: 'phone_number', label: 'Phone' },
     { name: 'address', label: 'Address' },
-    { name: 'city', label: 'City' },
-    { name: 'state', label: 'State' },
     { name: 'website', label: 'Website' },
   ];
 
@@ -221,41 +216,20 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Registration ID — read-only, sourced from school.reg_id */}
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Registration ID</label>
+          {/* Registration ID — read-only, sourced from school.registration_number or registration_id */}
+          <div title="Can't update registration">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block cursor-help">Registration Number</label>
             <input
               type="text"
-              value={editFormData.reg_id || ''}
+              value={school.registration_number || (school as any).registration_id || getRegIdString((school as any).reg_id) || ''}
               readOnly
               disabled
               className="w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-2.5 text-sm text-gray-600 outline-none cursor-not-allowed"
-              placeholder="Registration ID"
+              placeholder="Registration Number"
+              title="Can't update registration"
             />
           </div>
-          {fields.map(f => {
-            if (f.name === 'state') {
-              return (
-                <div key={f.name}>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">{f.label}</label>
-                  <select
-                    name={f.name}
-                    value={(editFormData as any)[f.name]}
-                    onChange={handleChange}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-                  >
-                    <option value="">Select State</option>
-                    <option value="Sindh">Sindh</option>
-                    <option value="Punjab">Punjab</option>
-                    <option value="Khyber Pakhtunkhwa">Khyber Pakhtunkhwa</option>
-                    <option value="Balochistan">Balochistan</option>
-                    <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
-                    <option value="Azad Kashmir">Azad Kashmir</option>
-                  </select>
-                </div>
-              );
-            }
-            return (
+          {fields.map(f => (
               <div key={f.name}>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">{f.label}</label>
                 <input
@@ -266,8 +240,7 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
                 />
               </div>
-            );
-          })}
+          ))}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
             <button
@@ -461,6 +434,7 @@ const SchoolManagement: React.FC = () => {
 
   // Teachers: admin can't fetch per-school yet, use school object fields
   const getTeacherCount = useCallback((school: any): number => {
+    if (Array.isArray(school?.teachers)) return school.teachers.length;
     return school?.teachers_count ?? school?.teacher_count ?? school?.total_teachers ?? 0;
   }, []);
 
@@ -560,13 +534,18 @@ const SchoolManagement: React.FC = () => {
             {visibleSchools.map((s, i) => (
               <div key={s.id} onClick={() => navigate(`/admin/schools/${s.id}`, { state: { school: s } })} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
                 <div className="flex items-start gap-3 mb-3">
-                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${bgs[i % bgs.length]}`}>{icons[i % icons.length]}</div>
+                  <div className={`flex h-11 w-11 shrink-0 overflow-hidden items-center justify-center rounded-xl text-xl ${!s.profile_image ? bgs[i % bgs.length] : 'bg-gray-100'}`}>
+                    {s.profile_image ? (
+                      <img src={s.profile_image} alt={s.school_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = icons[i % icons.length]; }} />
+                    ) : icons[i % icons.length]}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="text-base font-bold text-gray-900 truncate">{s.school_name || 'Unnamed'}</h3>
                     <p className="text-xs text-gray-400 truncate">Principal Name: {s.principal_name || 'N/A'}</p>
+                    <p className="text-xs font-semibold text-blue-500 truncate mt-0.5">{s.registration_number || s.registration_id ? `Reg No: ${s.registration_number || s.registration_id}` : 'Reg No: N/A'}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 mb-3"><MapPin size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.address || 'N/A'}</p></div>
+                <div className="flex items-center gap-1.5 mb-2"><MapPin size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.address || 'N/A'}</p></div>
                 <div className="flex items-center gap-1.5 mb-3"><Mail size={13} className="text-gray-400" /><p className="text-xs text-gray-500 truncate">{s.email || 'N/A'}</p></div>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{getStudentCount(s)}</span><span className="text-[10px] text-green-600">Students</span></div>

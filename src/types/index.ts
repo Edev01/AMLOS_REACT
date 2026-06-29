@@ -160,9 +160,9 @@ export interface ISchoolData {
   phone: string;
   website: string;
   address: string;
-  city: string;
-  state: string;
-  zipCode: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
   registrationNumber: string;
   establishedYear: string;
 }

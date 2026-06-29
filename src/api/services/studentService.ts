@@ -39,8 +39,20 @@ export const deleteStudent = async (studentId: string | number): Promise<void> =
 
 /** GET /api/auth/students/{id} — fetch a single student's full profile */
 export const getStudentById = async (studentId: string | number): Promise<Student> => {
-  const response = await axiosInstance.get(`/api/auth/students/${studentId}`);
-  return response.data as Student;
+  try {
+    const response = await axiosInstance.get(`/api/auth/students/${studentId}`);
+    const d = response.data;
+    return d.data || d;
+  } catch (error: any) {
+    // Fallback: backend may not support GET on /students/{id} (405 Method Not Allowed)
+    if (error.response?.status === 404 || error.response?.status === 405) {
+      const allStudents = await getStudents();
+      const student = allStudents.find(s => String(s.id) === String(studentId));
+      if (!student) throw new Error('Student not found');
+      return student;
+    }
+    throw error;
+  }
 };
 
 /** GET /api/study-plans/school/student/{studentId}/plans — fetch all study plans for a specific student */

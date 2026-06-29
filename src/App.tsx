@@ -26,6 +26,7 @@ import AddStudent from './pages/AddStudent';
 import StudentManagement from './pages/StudentManagement';
 import TeacherManagement from './pages/TeacherManagement';
 import AddTeacher from './pages/AddTeacher';
+import TeacherDetail from './pages/TeacherDetail';
 import MainLayout from './components/MainLayout';
 
 function App() {
@@ -112,6 +113,7 @@ function App() {
             <Route path="/school/students/add" element={<AddStudent />} />
             <Route path="/school/teachers" element={<TeacherManagement />} />
             <Route path="/school/teachers/add" element={<AddTeacher />} />
+            <Route path="/school/teachers/:id" element={<TeacherDetail />} />
             <Route path="/school/classes" element={<div>Classes Page</div>} />
             <Route path="/school/planners" element={<AllPlanners />} />
             <Route path="/school/planners/create" element={<CreatePlanner />} />
