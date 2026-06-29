@@ -649,7 +649,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     },
     onSuccess: (data) => {
       // Unwrap nested response shapes
-      const detail = data?.data ?? data;
+      const detail = (data as any)?.data ?? data;
       setGeneratedDetail(detail);
       setIsGenerating(null);
     },

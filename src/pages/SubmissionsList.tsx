@@ -53,7 +53,7 @@ const SubmissionsList: React.FC = () => {
     gradeMutation.mutate({ score: Number(score), total_marks: Number(totalMarks) });
   };
 
-  const submissions = Array.isArray(data) ? data : data?.results ?? data?.data ?? [];
+  const submissions = Array.isArray(data) ? data : (data as any)?.results ?? (data as any)?.data ?? [];
 
   return (
     <DashboardLayout activePage="submissions">

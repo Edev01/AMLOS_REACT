@@ -26,7 +26,7 @@ import AddStudent from './pages/AddStudent';
 import StudentManagement from './pages/StudentManagement';
 import TeacherManagement from './pages/TeacherManagement';
 import AddTeacher from './pages/AddTeacher';
-import TeacherDetail from './pages/TeacherDetail';
+import TeacherDetail from './pages/TeacherDetailPage';
 import SubmissionsList from './pages/SubmissionsList';
 import MainLayout from './components/MainLayout';
 
