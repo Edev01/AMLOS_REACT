@@ -25,6 +25,7 @@ import {
   Trash2,
   Loader2,
   ArrowRight,
+  ArrowLeft,
   Save,
   X,
   Clock,
@@ -121,11 +122,19 @@ const SectionHeader: React.FC<{
   title: string;
   subtitle: string;
   action?: React.ReactNode;
-}> = ({ title, subtitle, action }) => (
+  onBack?: () => void;
+}> = ({ title, subtitle, action, onBack }) => (
   <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+    <div className="flex items-center gap-4">
+      {onBack && (
+        <button onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition shadow-sm">
+          <ArrowLeft size={18} />
+        </button>
+      )}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      </div>
     </div>
     {action}
   </div>
@@ -780,9 +789,14 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         title="CMS Management"
         subtitle="Manage grades, subjects, chapters, and SLOs used by planner generation."
         action={
-          <PrimaryButton onClick={() => navigate('/admin/cms/subjects/add')}>
-            <Plus size={16} /> Add Subject
-          </PrimaryButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <SecondaryButton onClick={() => navigate('/admin/cms/classes/add')}>
+              <Plus size={16} /> Add Grade
+            </SecondaryButton>
+            <PrimaryButton onClick={() => navigate('/admin/cms/subjects/add')}>
+              <Plus size={16} /> Add Subject
+            </PrimaryButton>
+          </div>
         }
       />
       <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -839,6 +853,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader
         title="All Grades"
         subtitle="Grades used to organize the curriculum. Data from the backend API."
+        onBack={() => navigate('/admin/cms')}
         action={<PrimaryButton onClick={() => navigate('/admin/cms/classes/add')}><Plus size={16} /> Add Grade</PrimaryButton>}
       />
       <SearchInput
@@ -854,7 +869,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filteredClasses.map((grade) => (
-            <div key={grade.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div 
+              key={grade.id} 
+              onClick={() => navigate(`/admin/cms/subjects?grade=${encodeURIComponent(grade.name)}`)}
+              className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-200 cursor-pointer transition"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-lg font-bold text-slate-900">{grade.name}</p>
@@ -864,7 +883,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                   Grade
                 </span>
               </div>
-              <div className="mt-6 flex items-center justify-end gap-1">
+              <div className="mt-6 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                 <IconButton title="View subjects" tone="blue" onClick={() => navigate(`/admin/cms/subjects?grade=${encodeURIComponent(grade.name)}`)}><Eye size={15} /></IconButton>
                 <IconButton title="Edit" onClick={() => setEditingGrade(grade)}><Pencil size={15} /></IconButton>
                 <IconButton title="Delete" tone="red" onClick={() => setDeletingGrade(grade)}><Trash2 size={15} /></IconButton>
@@ -878,7 +897,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const renderAddClass = () => (
     <>
-      <SectionHeader title="Add Grade" subtitle="Create a new grade for curriculum organization." />
+      <SectionHeader 
+        title="Add Grade" 
+        subtitle="Create a new grade for curriculum organization." 
+        onBack={() => navigate('/admin/cms/classes')}
+      />
       <form onSubmit={(e) => { e.preventDefault(); if (!className.trim()) { toast.error('Grade name is required.'); return; } createGradeMutation.mutate(); }}>
         <FormCard
           eyebrow="Grade Setup"
@@ -913,6 +936,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader
         title="All Subjects"
         subtitle="Subjects are grouped by grade and feed into planner creation."
+        onBack={() => navigate('/admin/cms')}
         action={<PrimaryButton onClick={() => navigate('/admin/cms/subjects/add')}><Plus size={16} /> Add Subject</PrimaryButton>}
       />
       <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_220px]">
@@ -991,7 +1015,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const renderAddSubject = () => (
     <>
-      <SectionHeader title="Add Subject" subtitle="Create a subject under a grade." />
+      <SectionHeader 
+        title="Add Subject" 
+        subtitle="Create a subject under a grade." 
+        onBack={() => navigate('/admin/cms/subjects')}
+      />
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -1055,6 +1083,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         <SectionHeader
           title="All Chapters"
           subtitle="Select a grade and subject to view the related chapters."
+          onBack={() => navigate('/admin/cms')}
           action={<PrimaryButton onClick={() => navigate('/admin/cms/chapters/add')}><Plus size={16} /> Add Chapter</PrimaryButton>}
         />
         <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[220px_280px_1fr]">
@@ -1106,7 +1135,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const renderAddChapter = () => (
     <>
-      <SectionHeader title="Add Chapter" subtitle="Create a chapter under a selected subject." />
+      <SectionHeader 
+        title="Add Chapter" 
+        subtitle="Create a chapter under a selected subject." 
+        onBack={() => navigate('/admin/cms/chapters')}
+      />
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -1185,6 +1218,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader
         title="All SLOs"
         subtitle="SLOs are the objectives selected by the planner flow."
+        onBack={() => navigate('/admin/cms')}
         action={
           <div className="flex items-center gap-2">
             <button
@@ -1286,6 +1320,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader
         title={bulk ? 'Upload SLOs' : 'Add SLO'}
         subtitle={bulk ? 'Upload a file or paste SLOs for the selected chapter.' : 'Create a single SLO under a selected chapter.'}
+        onBack={() => navigate('/admin/cms/slos')}
       />
       <form
         onSubmit={(event) => {

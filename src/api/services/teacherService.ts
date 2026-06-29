@@ -46,6 +46,17 @@ export const updateTeacher = async (teacherId: string | number, payload: any): P
   return response.data as Teacher;
 };
 
+export const changeTeacherStatus = async (teacherId: string | number, payload: { is_active: boolean }): Promise<void> => {
+  await axiosInstance.patch(`/api/auth/teachers/${teacherId}/status`, payload);
+};
+
+export const assignStudentsToTeacher = async (teacherId: string | number, studentIds: number[]): Promise<any> => {
+  const response = await axiosInstance.post(`/api/auth/teachers/${teacherId}/assign-students`, {
+    student_ids: studentIds
+  });
+  return response.data;
+};
+
 /** DELETE /api/auth/teachers/{id}/delete */
 export const deleteTeacher = async (teacherId: string | number): Promise<void> => {
   await axiosInstance.delete(`/api/auth/teachers/${teacherId}/delete`);

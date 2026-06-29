@@ -32,6 +32,7 @@ import {
   Plus,
   Save,
   Search,
+  Play,
   Shuffle,
   Trash2,
   X,
@@ -365,21 +366,25 @@ const IconButton: React.FC<{
   title: string;
   children: React.ReactNode;
   onClick: () => void;
-  tone?: 'blue' | 'red' | 'slate';
-}> = ({ title, children, onClick, tone = 'slate' }) => {
+  tone?: 'blue' | 'red' | 'slate' | 'emerald';
+  disabled?: boolean;
+}> = ({ title, children, onClick, tone = 'slate', disabled }) => {
   const classes =
     tone === 'red'
       ? 'text-red-500 hover:bg-red-50'
       : tone === 'blue'
         ? 'text-blue-600 hover:bg-blue-50'
-        : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600';
+        : tone === 'emerald'
+          ? 'text-emerald-600 hover:bg-emerald-50'
+          : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600';
 
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
-      className={`rounded-lg p-1.5 transition ${classes}`}
+      disabled={disabled}
+      className={`rounded-lg p-1.5 transition ${classes} disabled:opacity-40 disabled:cursor-not-allowed`}
     >
       {children}
     </button>
@@ -404,6 +409,10 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   // Delete modal state
   const [deletingTemplate, setDeletingTemplate] = useState<AssessmentTemplate | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Generated detail modal state
+  const [generatedDetail, setGeneratedDetail] = useState<any | null>(null);
+  const [isGenerating, setIsGenerating] = useState<string | number | null>(null);
 
   // Submissions state
   const [submissionsPage, setSubmissionsPage] = useState(1);
@@ -466,6 +475,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   const availableQuery = useQuery({
     queryKey: ['assessments', 'available'],
     queryFn: assessmentService.listAvailableAssessments,
+    enabled: view === 'generated',
     retry: 1,
     staleTime: 30 * 1000,
   });
@@ -631,6 +641,22 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     onError: () => {
       toast.error('Template delete failed.');
     },
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async (id: string | number) => {
+      return assessmentService.getTemplate(id);
+    },
+    onSuccess: (data) => {
+      // Unwrap nested response shapes
+      const detail = (data as any)?.data ?? data;
+      setGeneratedDetail(detail);
+      setIsGenerating(null);
+    },
+    onError: () => {
+      toast.error('Failed to fetch assessment details');
+      setIsGenerating(null);
+    }
   });
 
   const gradeMutation = useMutation({
@@ -868,7 +894,16 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                 </span>
               </span>
               <div className="flex flex-wrap items-center justify-center gap-1.5">
-
+                <IconButton
+                  title="Generate / View"
+                  tone="emerald"
+                  onClick={() => { setIsGenerating(template.id as string); generateMutation.mutate(template.id as string); }}
+                  disabled={isGenerating === template.id}
+                >
+                  {isGenerating === template.id
+                    ? <Loader2 size={17} className="animate-spin" />
+                    : <Play size={17} />}
+                </IconButton>
                 <IconButton title="View" tone="blue" onClick={() => setSelectedTemplate(template)}>
                   <Eye size={17} />
                 </IconButton>
@@ -1335,6 +1370,104 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
     );
   };
 
+  const renderGeneratedDetailModal = () => {
+    if (!generatedDetail) return null;
+    const chapters: any[] = generatedDetail.chapters_details ?? generatedDetail.chapters ?? [];
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setGeneratedDetail(null)}>
+        <div
+          className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 text-white flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-emerald-100">Generated Assessment</p>
+              <h2 className="mt-1 text-xl font-bold">{generatedDetail.title}</h2>
+              <p className="mt-1 text-sm text-emerald-100">
+                Grade {generatedDetail.grade} &nbsp;&bull;&nbsp; {generatedDetail.subject_name} &nbsp;&bull;&nbsp; {formatAssessmentType(generatedDetail.assessment_type)}
+              </p>
+            </div>
+            <button type="button" onClick={() => setGeneratedDetail(null)} className="rounded-xl p-2 hover:bg-white/10 transition">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: 'Total Questions', value: generatedDetail.total_questions ?? 0, color: 'bg-blue-50 text-blue-700' },
+                { label: 'MCQs', value: generatedDetail.mcq_count ?? 0, color: 'bg-violet-50 text-violet-700' },
+                { label: 'Short', value: generatedDetail.short_count ?? 0, color: 'bg-amber-50 text-amber-700' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className={`rounded-xl p-4 text-center ${color}`}>
+                  <p className="text-2xl font-bold">{value}</p>
+                  <p className="text-xs font-semibold mt-1 uppercase">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Long questions */}
+            <div className="flex items-center gap-3 rounded-xl bg-rose-50 px-4 py-3">
+              <span className="text-2xl font-bold text-rose-600">{generatedDetail.long_count ?? 0}</span>
+              <span className="text-sm font-semibold text-rose-600">Long Questions</span>
+            </div>
+
+            {/* Cognitive Levels */}
+            {generatedDetail.cognitive_levels?.length > 0 && (
+              <div>
+                <p className="text-xs font-bold uppercase text-slate-400 mb-2">Cognitive Levels</p>
+                <div className="flex flex-wrap gap-2">
+                  {generatedDetail.cognitive_levels.map((lvl: string) => (
+                    <span key={lvl} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{lvl}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Categories */}
+            {generatedDetail.categories?.length > 0 && (
+              <div>
+                <p className="text-xs font-bold uppercase text-slate-400 mb-2">Question Sources</p>
+                <div className="flex flex-wrap gap-2">
+                  {generatedDetail.categories.map((cat: string) => (
+                    <span key={cat} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{cat}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Chapters */}
+            {chapters.length > 0 && (
+              <div>
+                <p className="text-xs font-bold uppercase text-slate-400 mb-3">Chapters Included ({chapters.length})</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {chapters.map((ch: any, idx: number) => (
+                    <div key={ch.id ?? idx} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">{idx + 1}</span>
+                      <span className="text-sm font-semibold text-slate-700">{ch.name ?? ch.title ?? `Chapter ${ch.id}`}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-slate-100 px-6 py-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setGeneratedDetail(null)}
+              className="rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     if (view === 'templates') return renderTemplates();
     if (view === 'create-template') return renderCreateTemplate();
@@ -1364,6 +1497,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
       </div>
       {renderContent()}
       {renderTemplateModal()}
+      {renderGeneratedDetailModal()}
 
 
 

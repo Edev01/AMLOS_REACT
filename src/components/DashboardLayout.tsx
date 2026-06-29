@@ -100,7 +100,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   const navigate = useNavigate();
   const isFetching = useIsFetching();
   const location = useLocation();
-  useEffect(() => { if (window.innerWidth < 1024) setSidebarCollapsed(true); }, [location.pathname]);
+  useEffect(() => { 
+    if (window.innerWidth < 1024) setSidebarCollapsed(true); 
+    
+    // Smooth scroll to top on route change
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (window.innerWidth < 1024) return true;
     const saved = localStorage.getItem('sidebarCollapsed');

@@ -355,7 +355,7 @@ const Login: React.FC = () => {
         </div>
 
         {/* Right panel — Login Form */}
-        <div className="w-full lg:w-[55%] bg-[#F8FAFC] overflow-y-auto h-full flex flex-col items-center px-6 py-8 sm:px-10 lg:px-12 xl:px-16">
+        <div className="w-full lg:w-[55%] bg-white overflow-y-auto h-full flex flex-col items-center px-6 py-8 sm:px-10 lg:px-12 xl:px-16">
           <div className="w-full max-w-md my-auto">
             {/* Mobile-only logo */}
             <div className="lg:hidden flex items-center justify-center gap-3 mb-6">
