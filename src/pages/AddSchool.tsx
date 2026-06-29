@@ -61,9 +61,6 @@ const validationSchema = Yup.object<FormValues>({
   phone: Yup.string().trim().required('Phone number is required'),
   website: Yup.string().trim().url('Enter a valid URL (e.g. https://school.com)').optional(),
   address: Yup.string().trim().required('Address is required'),
-  city: Yup.string().trim().required('City is required'),
-  state: Yup.string().trim().required('State is required'),
-  zipCode: Yup.string().trim().optional(),
   registrationNumber: Yup.string().trim().optional(),
   establishedYear: Yup.string()
     .matches(/^\d{4}$/, 'Must be a valid 4-digit year')
@@ -80,9 +77,6 @@ const initialValues: FormValues = {
   phone: '',
   website: '',
   address: '',
-  city: '',
-  state: '',
-  zipCode: '',
   registrationNumber: '',
   establishedYear: '',
 };
@@ -119,14 +113,6 @@ const fieldGroups: { title: string; fields: FieldConfig[] }[] = [
       { name: 'phone',   label: 'Phone Number', placeholder: '+92 300 1234567',     icon: <Phone size={16} />,  required: true, type: 'tel' },
       { name: 'website', label: 'Website',       placeholder: 'https://school.com',  icon: <Globe size={16} />              },
       { name: 'address', label: 'Address',       placeholder: '123 Main Street',     icon: <MapPin size={16} />, required: true },
-    ],
-  },
-  {
-    title: 'Location',
-    fields: [
-      { name: 'city',    label: 'City',      placeholder: 'Karachi',   icon: <Building2 size={16} />, required: true },
-      { name: 'state',   label: 'State',     placeholder: 'Sindh',     icon: <MapPin size={16} />,    required: true },
-      { name: 'zipCode', label: 'Zip Code',  placeholder: '75500',     icon: <Hash size={16} />                      },
     ],
   },
   {
@@ -168,7 +154,7 @@ const AddSchool: React.FC = () => {
     setIsUploadingImage(true);
     try {
       const res = await userService.uploadImage(file);
-      const url = res?.url || res?.image_url || res?.file_url || res?.path || res?.profile_image;
+      const url = res?.data?.url || res?.url || res?.image_url || res?.file_url || res?.path || res?.profile_image;
       if (url) {
         setProfileImageUrl(url);
         toast.success('Image uploaded successfully!');
@@ -222,9 +208,9 @@ const AddSchool: React.FC = () => {
           phone_number:        string;
           website:             string;
           address:             string;
-          city:                string;
-          state:               string;
-          zip_code:            number;   // backend expects integer
+          city?:               string;
+          state?:              string;
+          zip_code?:           number;   // backend expects integer
           registration_number: string;
           established_year:    number;   // backend expects integer
         }
@@ -238,11 +224,11 @@ const AddSchool: React.FC = () => {
           phone_number:        values.phone,
           website:             values.website || '',
           address:             values.address,
-          city:                values.city,
-          state:               values.state,
-          zip_code:            parseInt(values.zipCode, 10) || 0,
+          city:                values.city || '',
+          state:               values.state || '',
+          zip_code:            values.zipCode ? parseInt(values.zipCode, 10) : 0,
           registration_number: values.registrationNumber || `REG-${Date.now()}`,
-          established_year:    parseInt(values.establishedYear, 10) || new Date().getFullYear(),
+          established_year:    values.establishedYear ? parseInt(values.establishedYear, 10) : new Date().getFullYear(),
           ...(profileImageUrl ? { profile_image: profileImageUrl } : {}),
         };
 

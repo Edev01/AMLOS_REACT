@@ -184,12 +184,14 @@ const TeacherManagement: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
-          <p className="text-sm text-gray-500 font-medium">Loading teachers…</p>
+      <DashboardLayout activePage="all-teachers">
+        <div className="flex h-[80vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+            <p className="text-sm text-gray-500 font-medium">Loading teachers…</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
@@ -214,7 +216,7 @@ const TeacherManagement: React.FC = () => {
   }
 
   return (
-    <DashboardLayout activePage="teachers">
+    <DashboardLayout activePage="all-teachers">
       <div className="mb-6">
         <select
           value={filter}
@@ -258,8 +260,22 @@ const TeacherManagement: React.FC = () => {
             className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
           >
             <div className="flex items-start gap-3 mb-3">
-              <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${bgs[i % bgs.length]}`}>
-                {icons[i % icons.length]}
+              <div className={`flex h-11 w-11 shrink-0 overflow-hidden items-center justify-center rounded-xl text-xl ${!s.profile_image ? bgs[i % bgs.length] : 'bg-gray-100'}`}>
+                {s.profile_image ? (
+                  <img 
+                    src={s.profile_image} 
+                    alt={s.full_name} 
+                    className="h-full w-full object-cover" 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      // Fallback icon could be injected here, but to keep it simple, we hide the broken image
+                      // and show a default background.
+                      (e.target as HTMLImageElement).parentElement!.innerHTML = `<span class="flex items-center justify-center w-full h-full ${bgs[i % bgs.length]}">${icons[i % icons.length]}</span>`;
+                    }}
+                  />
+                ) : (
+                  icons[i % icons.length]
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-base font-bold text-gray-900 truncate">{s.full_name || 'Unnamed'}</h3>
@@ -297,7 +313,7 @@ const TeacherManagement: React.FC = () => {
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-semibold text-emerald-700">Active</span>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => toast.success('View detail coming soon.')}
+                  onClick={() => navigate(`/school/teachers/${s.id}`)}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                   title="View"
                 >
