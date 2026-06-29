@@ -27,6 +27,7 @@ import StudentManagement from './pages/StudentManagement';
 import TeacherManagement from './pages/TeacherManagement';
 import AddTeacher from './pages/AddTeacher';
 import TeacherDetail from './pages/TeacherDetail';
+import SubmissionsList from './pages/SubmissionsList';
 import MainLayout from './components/MainLayout';
 
 function App() {
@@ -118,6 +119,7 @@ function App() {
             <Route path="/school/planners" element={<AllPlanners />} />
             <Route path="/school/planners/create" element={<CreatePlanner />} />
             <Route path="/school/planners/:id" element={<ViewPlanner />} />
+            <Route path="/school/submissions" element={<SubmissionsList />} />
             <Route path="/school/analytics" element={<div>Analytics Page</div>} />
             <Route path="/school/settings" element={<div>Settings Page</div>} />
           </Route>
@@ -129,6 +131,7 @@ function App() {
             <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
             <Route path="/school/students" element={<StudentManagement />} />
             <Route path="/school/teachers" element={<TeacherManagement />} />
+            <Route path="/teacher/submissions" element={<SubmissionsList />} />
           </Route>
 
           {/* ============================================

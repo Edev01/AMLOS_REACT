@@ -253,6 +253,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
             { id: 'add-teacher', label: 'Add Teacher', path: '/school/teachers/add' },
           ],
         },
+        {
+          id: 'submissions',
+          label: 'Submissions',
+          icon: <ClipboardList size={18} />,
+          path: '/school/submissions',
+        },
         // Strict Sidebar Minimization: Removed Teachers, Quizzes, Content, Academic/Curriculum, Analytics, and Settings per requirements.
       ];
     }
@@ -281,6 +287,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           children: [
             { id: 'all-teachers', label: 'All Teachers', path: '/school/teachers' },
           ],
+        },
+        {
+          id: 'submissions',
+          label: 'Submissions',
+          icon: <ClipboardList size={18} />,
+          path: '/teacher/submissions',
         },
       ];
     }

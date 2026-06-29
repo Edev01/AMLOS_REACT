@@ -1,9 +1,11 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import * as teacherService from '../api/services/teacherService';
-import { ArrowLeft, Mail, Phone, BookOpen, GraduationCap, MapPin, Calendar, Clock, DollarSign } from 'lucide-react';
+import * as studentService from '../api/services/studentService';
+import toast from 'react-hot-toast';
+import { ArrowLeft, Mail, Phone, BookOpen, GraduationCap, MapPin, Calendar, Clock, DollarSign, Users, X, Check } from 'lucide-react';
 
 const TeacherDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +16,34 @@ const TeacherDetail: React.FC = () => {
     queryFn: () => teacherService.getTeacherById(id!),
     enabled: !!id,
   });
+
+  const { data: students = [] } = useQuery({
+    queryKey: ['students'],
+    queryFn: () => studentService.getStudents(),
+  });
+
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
+
+  const assignMutation = useMutation({
+    mutationFn: async () => {
+      await teacherService.assignStudentsToTeacher(id!, selectedStudents);
+    },
+    onSuccess: () => {
+      toast.success('Students assigned successfully!');
+      setIsAssignModalOpen(false);
+      setSelectedStudents([]);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to assign students');
+    }
+  });
+
+  const toggleStudentSelection = (studentId: number) => {
+    setSelectedStudents(prev => 
+      prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
+    );
+  };
 
   if (isLoading) {
     return (
@@ -46,14 +76,23 @@ const TeacherDetail: React.FC = () => {
     <DashboardLayout activePage="all-teachers">
       <div className="mx-auto max-w-5xl space-y-6 pb-12">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/school/teachers')} className="flex items-center justify-center rounded-xl bg-white p-2.5 text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors">
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Teacher Profile</h1>
-            <p className="text-sm text-gray-500">View detailed information about the teacher</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/school/teachers')} className="flex items-center justify-center rounded-xl bg-white p-2.5 text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors">
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Teacher Profile</h1>
+              <p className="text-sm text-gray-500">View detailed information about the teacher</p>
+            </div>
           </div>
+          <button
+            onClick={() => setIsAssignModalOpen(true)}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+          >
+            <Users size={18} />
+            Assign Students
+          </button>
         </div>
 
         {/* Profile Card */}
@@ -173,6 +212,63 @@ const TeacherDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Assign Students Modal */}
+      {isAssignModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <h3 className="text-lg font-bold text-gray-900">Assign Students</h3>
+              <button onClick={() => setIsAssignModalOpen(false)} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
+              {students.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">No students available in this school.</div>
+              ) : (
+                students.map((student: any) => {
+                  const studentName = student.first_name || student.user?.first_name || 'Unnamed';
+                  const isSelected = selectedStudents.includes(student.id);
+                  
+                  return (
+                    <div 
+                      key={student.id} 
+                      onClick={() => toggleStudentSelection(student.id)}
+                      className={`flex cursor-pointer items-center justify-between rounded-xl border p-4 transition-all ${isSelected ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 'border-gray-200 bg-white hover:border-blue-300'}`}
+                    >
+                      <div>
+                        <p className="font-semibold text-gray-900">{studentName} {student.last_name || student.user?.last_name || ''}</p>
+                        <p className="text-sm text-gray-500">{student.email || student.user?.email || 'N/A'} • Grade: {student.grade || 'N/A'}</p>
+                      </div>
+                      <div className={`flex h-6 w-6 items-center justify-center rounded-full border transition-colors ${isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white'}`}>
+                        {isSelected && <Check size={14} strokeWidth={3} />}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="border-t border-gray-100 p-6 flex justify-end gap-3 bg-white">
+              <button 
+                onClick={() => setIsAssignModalOpen(false)}
+                className="rounded-xl px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => assignMutation.mutate()}
+                disabled={assignMutation.isPending || selectedStudents.length === 0}
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {assignMutation.isPending ? 'Assigning...' : `Assign ${selectedStudents.length} Students`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 };
