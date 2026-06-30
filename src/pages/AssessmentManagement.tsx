@@ -391,6 +391,518 @@ const IconButton: React.FC<{
   );
 };
 
+type GenerateAssessmentVars = {
+  id: string | number;
+  printWindow: Window | null;
+};
+
+type PaperQuestionGroup = {
+  key: 'MCQ' | 'SHORT' | 'LONG' | 'OTHER';
+  title: string;
+  instructions: string;
+  questions: any[];
+};
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const getAssessmentQuestions = (assessment: any): any[] => {
+  const questions =
+    assessment?.questions ??
+    assessment?.generated_questions ??
+    assessment?.data?.questions ??
+    assessment?.data?.generated_questions ??
+    [];
+  return Array.isArray(questions) ? questions : [];
+};
+
+const normalizePaperQuestionType = (question: any): PaperQuestionGroup['key'] => {
+  const raw = String(question?.question_type ?? question?.type ?? question?.category_type ?? '').toUpperCase();
+  if (raw.includes('MCQ')) return 'MCQ';
+  if (raw.includes('SHORT')) return 'SHORT';
+  if (raw.includes('LONG')) return 'LONG';
+  return 'OTHER';
+};
+
+const buildQuestionGroups = (assessment: any): PaperQuestionGroup[] => {
+  const questions = getAssessmentQuestions(assessment);
+  const groups: PaperQuestionGroup[] = [
+    {
+      key: 'MCQ',
+      title: 'Section A - Multiple Choice Questions',
+      instructions: 'Choose the correct option.',
+      questions: questions.filter((question) => normalizePaperQuestionType(question) === 'MCQ'),
+    },
+    {
+      key: 'SHORT',
+      title: 'Section B - Short Questions',
+      instructions: 'Answer briefly and clearly.',
+      questions: questions.filter((question) => normalizePaperQuestionType(question) === 'SHORT'),
+    },
+    {
+      key: 'LONG',
+      title: 'Section C - Long Questions',
+      instructions: 'Write detailed answers with proper reasoning.',
+      questions: questions.filter((question) => normalizePaperQuestionType(question) === 'LONG'),
+    },
+    {
+      key: 'OTHER',
+      title: 'Additional Questions',
+      instructions: 'Attempt the following questions.',
+      questions: questions.filter((question) => normalizePaperQuestionType(question) === 'OTHER'),
+    },
+  ];
+  return groups.filter((group) => group.questions.length > 0);
+};
+
+const renderPaperQuestion = (question: any, index: number, groupKey: PaperQuestionGroup['key']) => {
+  const questionText =
+    question?.question_text ??
+    question?.text ??
+    question?.name ??
+    question?.title ??
+    `Question ${index + 1}`;
+  const marks = Number(question?.marks);
+  const time = Number(question?.time_allowed_minutes ?? question?.estimated_time);
+  const imageUrl = question?.question_image_url ?? question?.image_url;
+  const options = [
+    ['A', question?.option_a],
+    ['B', question?.option_b],
+    ['C', question?.option_c],
+    ['D', question?.option_d],
+  ].filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '');
+
+  const answerSpace =
+    groupKey === 'MCQ'
+      ? ''
+      : `<div class="answer-space ${groupKey === 'LONG' ? 'answer-space-long' : ''}"></div>`;
+
+  return `
+    <article class="question">
+      <div class="question-top">
+        <div class="question-text">
+          <span class="question-number">${index + 1}.</span>
+          <span>${escapeHtml(questionText)}</span>
+        </div>
+        <div class="question-meta">
+          ${Number.isFinite(marks) && marks > 0 ? `<span>${marks} mark${marks === 1 ? '' : 's'}</span>` : ''}
+          ${Number.isFinite(time) && time > 0 ? `<span>${time} min</span>` : ''}
+        </div>
+      </div>
+      ${imageUrl ? `<img class="question-image" src="${escapeHtml(imageUrl)}" alt="Question image" />` : ''}
+      ${
+        options.length > 0
+          ? `<div class="options">${options
+              .map(([label, value]) => `<div><strong>${label}.</strong> ${escapeHtml(value)}</div>`)
+              .join('')}</div>`
+          : ''
+      }
+      ${answerSpace}
+    </article>
+  `;
+};
+
+const buildAssessmentPaperHtml = (assessment: any) => {
+  const questions = getAssessmentQuestions(assessment);
+  const groups = buildQuestionGroups(assessment);
+  const chapters = assessment?.chapters_details ?? assessment?.chapters ?? [];
+  const totalMarks = questions.reduce((sum, question) => sum + (Number(question?.marks) || 0), 0);
+  const totalTime =
+    Number(assessment?.duration_minutes) ||
+    questions.reduce((sum, question) => sum + (Number(question?.time_allowed_minutes) || 0), 0);
+  const title = assessment?.title ?? assessment?.name ?? 'Assessment Paper';
+  const subject = assessment?.subject_name ?? assessment?.subject_title ?? assessment?.subject ?? 'N/A';
+  const type = formatAssessmentType(assessment?.assessment_type);
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)} - Assessment Paper</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f8fafc;
+      color: #111827;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .print-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px;
+      background: #eef2ff;
+      border-bottom: 1px solid #c7d2fe;
+    }
+    .print-toolbar button {
+      border: 0;
+      border-radius: 10px;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      font-weight: 700;
+      padding: 10px 18px;
+    }
+    .paper {
+      width: min(100%, 820px);
+      margin: 24px auto;
+      background: white;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+      padding: 28px;
+    }
+    .brand {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      border-bottom: 3px solid #1d4ed8;
+      padding-bottom: 16px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0;
+      color: #0f172a;
+    }
+    .brand p {
+      margin: 3px 0 0;
+      color: #475569;
+      font-weight: 600;
+    }
+    .badge {
+      align-self: flex-start;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 800;
+      padding: 7px 12px;
+      white-space: nowrap;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin: 18px 0;
+    }
+    .info-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .info-box span {
+      display: block;
+      color: #64748b;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .info-box strong {
+      display: block;
+      margin-top: 4px;
+      color: #0f172a;
+      font-size: 13px;
+    }
+    .student-row {
+      display: grid;
+      grid-template-columns: 1.4fr .8fr .8fr;
+      gap: 14px;
+      margin: 14px 0 20px;
+    }
+    .line-field {
+      border-bottom: 1px solid #94a3b8;
+      min-height: 28px;
+      padding-top: 7px;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .chapters {
+      margin: 0 0 18px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 12px 14px;
+    }
+    .chapters strong {
+      display: block;
+      margin-bottom: 5px;
+      color: #0f172a;
+    }
+    .instructions {
+      border-radius: 10px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: #1e3a8a;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+    }
+    .section {
+      page-break-inside: avoid;
+      margin-top: 22px;
+    }
+    .section h2 {
+      margin: 0;
+      border-radius: 10px 10px 0 0;
+      background: #1d4ed8;
+      color: white;
+      font-size: 15px;
+      padding: 10px 13px;
+    }
+    .section-note {
+      border: 1px solid #dbeafe;
+      border-top: 0;
+      color: #475569;
+      font-weight: 700;
+      padding: 8px 13px;
+    }
+    .question {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      border: 1px solid #e5e7eb;
+      border-top: 0;
+      padding: 13px;
+    }
+    .question-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .question-text {
+      display: flex;
+      gap: 7px;
+      white-space: pre-wrap;
+      font-weight: 700;
+      color: #111827;
+    }
+    .question-number {
+      color: #1d4ed8;
+      flex: 0 0 auto;
+    }
+    .question-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+      color: #475569;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+      margin-top: 11px;
+      color: #334155;
+    }
+    .question-image {
+      display: block;
+      max-width: 100%;
+      max-height: 260px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .answer-space {
+      margin-top: 13px;
+      height: 64px;
+      background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 27px, #cbd5e1 28px);
+    }
+    .answer-space-long {
+      height: 130px;
+    }
+    .empty-state {
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+      color: #64748b;
+      padding: 26px;
+      text-align: center;
+      font-weight: 700;
+    }
+    @media print {
+      body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .print-toolbar { display: none; }
+      .paper {
+        width: auto;
+        margin: 0;
+        border: 0;
+        box-shadow: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-toolbar">
+    <button type="button" onclick="window.print()">Save / Print PDF</button>
+  </div>
+  <main class="paper">
+    <header class="brand">
+      <div>
+        <h1>AMLOS Assessment Paper</h1>
+        <p>${escapeHtml(title)}</p>
+      </div>
+      <div class="badge">${escapeHtml(type)}</div>
+    </header>
+
+    <section class="info-grid">
+      <div class="info-box"><span>Grade</span><strong>${escapeHtml(assessment?.grade ?? 'N/A')}</strong></div>
+      <div class="info-box"><span>Subject</span><strong>${escapeHtml(subject)}</strong></div>
+      <div class="info-box"><span>Questions</span><strong>${escapeHtml(assessment?.total_questions ?? questions.length)}</strong></div>
+      <div class="info-box"><span>Total Marks</span><strong>${totalMarks > 0 ? totalMarks : 'N/A'}</strong></div>
+      <div class="info-box"><span>MCQs</span><strong>${escapeHtml(assessment?.mcq_count ?? groups.find((group) => group.key === 'MCQ')?.questions.length ?? 0)}</strong></div>
+      <div class="info-box"><span>Short</span><strong>${escapeHtml(assessment?.short_count ?? groups.find((group) => group.key === 'SHORT')?.questions.length ?? 0)}</strong></div>
+      <div class="info-box"><span>Long</span><strong>${escapeHtml(assessment?.long_count ?? groups.find((group) => group.key === 'LONG')?.questions.length ?? 0)}</strong></div>
+      <div class="info-box"><span>Duration</span><strong>${totalTime > 0 ? `${totalTime} min` : 'N/A'}</strong></div>
+    </section>
+
+    <section class="student-row">
+      <div class="line-field">Student Name:</div>
+      <div class="line-field">Roll No:</div>
+      <div class="line-field">Date:</div>
+    </section>
+
+    ${
+      Array.isArray(chapters) && chapters.length > 0
+        ? `<section class="chapters"><strong>Included Chapters</strong>${chapters
+            .map((chapter: any) => escapeHtml(chapter?.name ?? chapter?.title ?? `Chapter ${chapter?.id ?? ''}`))
+            .join(', ')}</section>`
+        : ''
+    }
+
+    <section class="instructions">
+      Read each question carefully. Attempt all required questions. Marks and suggested time are shown where available.
+    </section>
+
+    ${
+      groups.length > 0
+        ? groups
+            .map(
+              (group) => `<section class="section">
+                <h2>${group.title}</h2>
+                <div class="section-note">${group.instructions}</div>
+                ${group.questions.map((question, index) => renderPaperQuestion(question, index, group.key)).join('')}
+              </section>`
+            )
+            .join('')
+        : '<div class="empty-state">No questions were returned for this assessment.</div>'
+    }
+  </main>
+  <script>
+    window.addEventListener('load', function () {
+      window.setTimeout(function () { window.print(); }, 350);
+    });
+  </script>
+</body>
+</html>`;
+};
+
+const buildPaperLoadingHtml = () => `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Preparing Assessment Paper</title>
+  <style>
+    body {
+      align-items: center;
+      background: #f8fafc;
+      color: #0f172a;
+      display: flex;
+      font-family: Arial, Helvetica, sans-serif;
+      height: 100vh;
+      justify-content: center;
+      margin: 0;
+    }
+    .card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, .12);
+      padding: 32px;
+      text-align: center;
+    }
+    .spinner {
+      animation: spin 1s linear infinite;
+      border: 4px solid #dbeafe;
+      border-top-color: #2563eb;
+      border-radius: 999px;
+      height: 38px;
+      margin: 0 auto 16px;
+      width: 38px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h1>Preparing assessment paper...</h1>
+    <p>Please wait while AMLOS fetches the latest questions.</p>
+  </div>
+</body>
+</html>`;
+
+const buildPaperErrorHtml = (message: string) => `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Assessment Paper Error</title>
+  <style>
+    body {
+      align-items: center;
+      background: #fff7ed;
+      color: #7c2d12;
+      display: flex;
+      font-family: Arial, Helvetica, sans-serif;
+      height: 100vh;
+      justify-content: center;
+      margin: 0;
+    }
+    .card {
+      background: white;
+      border: 1px solid #fed7aa;
+      border-radius: 18px;
+      box-shadow: 0 18px 50px rgba(124, 45, 18, .12);
+      max-width: 520px;
+      padding: 32px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Could not generate assessment paper</h1>
+    <p>${escapeHtml(message)}</p>
+  </div>
+</body>
+</html>`;
+
+const writeToPrintWindow = (printWindow: Window | null, html: string) => {
+  if (!printWindow) return false;
+  try {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'dashboard' }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -644,17 +1156,26 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   });
 
   const generateMutation = useMutation({
-    mutationFn: async (id: string | number) => {
+    mutationFn: async ({ id }: GenerateAssessmentVars) => {
       return assessmentService.getTemplate(id);
     },
-    onSuccess: (data) => {
-      // Unwrap nested response shapes
+    onSuccess: (data, variables) => {
       const detail = (data as any)?.data ?? data;
-      setGeneratedDetail(detail);
+      const targetWindow = variables.printWindow ?? window.open('', '_blank');
+      const printed = writeToPrintWindow(targetWindow, buildAssessmentPaperHtml(detail));
+      if (printed) {
+        toast.success('Assessment paper generated. Use Save as PDF in the print dialog.');
+      } else {
+        toast.error('Popup blocked. Please allow popups and try again.');
+      }
       setIsGenerating(null);
     },
-    onError: () => {
-      toast.error('Failed to fetch assessment details');
+    onError: (_error, variables) => {
+      writeToPrintWindow(
+        variables.printWindow,
+        buildPaperErrorHtml('Failed to fetch assessment details from the server. Please try again.')
+      );
+      toast.error('Failed to fetch assessment details.');
       setIsGenerating(null);
     }
   });
@@ -854,7 +1375,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
         className="mb-5"
       />
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="grid grid-cols-[1.6fr_0.8fr_1fr_1.2fr_1fr_0.8fr] gap-4 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-sm font-bold text-white text-center">
+        <div className="grid grid-cols-[minmax(220px,1.45fr)_70px_minmax(110px,0.8fr)_minmax(120px,0.85fr)_100px_136px] gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-4 text-sm font-bold text-white text-center">
           <span className="text-left">Template Name</span>
           <span>Class</span>
           <span>Subject</span>
@@ -872,7 +1393,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
           filteredTemplates.map((template) => (
             <div
               key={String(template.id ?? template.title)}
-              className="grid grid-cols-[1.6fr_0.8fr_1fr_1.2fr_1fr_0.8fr] items-center gap-4 border-b border-gray-100 px-6 py-5 last:border-b-0 text-center"
+              className="grid grid-cols-[minmax(220px,1.45fr)_70px_minmax(110px,0.8fr)_minmax(120px,0.85fr)_100px_136px] items-center gap-3 border-b border-gray-100 px-5 py-5 last:border-b-0 text-center"
             >
               <div className="text-left">
                 <p className="font-bold text-gray-900">{template.title}</p>
@@ -893,12 +1414,21 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                   ({template.mcq_count ?? 0}/{template.short_count ?? 0}/{template.long_count ?? 0})
                 </span>
               </span>
-              <div className="flex flex-wrap items-center justify-center gap-1.5">
+              <div className="flex min-w-[132px] items-center justify-center gap-1.5 whitespace-nowrap">
                 <IconButton
-                  title="Generate / View"
+                  title="Generate PDF"
                   tone="emerald"
-                  onClick={() => { setIsGenerating(template.id as string); generateMutation.mutate(template.id as string); }}
-                  disabled={isGenerating === template.id}
+                  onClick={() => {
+                    if (!template.id) {
+                      toast.error('Template id is missing.');
+                      return;
+                    }
+                    const printWindow = window.open('', '_blank');
+                    writeToPrintWindow(printWindow, buildPaperLoadingHtml());
+                    setIsGenerating(template.id);
+                    generateMutation.mutate({ id: template.id, printWindow });
+                  }}
+                  disabled={!template.id || isGenerating === template.id}
                 >
                   {isGenerating === template.id
                     ? <Loader2 size={17} className="animate-spin" />

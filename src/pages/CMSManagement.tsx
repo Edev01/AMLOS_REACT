@@ -368,7 +368,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const [sloFilterSubjectId, setSloFilterSubjectId] = useState('');
   const [sloFilterChapterId, setSloFilterChapterId] = useState('');
   const [hasSearchedSlos, setHasSearchedSlos] = useState(false);
-  const [subjectForm, setSubjectForm] = useState({ name: '', grade: '', description: '' });
+  const [subjectForm, setSubjectForm] = useState({ name: '', grade: searchParams.get('grade') || '', description: '' });
   const [chapterForm, setChapterForm] = useState({ grade: '', subject: '', name: '' });
   const [sloForm, setSloForm] = useState({
     grade: '',
@@ -479,6 +479,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       setHasSelectedSubjectFilter(true);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const grade = searchParams.get('grade');
+    if (view === 'add-subject' && grade) {
+      setSubjectForm((prev) => (prev.grade === grade ? prev : { ...prev, grade }));
+    }
+  }, [searchParams, view]);
 
   useEffect(() => {
     const subjectId = searchParams.get('subject');
@@ -615,10 +622,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       });
     },
     onSuccess: () => {
+      const createdGrade = subjectForm.grade.trim();
       toast.success('Subject created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
-      setSubjectForm({ name: '', grade: '', description: '' });
-      navigate('/admin/cms/subjects');
+      setSubjectForm({ name: '', grade: createdGrade, description: '' });
+      navigate(createdGrade ? `/admin/cms/subjects?grade=${encodeURIComponent(createdGrade)}` : '/admin/cms/subjects');
     },
     onError: () => toast.error('Failed to create subject.'),
   });
@@ -934,10 +942,16 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const renderSubjects = () => (
     <>
       <SectionHeader
-        title="All Subjects"
+        title={subjectGradeFilter ? `All Subjects - Grade ${subjectGradeFilter}` : 'All Subjects'}
         subtitle="Subjects are grouped by grade and feed into planner creation."
         onBack={() => navigate('/admin/cms')}
-        action={<PrimaryButton onClick={() => navigate('/admin/cms/subjects/add')}><Plus size={16} /> Add Subject</PrimaryButton>}
+        action={
+          <PrimaryButton
+            onClick={() => navigate(subjectGradeFilter ? `/admin/cms/subjects/add?grade=${encodeURIComponent(subjectGradeFilter)}` : '/admin/cms/subjects/add')}
+          >
+            <Plus size={16} /> Add Subject
+          </PrimaryButton>
+        }
       />
       <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_220px]">
         <SearchInput
