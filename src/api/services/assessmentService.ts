@@ -130,13 +130,15 @@ export const assessmentService = {
 
   listSubmissions: async (page: number = 1): Promise<PaginatedResponse<Submission>> => {
     const response = await api.get(`/api/assessments/submissions?page=${page}`);
-    const data = response.data;
-    const results = data?.results ?? data?.data?.results ?? data?.submissions ?? data?.data?.submissions ?? (Array.isArray(data?.data) ? data.data : []);
+    const raw = response.data;
+    // Backend returns: { success, message, data: { count, next, previous, results: [...] } }
+    const envelope = raw?.data ?? raw;
+    const results = envelope?.results ?? raw?.results ?? (Array.isArray(envelope) ? envelope : []);
     return {
       results,
-      count: data?.count ?? data?.data?.count ?? data?.total ?? 0,
-      next: data?.next ?? data?.data?.next ?? null,
-      previous: data?.previous ?? data?.data?.previous ?? null,
+      count: envelope?.count ?? raw?.count ?? results.length,
+      next: envelope?.next ?? raw?.next ?? null,
+      previous: envelope?.previous ?? raw?.previous ?? null,
     };
   },
 

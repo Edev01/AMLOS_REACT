@@ -65,7 +65,10 @@ export const deleteTeacher = async (teacherId: string | number): Promise<void> =
 export const teacherService = {
   createTeacher,
   getTeachers,
+  getTeacherById,
   updateTeacher,
+  changeTeacherStatus,
+  assignStudentsToTeacher,
   deleteTeacher,
 };
 
