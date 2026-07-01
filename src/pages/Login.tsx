@@ -398,6 +398,8 @@ const Login: React.FC = () => {
                 <input
                   id="email"
                   type="text"
+                  placeholder=" "
+                  required
                   autoComplete="username"
                   value={email}
                   onChange={(e) => {
@@ -419,6 +421,8 @@ const Login: React.FC = () => {
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
+                  placeholder=" "
+                  required
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => {

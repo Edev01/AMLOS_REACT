@@ -489,6 +489,18 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   useEffect(() => {
     const subjectId = searchParams.get('subject');
+    if (view === 'add-chapter' && subjectId) {
+      const subject = subjects.find((item) => String(item.id) === subjectId);
+      setChapterForm((prev) => ({
+        ...prev,
+        grade: subject?.grade || prev.grade,
+        subject: subjectId,
+      }));
+    }
+  }, [searchParams, view, subjects]);
+
+  useEffect(() => {
+    const subjectId = searchParams.get('subject');
     const chapterId = searchParams.get('chapter');
     if (!subjectId && !chapterId) return;
     const subject = subjectId ? subjects.find((item) => String(item.id) === subjectId) : undefined;
@@ -1098,7 +1110,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           title="All Chapters"
           subtitle="Select a grade and subject to view the related chapters."
           onBack={() => navigate('/admin/cms')}
-          action={<PrimaryButton onClick={() => navigate('/admin/cms/chapters/add')}><Plus size={16} /> Add Chapter</PrimaryButton>}
+          action={<PrimaryButton onClick={() => navigate(chapterSubjectId ? `/admin/cms/chapters/add?subject=${chapterSubjectId}` : '/admin/cms/chapters/add')}><Plus size={16} /> Add Chapter</PrimaryButton>}
         />
         <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[220px_280px_1fr]">
           <select value={chapterGradeFilter} onChange={(e) => { setChapterGradeFilter(e.target.value); setChapterSubjectId(''); }} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100">

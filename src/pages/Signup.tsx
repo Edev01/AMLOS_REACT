@@ -132,6 +132,8 @@ const Signup: React.FC = () => {
                 <input
                   id="signup-email"
                   type="email"
+                  placeholder=" "
+                  required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="auth-input"
@@ -144,6 +146,8 @@ const Signup: React.FC = () => {
                 <input
                   id="signup-username"
                   type="text"
+                  placeholder=" "
+                  required
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   className="auth-input"
@@ -156,6 +160,8 @@ const Signup: React.FC = () => {
                 <input
                   id="signup-password"
                   type={showPassword ? 'text' : 'password'}
+                  placeholder=" "
+                  required
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   className="auth-input pr-12"
@@ -173,11 +179,13 @@ const Signup: React.FC = () => {
               {/* Confirm Password */}
               <div className="auth-input-group">
                 <input
-                  id="signup-confirm"
+                  id="signup-confirm-password"
                   type="password"
+                  placeholder=" "
+                  required
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  className="auth-input"
+                  className="auth-input pr-12"
                 />
                 <label htmlFor="signup-confirm" className="auth-user-label bg-white">Confirm Password</label>
               </div>
