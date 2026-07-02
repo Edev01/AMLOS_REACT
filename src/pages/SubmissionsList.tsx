@@ -288,14 +288,13 @@ const SubmissionsList: React.FC = () => {
                 <table className="w-full text-left min-w-[900px]">
                   <thead>
                     <tr className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-                      <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider">Student ID</th>
-                      <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider">Assessment</th>
+                      <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-center">Student ID</th>
+                      <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-center">Assessment</th>
                       <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-center">Type</th>
                       <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-center">Score</th>
                       <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-center">Questions</th>
                       <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-center">Status</th>
-                      <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-center">Submitted</th>
-                      <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-right">Actions</th>
+                      <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -305,15 +304,14 @@ const SubmissionsList: React.FC = () => {
                       return (
                         <tr key={sub.id} className="hover:bg-blue-50/30 transition-colors">
                           <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-center gap-2">
                               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">
                                 #{sub.student}
                               </div>
-                              <span className="text-sm font-semibold text-slate-700">Student {sub.student}</span>
                             </div>
                           </td>
-                          <td className="py-4 px-6">
-                            <p className="text-sm font-semibold text-slate-900 max-w-[200px] truncate" title={sub.assessment_title}>
+                          <td className="py-4 px-6 text-center">
+                            <p className="text-sm font-semibold text-slate-900 max-w-[200px] truncate mx-auto" title={sub.assessment_title}>
                               {sub.assessment_title}
                             </p>
                             <p className="text-[11px] text-slate-400 mt-0.5">Model #{sub.assessment_model}</p>
@@ -348,12 +346,8 @@ const SubmissionsList: React.FC = () => {
                               }
                             </span>
                           </td>
-                          <td className="py-4 px-6 text-center">
-                            <p className="text-xs text-slate-500">{formatDate(sub.completed_at)}</p>
-                            <p className="text-[10px] text-slate-400">{getDuration(sub.started_at, sub.completed_at)}</p>
-                          </td>
                           <td className="py-4 px-6">
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => setViewingSubmission(sub)}
                                 title="View Details"

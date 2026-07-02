@@ -90,8 +90,14 @@ const SchoolDetail: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const updateMutation = useMutation({
-    mutationFn: async (data: Record<string, any>) => {
-      await api.patch(`/api/auth/schools/${id}/update`, data);
+    mutationFn: async (data: { password: string }) => {
+      const targetUserId = school?.user?.id || school?.user_id || id;
+      const response = await api.post('/api/auth/reset-password-by-role', {
+        user_id: targetUserId,
+        new_password: data.password,
+        role: 'SCHOOL'
+      });
+      return response.data;
     },
     onSuccess: () => {
       toast.success('School password updated successfully! ✅');
@@ -99,7 +105,8 @@ const SchoolDetail: React.FC = () => {
       setConfirmPassword('');
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.detail || err?.response?.data?.message || 'Failed to update school password.';
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error
+        || 'Failed to update password. Please ask the backend developer to create a /change-password endpoint for schools.';
       toast.error(msg);
     },
   });
