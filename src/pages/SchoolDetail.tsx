@@ -231,7 +231,7 @@ const SchoolDetail: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 overflow-hidden text-2xl">
             {school?.profile_image ? (
-              <img src={school.profile_image} alt={school.school_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = '🏫'; }} />
+              <img src={`${school.profile_image}?v=1`} alt={school.school_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = '🏫'; }} />
             ) : '🏫'}
           </div>
           <div>

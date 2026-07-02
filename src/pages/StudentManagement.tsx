@@ -357,7 +357,7 @@ const StudentManagement: React.FC = () => {
               <div className={`flex h-11 w-11 shrink-0 overflow-hidden items-center justify-center rounded-xl text-xl ${!s.profile_image ? bgs[i % bgs.length] : 'bg-gray-100'}`}>
                 {s.profile_image ? (
                   <img 
-                    src={s.profile_image} 
+                    src={`${s.profile_image}?v=1`} 
                     alt={s.full_name} 
                     className="h-full w-full object-cover" 
                     onError={(e) => {
@@ -623,7 +623,7 @@ const StudentManagement: React.FC = () => {
               ) : (
                 <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-3xl shadow-md mb-3 overflow-hidden">
                   {displayStudent?.profile_image ? (
-                    <img src={displayStudent.profile_image} alt={displayStudent.full_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = ((displayStudent?.full_name || 'U')[0]).toUpperCase(); }} />
+                    <img src={`${displayStudent.profile_image}?v=1`} alt={displayStudent.full_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = ((displayStudent?.full_name || 'U')[0]).toUpperCase(); }} />
                   ) : (
                     ((displayStudent?.full_name || 'U')[0]).toUpperCase()
                   )}

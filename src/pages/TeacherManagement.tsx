@@ -263,7 +263,7 @@ const TeacherManagement: React.FC = () => {
               <div className={`flex h-11 w-11 shrink-0 overflow-hidden items-center justify-center rounded-xl text-xl ${!s.profile_image ? bgs[i % bgs.length] : 'bg-gray-100'}`}>
                 {s.profile_image ? (
                   <img 
-                    src={s.profile_image} 
+                    src={`${s.profile_image}?v=1`} 
                     alt={s.full_name} 
                     className="h-full w-full object-cover" 
                     onError={(e) => {

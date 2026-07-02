@@ -145,7 +145,7 @@ const TeacherDetail: React.FC = () => {
                 <div className="flex h-32 w-32 items-center justify-center rounded-2xl bg-white p-1.5 shadow-md ring-1 ring-gray-100">
                   <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-xl bg-gray-100">
                     {teacher.profile_image ? (
-                      <img src={teacher.profile_image} alt={teacher.first_name} className="h-full w-full object-cover" />
+                      <img src={`${teacher.profile_image}?v=1`} alt={teacher.first_name} className="h-full w-full object-cover" />
                     ) : (
                       <GraduationCap size={40} className="text-gray-400" />
                     )}
