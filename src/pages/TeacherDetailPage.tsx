@@ -5,7 +5,8 @@ import DashboardLayout from '../components/DashboardLayout';
 import * as teacherService from '../api/services/teacherService';
 import * as studentService from '../api/services/studentService';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Mail, Phone, BookOpen, GraduationCap, MapPin, Calendar, Clock, DollarSign, Users, X, Check } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, BookOpen, GraduationCap, MapPin, Calendar, Clock, DollarSign, Users, X, Check, Lock, Eye, EyeOff } from 'lucide-react';
+import api from '../api/services/api';
 
 const TeacherDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +25,46 @@ const TeacherDetail: React.FC = () => {
 
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
+
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const updatePasswordMutation = useMutation({
+    mutationFn: async (data: { password: string }) => {
+      const tUser: any = teacher?.user;
+      const targetUserId = teacher?.user_id || tUser?.id || (typeof tUser === 'number' ? tUser : null) || (typeof tUser === 'string' ? parseInt(tUser) : null) || id;
+      const response = await api.post('/api/auth/reset-password-by-role', {
+        user_id: targetUserId,
+        new_password: data.password,
+        role: 'TEACHER'
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Teacher password updated successfully! ✅');
+      setNewPassword('');
+      setConfirmPassword('');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error || 'Failed to update password.';
+      toast.error(msg);
+    },
+  });
+
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match.');
+      return;
+    }
+    updatePasswordMutation.mutate({ password: newPassword });
+  };
 
   const assignMutation = useMutation({
     mutationFn: async () => {
@@ -208,6 +249,63 @@ const TeacherDetail: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Change Password */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col mt-8">
+              <h2 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+                <Lock size={20} className="text-amber-500" />
+                Security
+              </h2>
+              <p className="text-xs text-gray-500 mb-6">Update the password for this teacher's account.</p>
+
+              <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Confirm Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={updatePasswordMutation.isPending}
+                  className="mt-2 flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:opacity-50"
+                >
+                  {updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
+                </button>
+              </form>
             </div>
           </div>
         </div>
