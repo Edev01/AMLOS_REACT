@@ -86,7 +86,8 @@ const StudentManagement: React.FC = () => {
 
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: { password: string }) => {
-      const targetUserId = selectedStudent?.user?.id || selectedStudent?.user_id || selectedStudent?.id;
+      const sUser: any = selectedStudent?.user;
+      const targetUserId = selectedStudent?.user_id || sUser?.id || (typeof sUser === 'number' ? sUser : null) || (typeof sUser === 'string' ? parseInt(sUser) : null) || selectedStudent?.id;
       const response = await api.post('/api/auth/reset-password-by-role', {
         user_id: targetUserId,
         new_password: data.password,

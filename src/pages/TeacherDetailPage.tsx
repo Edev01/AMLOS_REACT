@@ -33,7 +33,8 @@ const TeacherDetail: React.FC = () => {
 
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: { password: string }) => {
-      const targetUserId = teacher?.user?.id || teacher?.user_id || id;
+      const tUser: any = teacher?.user;
+      const targetUserId = teacher?.user_id || tUser?.id || (typeof tUser === 'number' ? tUser : null) || (typeof tUser === 'string' ? parseInt(tUser) : null) || id;
       const response = await api.post('/api/auth/reset-password-by-role', {
         user_id: targetUserId,
         new_password: data.password,
