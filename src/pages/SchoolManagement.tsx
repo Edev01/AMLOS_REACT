@@ -536,7 +536,7 @@ const SchoolManagement: React.FC = () => {
                 <div className="flex items-start gap-3 mb-3">
                   <div className={`flex h-11 w-11 shrink-0 overflow-hidden items-center justify-center rounded-xl text-xl ${!s.profile_image ? bgs[i % bgs.length] : 'bg-gray-100'}`}>
                     {s.profile_image ? (
-                      <img src={s.profile_image} alt={s.school_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = icons[i % icons.length]; }} />
+                      <img src={`${s.profile_image}?v=1`} alt={s.school_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = icons[i % icons.length]; }} />
                     ) : icons[i % icons.length]}
                   </div>
                   <div className="min-w-0 flex-1">
