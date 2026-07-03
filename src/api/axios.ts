@@ -124,6 +124,11 @@ axiosInstance.interceptors.response.use(
       case 401: {
         // Skip redirect for login requests (Login.tsx handles its own errors)
         if (isLoginRequest) break;
+        
+        // Skip redirect for reset-academic-data which uses 401 for incorrect password
+        if (requestUrl.includes('reset-academic-data')) {
+          break;
+        }
 
         // Skip redirect if we're in the post-login grace window
         if (isInLoginGrace()) {
