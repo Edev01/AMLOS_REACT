@@ -25,14 +25,19 @@ import {
   ChevronsRight,
   Moon,
   Sun,
-  UserCog
+  UserCog,
+  Lock,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { useIsFetching } from '@tanstack/react-query';
+import { useIsFetching, useMutation } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import SchoolAdminSidebar from './SchoolAdminSidebar';
+import Modal from './Modal';
+import { api } from '../api/services/api';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -135,6 +140,43 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   const useSchoolAdminSidebar = isSchoolAdminRoute && !isSuperAdmin;
   const [commandOpen, setCommandOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const updatePasswordMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/api/curriculum/reset-academic-data', {
+        password: newPassword
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Password changed successfully! ✅');
+      setChangePasswordModalOpen(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error || 'Failed to update password.';
+      toast.error(msg);
+    }
+  });
+
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match.');
+      return;
+    }
+    updatePasswordMutation.mutate();
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [scrolled, setScrolled] = useState(false);
   const commandInputRef = useRef<HTMLInputElement>(null);
@@ -538,8 +580,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                     </div>
 
                     {/* Menu Items */}
-                    <div className="py-1.5">
-                      {/* Settings removed per user request */}
+                    <div className="py-1.5 border-b border-slate-100 dark:border-white/10">
+                      <button
+                        onClick={() => { setProfileOpen(false); setChangePasswordModalOpen(true); }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors group hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-700 dark:text-slate-300`}
+                      >
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50`}>
+                          <Lock size={15} />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-left">Change Password</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Update your account password</p>
+                        </div>
+                      </button>
                     </div>
 
                     {/* Logout */}
@@ -580,6 +633,72 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
           <div className="mx-auto max-w-[1400px]">{children}</div>
         </motion.main>
       </div>
+
+      <Modal
+        isOpen={changePasswordModalOpen}
+        onClose={() => {
+          setChangePasswordModalOpen(false);
+          setNewPassword('');
+          setConfirmPassword('');
+        }}
+        title="Change Password"
+      >
+        <form onSubmit={handlePasswordChange} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">New Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 p-3 pr-10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                placeholder="Enter new password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Confirm New Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 p-3 pr-10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                placeholder="Confirm new password"
+                required
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={() => {
+                setChangePasswordModalOpen(false);
+                setNewPassword('');
+                setConfirmPassword('');
+              }}
+              className="rounded-xl px-5 py-2.5 font-medium text-gray-600 hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updatePasswordMutation.isPending}
+              className="rounded-xl bg-blue-600 px-5 py-2.5 font-medium text-white shadow-md transition hover:bg-blue-700 disabled:opacity-50"
+            >
+              {updatePasswordMutation.isPending ? 'Saving...' : 'Save Password'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };
