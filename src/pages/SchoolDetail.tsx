@@ -4,8 +4,9 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../api/services/api';
 import { School as SchoolType } from '../types';
-import { ArrowLeft, Users, GraduationCap, Search, ChevronLeft, ChevronRight, Lock, Save, MapPin, Phone, Building, Calendar, Mail, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Users, GraduationCap, Search, ChevronLeft, ChevronRight, Lock, Save, MapPin, Phone, Building, Calendar, Mail, Eye, EyeOff, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getSchoolJoinDate, formatJoinDate } from '../utils/schoolJoinDate';
 const EMAIL_RE_STRICT = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
 const EMAIL_RE_LOOSE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i;
 
@@ -308,22 +309,36 @@ const SchoolDetail: React.FC = () => {
               <p className="text-sm font-semibold text-gray-900">{school?.registration_number || school?.registration_id || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Status</p>
-              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                String(school?.status || '').toLowerCase() === 'active'
-                  ? 'bg-green-100 text-green-700' 
-                  : String(school?.status || '').toLowerCase() === 'inactive'
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-gray-100 text-gray-700'
-              }`}>
-                {school?.status || 'Unknown'}
-              </span>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Establish Year</p>
+              <p className="text-sm font-semibold text-gray-900">{school?.established_year || 'N/A'}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Joined Date</p>
               <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                 <Calendar size={14} className="text-gray-400" />
-                {school?.created_at ? new Date(school.created_at).toLocaleDateString() : 'N/A'}
+                {(() => {
+                  // 1. Try backend created_at / date_joined
+                  const apiDate = school?.created_at || school?.date_joined || school?.user?.date_joined || school?.user?.created_at;
+                  if (apiDate) return formatJoinDate(apiDate);
+                  // 2. Fallback: localStorage recorded at creation time
+                  const localDate = getSchoolJoinDate(
+                    school?.email || school?.contact_email,
+                    school?.registration_number || school?.registration_id
+                  );
+                  if (localDate) return formatJoinDate(localDate);
+                  return 'N/A';
+                })()}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Website</p>
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Globe size={14} className="text-gray-400" />
+                {school?.website ? (
+                  <a href={school.website.startsWith('http') ? school.website : `https://${school.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                    {school.website}
+                  </a>
+                ) : 'N/A'}
               </div>
             </div>
           </div>
@@ -428,7 +443,6 @@ const SchoolDetail: React.FC = () => {
                   <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Student Name</th>
                   <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Email</th>
                   <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Grade</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -449,13 +463,6 @@ const SchoolDetail: React.FC = () => {
                     </td>
                     <td className="py-4 px-6 text-sm text-gray-500 text-center">
                       {getStudentGrade(student)}
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        getStudentStatus(student) === 'inactive' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                      }`}>
-                        {getStudentStatus(student).toUpperCase()}
-                      </span>
                     </td>
                   </tr>
                 ))}
@@ -486,7 +493,6 @@ const SchoolDetail: React.FC = () => {
                   <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Teacher Name</th>
                   <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Email</th>
                   <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Subject</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -496,7 +502,6 @@ const SchoolDetail: React.FC = () => {
                   const fullName = `${tName} ${tLast}`.trim();
                   const tEmail = teacher.email || teacher.user?.email || 'N/A';
                   const tSubject = teacher.subject || teacher.subject_name || teacher.specialization || 'N/A';
-                  const tStatus = teacher.status || teacher.user?.status || 'active';
                   return (
                     <tr key={teacher.id || idx} className="hover:bg-green-50/50 transition-colors">
                       <td className="py-4 px-6 text-left">
@@ -509,13 +514,6 @@ const SchoolDetail: React.FC = () => {
                       </td>
                       <td className="py-4 px-6 text-sm text-gray-500 text-center">{tEmail}</td>
                       <td className="py-4 px-6 text-sm text-gray-500 text-center">{tSubject}</td>
-                      <td className="py-4 px-6 text-center">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          tStatus === 'inactive' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                        }`}>
-                          {tStatus.toUpperCase()}
-                        </span>
-                      </td>
                     </tr>
                   );
                 })}

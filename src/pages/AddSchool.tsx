@@ -31,6 +31,7 @@ import { ISchoolData, CreateSchoolPayload } from '../types';
 import { ENDPOINTS } from '../config/api.config';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { saveSchoolJoinDate } from '../utils/schoolJoinDate';
 
 // ─── Exported Interfaces ────────────────────────────────────────────────────
 
@@ -235,6 +236,9 @@ const AddSchool: React.FC = () => {
         console.log('SENDING_TO_BACKEND:', payload);
         const response = await api.post('/api/auth/school/create', payload);
         console.log('[AddSchool] ✅ Response:', response.status, response.data);
+
+        // Save join date locally so it shows on the school detail page
+        saveSchoolJoinDate(values.email, payload.registration_number);
 
         toast.success(`"${values.schoolName}" created successfully! 🎉`);
         navigate('/admin/schools/all');

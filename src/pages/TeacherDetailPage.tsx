@@ -5,7 +5,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import * as teacherService from '../api/services/teacherService';
 import * as studentService from '../api/services/studentService';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Mail, Phone, BookOpen, GraduationCap, MapPin, Calendar, Clock, DollarSign, Users, X, Check, Lock, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, BookOpen, GraduationCap, MapPin, Calendar, Clock, DollarSign, Users, X, Check, Lock, Eye, EyeOff, User } from 'lucide-react';
 import api from '../api/services/api';
 
 const TeacherDetail: React.FC = () => {
@@ -138,32 +138,24 @@ const TeacherDetail: React.FC = () => {
 
         {/* Profile Card */}
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
-          <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-600" />
-          <div className="px-8 pb-8">
-            <div className="relative -mt-16 mb-6 flex items-end justify-between">
-              <div className="flex items-end gap-6">
-                <div className="flex h-32 w-32 items-center justify-center rounded-2xl bg-white p-1.5 shadow-md ring-1 ring-gray-100">
-                  <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-xl bg-gray-100">
-                    {teacher.profile_image ? (
-                      <img src={`${teacher.profile_image}?v=1`} alt={teacher.first_name} className="h-full w-full object-cover" />
-                    ) : (
-                      <GraduationCap size={40} className="text-gray-400" />
-                    )}
-                  </div>
-                </div>
-                <div className="pb-2">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-3xl font-bold text-gray-900">{teacher.first_name} {teacher.last_name}</h2>
-                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Active</span>
-                  </div>
-                  <p className="text-lg font-medium text-gray-600">
-                    {teacher.qualification ? `${teacher.qualification} · ` : ''}{teacher.subject || 'Teacher'}
-                  </p>
-                </div>
+          <div className="px-8 pt-8 pb-8">
+            <div className="flex items-end gap-6 mb-6">
+              <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-gray-100 shadow-sm ring-1 ring-gray-200 overflow-hidden shrink-0">
+                {teacher.profile_image ? (
+                  <img src={`${teacher.profile_image}?v=1`} alt={teacher.first_name} className="h-full w-full object-cover" />
+                ) : (
+                  <GraduationCap size={36} className="text-gray-400" />
+                )}
+              </div>
+              <div className="pb-1">
+                <h2 className="text-3xl font-bold text-gray-900">{teacher.first_name} {teacher.last_name}</h2>
+                <p className="text-lg font-medium text-gray-500 mt-0.5">
+                  {teacher.qualification ? `${teacher.qualification} · ` : ''}{teacher.subject || 'Teacher'}
+                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Professional Details */}
               <div className="space-y-6">
                 <h3 className="text-sm font-bold tracking-wider text-gray-400 uppercase">Professional Details</h3>
@@ -221,21 +213,12 @@ const TeacherDetail: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-teal-600">
-                      <Phone size={20} />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                      <User size={20} />
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-gray-500">Phone Number</p>
-                      <p className="font-semibold text-gray-900">{teacher.phone || 'N/A'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600">
-                      <Calendar size={20} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-gray-500">Date of Birth</p>
-                      <p className="font-semibold text-gray-900">{teacher.date_of_birth || 'N/A'}</p>
+                      <p className="text-xs font-medium text-gray-500">Username</p>
+                      <p className="font-semibold text-gray-900">{teacher.username || (teacher as any).user?.username || 'N/A'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
