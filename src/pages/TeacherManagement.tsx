@@ -257,7 +257,8 @@ const TeacherManagement: React.FC = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.03 }}
-            className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+            onClick={() => navigate(`/school/teachers/${s.id}`)}
+            className="cursor-pointer rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
           >
             <div className="flex items-start gap-3 mb-3">
               <div className={`flex h-11 w-11 shrink-0 overflow-hidden items-center justify-center rounded-xl text-xl ${!s.profile_image ? bgs[i % bgs.length] : 'bg-gray-100'}`}>
@@ -309,25 +310,24 @@ const TeacherManagement: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-semibold text-emerald-700">Active</span>
+            <div className="flex items-center justify-end pt-3 border-t border-gray-50">
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => navigate(`/school/teachers/${s.id}`)}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/school/teachers/${s.id}`); }}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                   title="View"
                 >
                   <Eye size={15} />
                 </button>
                 <button
-                  onClick={() => setDeletingteacher(s)}
+                  onClick={(e) => { e.stopPropagation(); setDeletingteacher(s); }}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                   title="Delete"
                 >
                   <Trash2 size={15} />
                 </button>
                 <button
-                  onClick={() => openEdit(s)}
+                  onClick={(e) => { e.stopPropagation(); openEdit(s); }}
                   className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
                   title="Edit"
                 >

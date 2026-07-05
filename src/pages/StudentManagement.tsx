@@ -57,6 +57,8 @@ const normalizeStudent = (raw: any): StudentType => {
     guardian_phone: raw.guardian_phone ?? undefined,
     student_id: raw.student_id ?? raw.roll_number ?? raw.id ?? undefined,
     reg_id: raw.reg_id ?? raw.registration_id ?? undefined,
+    // Username: check direct field first, then nested user object
+    username: raw.username ?? raw.user?.username ?? undefined,
   };
 };
 
@@ -406,7 +408,6 @@ const StudentManagement: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-semibold text-emerald-700">Active</span>
               <div className="flex items-center gap-1">
                 <button
                   onClick={(e) => {
@@ -631,9 +632,6 @@ const StudentManagement: React.FC = () => {
               )}
               <h3 className="text-xl font-bold text-slate-800">{displayStudent?.full_name || 'Unnamed'}</h3>
               <p className="text-xs text-slate-400 mt-1">ID: {displayStudent?.student_id || displayStudent?.roll_number || 'N/A'}</p>
-              <span className="mt-2.5 rounded-full bg-emerald-100 px-3.5 py-1 text-xs font-semibold text-emerald-700">
-                Active Student
-              </span>
             </div>
 
             {/* Tabs */}
@@ -723,7 +721,9 @@ const StudentManagement: React.FC = () => {
                         <User size={16} className="text-slate-400" />
                         <span className="text-xs font-medium text-slate-500">Username</span>
                       </div>
-                      <span className="text-sm font-semibold text-slate-800">{displayStudent?.username || 'N/A'}</span>
+                      <span className="text-sm font-semibold text-slate-800">
+                        {displayStudent?.username || (displayStudent as any)?.user?.username || 'N/A'}
+                      </span>
                     </div>
 
                     <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">

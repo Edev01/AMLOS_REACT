@@ -551,8 +551,7 @@ const SchoolManagement: React.FC = () => {
                   <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{getStudentCount(s)}</span><span className="text-[10px] text-green-600">Students</span></div>
                   <div className="flex items-center gap-1.5 rounded-lg bg-pink-100 px-3 py-1.5"><GraduationCap size={12} className="text-pink-600" /><span className="text-xs font-bold text-pink-700">{getTeacherCount(s)}</span><span className="text-[10px] text-pink-600">Teachers</span></div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="rounded-full bg-green-100 px-3 py-1 text-[10px] font-semibold text-green-700">Active</span>
+                <div className="flex items-center justify-end">
                   <div className="flex items-center gap-1">
                     <button onClick={(e) => { e.stopPropagation(); navigate(`/admin/schools/${s.id}`, { state: { school: s } }); }} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="View"><Eye size={15} /></button>
                     <button onClick={(e) => { e.stopPropagation(); setDeletingSchool(s); }} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition" title="Delete"><Trash2 size={15} /></button>

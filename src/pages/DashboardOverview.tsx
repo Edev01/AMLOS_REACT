@@ -6,10 +6,6 @@ import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/services/api';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell,
-} from 'recharts';
-import {
   School, Users, GraduationCap, ClipboardList,
   TrendingUp, TrendingDown, ArrowUpRight, Plus,
   BookOpen, MapPin, Activity, RefreshCw,
@@ -17,10 +13,15 @@ import {
 
 /* helpers */
 const parseList = (d: any, keys: string[]): any[] => {
+  if (!d) return [];
   if (Array.isArray(d)) return d;
-  for (const k of keys) if (Array.isArray(d?.[k])) return d[k];
-  if (Array.isArray(d?.results)) return d.results;
-  if (Array.isArray(d?.data)) return d.data;
+  for (const k of keys) {
+    if (Array.isArray(d[k])) return d[k];
+    if (d.data && Array.isArray(d.data[k])) return d.data[k];
+  }
+  if (Array.isArray(d.results)) return d.results;
+  if (d.data && Array.isArray(d.data.results)) return d.data.results;
+  if (Array.isArray(d.data)) return d.data;
   return [];
 };
 
@@ -79,44 +80,34 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon, iconBg, sparkDa
   );
 };
 
-/* Tooltip */
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-white dark:bg-[#1e2635] border border-slate-100 dark:border-white/10 rounded-xl p-3 shadow-xl text-xs">
-      <p className="font-semibold text-slate-700 dark:text-white mb-1">{label}</p>
-      {payload.map((p: any) => (
-        <p key={p.name} style={{ color: p.color }} className="font-medium">{p.name}: {p.value?.toLocaleString()}</p>
-      ))}
-    </div>
-  );
-};
-
 /* Main */
 const DashboardOverview: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const { data: schoolsData, isLoading: loadingSchools, refetch } = useQuery({
-    queryKey: ['dashboard-schools'],
+  const { data: schoolsPayload, isLoading: loadingSchools, refetch: refetchSchools } = useQuery({
+    queryKey: ['dashboard-schools-list'],
     queryFn: async () => {
-      const res = await api.get('/api/auth/schools', { params: { page: 1, page_size: 100 } });
-      return parseList(res.data, ['schools', 'results', 'data']);
+      const res = await api.get('/api/auth/schools', { params: { page: 1, limit: 100, page_size: 100 } });
+      const d = res.data;
+      const count = d?.count ?? d?.total ?? d?.total_count ?? d?.data?.count ?? d?.data?.total ?? d?.data?.total_count;
+      const list = parseList(d, ['schools', 'results', 'data']);
+      return { list, count: count !== undefined && count !== null ? count : list.length };
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: usersData, isLoading: loadingUsers } = useQuery({
-    queryKey: ['dashboard-users'],
+  const { data: usersData, isLoading: loadingUsers, refetch: refetchUsers } = useQuery({
+    queryKey: ['dashboard-users-admins'],
     queryFn: async () => {
-      const res = await api.get('/api/auth/users', { params: { page: 1 } });
+      const res = await api.get('/api/auth/users', { params: { page: 1, limit: 1000, page_size: 1000 } });
       return parseList(res.data, ['users', 'results', 'data']);
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  const schoolCount = schoolsData?.length ?? null;
-  const userCount = usersData?.length ?? null;
+  const schoolsData = schoolsPayload?.list || [];
+  const schoolCount = schoolsPayload?.count ?? schoolsData.length ?? null;
 
   // ─── Per-school student counts via /api/auth/schools/{id}/students ───
   const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
@@ -158,51 +149,40 @@ const DashboardOverview: React.FC = () => {
 
   const loadingStudents = loadingSchools || countsLoading;
 
-  const growthChartData = useMemo(() => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const now = new Date();
-    return Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-      const count = (schoolsData ?? []).filter((s: any) => {
-        const c = s.created_at || s.createdAt;
-        if (!c) return false;
-        const sd = new Date(c);
-        return sd.getMonth() === d.getMonth() && sd.getFullYear() === d.getFullYear();
-      }).length;
-      return { month: months[d.getMonth()], schools: count };
-    });
-  }, [schoolsData]);
+  const refetch = () => {
+    refetchSchools();
+    refetchUsers();
+  };
 
-  const statusData = useMemo(() => {
-    if (!schoolsData?.length) return [{ name: 'No Data', value: 1, color: '#e2e8f0' }];
-    const active = schoolsData.filter((s: any) => s.status === 'active' || s.is_active === true).length;
-    const inactive = schoolsData.length - active;
-    return [
-      { name: 'Active', value: active || schoolsData.length, color: '#10b981' },
-      ...(inactive > 0 ? [{ name: 'Inactive', value: inactive, color: '#f43f5e' }] : []),
-    ];
-  }, [schoolsData]);
+  const adminCount = useMemo(() => {
+    if (!usersData) return null;
+    return usersData.filter((u: any) => {
+      const r = (u.role || u.role_name || '').toUpperCase();
+      return r.includes('ADMIN') || r === 'SUPER_ADMIN';
+    }).length;
+  }, [usersData]);
+
+  const userCount = adminCount;
 
   const topSchools = useMemo(() => {
     if (!schoolsData?.length) return [];
     return [...schoolsData]
       .sort((a: any, b: any) => {
-        const aS = a.students_count ?? a.student_count ?? a.total_students ?? 0;
-        const bS = b.students_count ?? b.student_count ?? b.total_students ?? 0;
+        const aS = studentCounts[a.id] ?? a.students_count ?? a.student_count ?? a.total_students ?? 0;
+        const bS = studentCounts[b.id] ?? b.students_count ?? b.student_count ?? b.total_students ?? 0;
         return (bS as number) - (aS as number);
       })
       .slice(0, 5);
-  }, [schoolsData]);
+  }, [schoolsData, studentCounts]);
 
   const seed = (base: number | null) =>
     Array.from({ length: 8 }, (_, i) => Math.max(0, (base ?? 10) - 3 + i + Math.round(Math.random() * 2)));
 
-  const isLoading = loadingSchools || loadingStudents;
+  const isLoading = loadingSchools || loadingStudents || loadingUsers;
 
   const quickActions = [
     { label: 'Add School', icon: <School size={16} />, color: 'bg-blue-500', path: '/admin/schools/add' },
-    { label: 'Add Teacher', icon: <GraduationCap size={16} />, color: 'bg-indigo-500', path: '#' },
-    { label: 'Add Student', icon: <Users size={16} />, color: 'bg-emerald-500', path: '#' },
+    { label: 'Create Assessment', icon: <BookOpen size={16} />, color: 'bg-indigo-500', path: '/admin/assessments/create' },
     { label: 'Create Planner', icon: <ClipboardList size={16} />, color: 'bg-amber-500', path: '/admin/planners/create' },
   ];
 
@@ -236,64 +216,7 @@ const DashboardOverview: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <StatCard label="Total Schools" value={loadingSchools ? '—' : (schoolCount ?? '—')} icon={<School size={18} />} iconBg="bg-gradient-to-br from-blue-500 to-blue-600" sparkData={seed(schoolCount)} sparkColor="#3b82f6" change={12} loading={loadingSchools} onClick={() => navigate('/admin/schools')} />
         <StatCard label="Total Students" value={loadingStudents ? '—' : (displayStudents ?? '—')} icon={<Users size={18} />} iconBg="bg-gradient-to-br from-emerald-500 to-teal-500" sparkData={seed(displayStudents)} sparkColor="#10b981" change={8} loading={loadingStudents} />
-        <StatCard label="Platform Users" value={loadingUsers ? '—' : (userCount ?? '—')} icon={<Activity size={18} />} iconBg="bg-gradient-to-br from-amber-500 to-orange-500" sparkData={seed(userCount)} sparkColor="#f59e0b" change={3} loading={loadingUsers} />
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="lg:col-span-2 bg-white dark:bg-[#1e2635] rounded-2xl border border-slate-100 dark:border-white/10 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-base font-semibold text-slate-800 dark:text-white">Schools Growth</h2>
-              <p className="text-xs text-slate-400 mt-0.5">New schools registered per month</p>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-500"><TrendingUp size={16} /></div>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={growthChartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="schoolGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="schools" name="Schools" stroke="#3b82f6" strokeWidth={2.5} fill="url(#schoolGrad)" dot={{ r: 3, fill: '#3b82f6', strokeWidth: 0 }} activeDot={{ r: 5 }} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-white dark:bg-[#1e2635] rounded-2xl border border-slate-100 dark:border-white/10 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-base font-semibold text-slate-800 dark:text-white">School Status</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Active vs inactive</p>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-500"><BookOpen size={16} /></div>
-          </div>
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={statusData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="value" name="Schools" radius={[6, 6, 0, 0]}>
-                {statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="flex flex-wrap gap-3 mt-3">
-            {statusData.map((s) => (
-              <div key={s.name} className="flex items-center gap-1.5 text-xs text-slate-500">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
-                {s.name} ({s.value})
-              </div>
-            ))}
-          </div>
-        </motion.div>
+        <StatCard label="Platform Admins" value={loadingUsers ? '—' : (userCount ?? '—')} icon={<Activity size={18} />} iconBg="bg-gradient-to-br from-amber-500 to-orange-500" sparkData={seed(userCount)} sparkColor="#f59e0b" change={3} loading={loadingUsers} />
       </div>
 
       {/* Bottom Row */}
@@ -327,13 +250,11 @@ const DashboardOverview: React.FC = () => {
                     <th className="pb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">#</th>
                     <th className="pb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">School</th>
                     <th className="pb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Students</th>
-                    <th className="pb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-white/5">
                   {topSchools.map((school: any, i: number) => {
-                    const students = school.students_count ?? school.student_count ?? school.total_students ?? '—';
-                    const isActive = school.status === 'active' || school.is_active === true;
+                    const students = studentCounts[school.id] ?? school.students_count ?? school.student_count ?? school.total_students ?? '—';
                     return (
                       <motion.tr key={school.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.22 + i * 0.04 }}
                         className="group hover:bg-slate-50/60 dark:hover:bg-white/5 transition-colors cursor-pointer"
@@ -353,11 +274,6 @@ const DashboardOverview: React.FC = () => {
                           </div>
                         </td>
                         <td className="py-3 text-right"><span className="text-sm font-semibold text-slate-700 dark:text-white">{typeof students === 'number' ? students.toLocaleString() : students}</span></td>
-                        <td className="py-3 text-right">
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${isActive ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-slate-100 text-slate-400 dark:bg-white/10'}`}>
-                            {isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
                       </motion.tr>
                     );
                   })}
@@ -383,26 +299,6 @@ const DashboardOverview: React.FC = () => {
             </div>
           </div>
 
-          {/* Platform Summary */}
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl p-5 shadow-sm text-white">
-            <h2 className="text-base font-semibold mb-4">Platform Summary</h2>
-            <div className="space-y-3">
-              {[
-              { label: 'Schools', value: schoolCount, icon: <School size={14} /> },
-                { label: 'Students', value: displayStudents, icon: <Users size={14} /> },
-                { label: 'Users', value: userCount, icon: <Activity size={14} /> },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-blue-100 text-sm">{item.icon} {item.label}</div>
-                  <span className="text-sm font-bold text-white">
-                    {item.value !== null && item.value !== undefined
-                      ? typeof item.value === 'number' ? item.value.toLocaleString() : item.value
-                      : <span className="inline-block w-6 h-3 rounded bg-white/20 animate-pulse" />}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
         </motion.div>
       </div>
     </DashboardLayout>

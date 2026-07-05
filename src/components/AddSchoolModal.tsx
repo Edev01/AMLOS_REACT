@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Button from './Button';
 import Modal from './Modal';
 import { CreateSchoolPayload } from '../types';
+import { saveSchoolJoinDate } from '../utils/schoolJoinDate';
 
 interface AddSchoolModalProps {
   isOpen: boolean;
@@ -43,6 +44,8 @@ const AddSchoolModal: React.FC<AddSchoolModalProps> = ({ isOpen, isSubmitting, e
       website: form.website,
       established_year: Number(form.established_year) || new Date().getFullYear(),
     });
+    // Save join date to localStorage after successful creation
+    saveSchoolJoinDate(form.email, form.registration_number || undefined);
   };
 
   const set = (k: string, v: string) => { setForm(p => ({ ...p, [k]: v })); if (fieldError) setFieldError(''); };

@@ -288,21 +288,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
 
   return (
     <div className={`min-h-screen font-sans relative transition-colors duration-300 ${isDark ? 'bg-[#0a0f1e]' : 'bg-[#F1F3F4]'}`}>
-      {/* Global Top-Bar Progress Loader for Background Fetching */}
-      {isFetching > 0 && (
-        <div className="fixed top-0 left-0 w-full h-1 bg-blue-100 z-[100]">
-          <motion.div
-            className="h-full bg-blue-600"
-            initial={{ width: "0%" }}
-            animate={{ width: "100%" }}
-            transition={{
-              duration: 1.5,
-              ease: "easeInOut",
-              repeat: Infinity,
-            }}
-          />
-        </div>
-      )}
+      {/* Global Top-Bar Progress Loader for Background Fetching removed per user request */}
 
       {/* Mobile overlay */}
       <AnimatePresence>
