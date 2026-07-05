@@ -820,7 +820,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         }
       />
       <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Grades" value={grades.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" />
+        <StatCard label="Total Grades" value={classOptions.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" />
         <StatCard label="Total Subjects" value={subjects.length} icon={<BookOpen size={20} />} tone="bg-purple-100 text-purple-600" />
         <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" />
         <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" />
@@ -849,7 +849,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           <h2 className="text-lg font-bold text-gray-900">Quick Stats</h2>
           <div className="mt-5 space-y-4">
             {[
-              { label: 'Grades', count: grades.length, icon: <GraduationCap size={16} /> },
+              { label: 'Grades', count: classOptions.length, icon: <GraduationCap size={16} /> },
               { label: 'Subjects', count: subjects.length, icon: <BookOpen size={16} /> },
               { label: 'Chapters', count: allChapters.length, icon: <Layers3 size={16} /> },
             ].map((item) => (

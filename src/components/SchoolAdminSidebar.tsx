@@ -168,7 +168,7 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`relative flex items-center gap-3 px-5 py-6 border-b rounded-t-[24px] ${'border-slate-100'}`}
+          className={`relative flex items-center gap-3 py-6 border-b rounded-t-[24px] ${'border-slate-100'} ${collapsed ? 'justify-center px-2' : 'px-5'}`}
         >
           <div className={`flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/30 flex-shrink-0 ${collapsed ? 'h-8 w-8' : 'h-10 w-10'}`}>
             {isSuperAdmin ? <Sparkles size={20} className="text-white" /> : <Building2 size={20} className="text-white" />}

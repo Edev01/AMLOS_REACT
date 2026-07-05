@@ -33,11 +33,12 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { useIsFetching, useMutation } from '@tanstack/react-query';
+import { useIsFetching, useMutation, useQuery } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import SchoolAdminSidebar from './SchoolAdminSidebar';
 import Modal from './Modal';
 import { api } from '../api/services/api';
+import { assessmentService } from '../api/services/assessmentService';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -140,6 +141,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   const useSchoolAdminSidebar = isSchoolAdminRoute && !isSuperAdmin;
   const [commandOpen, setCommandOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -181,6 +183,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   const [scrolled, setScrolled] = useState(false);
   const commandInputRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
   
   const rawSchoolIdForDisplay = tenant.schoolId || user?.school_id || '';
   const schoolIdDisplayFallback =
@@ -243,6 +246,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
@@ -283,6 +289,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
       navigate(path);
     }
   }, [navigate]);
+
+  const showNotifications = user?.role === 'SCHOOL' || user?.role === 'TEACHER';
+
+  const { data: recentSubmissionsData } = useQuery({
+    queryKey: ['recent-submissions-notifications'],
+    queryFn: () => assessmentService.listSubmissions(1),
+    staleTime: 60000,
+    enabled: showNotifications,
+  });
+  const recentSubmissions = recentSubmissionsData?.results || [];
 
   const { isDark, toggleTheme } = useTheme();
 
@@ -495,15 +511,94 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
             </motion.button>
 
             {/* Bell */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              type="button"
-              className="relative rounded-xl p-2.5 transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-            >
-              <Bell size={18} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-            </motion.button>
+            <div ref={notificationsRef} className="relative">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                type="button"
+                onClick={() => setNotificationsOpen(p => !p)}
+                className="relative rounded-xl p-2.5 transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              >
+                <Bell size={18} />
+                {showNotifications && recentSubmissions.length > 0 && (
+                  <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                    {recentSubmissions.length}
+                  </span>
+                )}
+              </motion.button>
+              
+              <AnimatePresence>
+                {notificationsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    className={`absolute right-0 top-[calc(100%+8px)] w-80 rounded-2xl overflow-hidden z-50 ${
+                      isDark
+                        ? 'bg-[#1a2035] shadow-[0_8px_40px_rgba(0,0,0,0.6)] border border-white/10'
+                        : 'bg-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-200/80'
+                    }`}
+                  >
+                    <div className={`px-4 py-3 border-b font-bold ${
+                      isDark ? 'border-white/10 text-slate-100 bg-white/5' : 'border-slate-100 text-slate-800 bg-slate-50'
+                    }`}>
+                      Notifications
+                    </div>
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {!showNotifications || recentSubmissions.length === 0 ? (
+                        <div className="px-4 py-8 text-center text-slate-500 text-sm">
+                          <Bell size={24} className="mx-auto mb-2 opacity-30" />
+                          No new notifications
+                        </div>
+                      ) : (
+                        recentSubmissions.slice(0, 5).map((sub: any) => (
+                          <button
+                            key={sub.id}
+                            onClick={() => {
+                              setNotificationsOpen(false);
+                              const basePath = user?.role === 'SCHOOL' ? '/school' : user?.role === 'TEACHER' ? '/teacher' : '/admin';
+                              navigate(`${basePath}/submissions?view=${sub.id}`);
+                            }}
+                            className={`w-full text-left px-4 py-3 border-b transition-colors group flex items-start gap-3 ${
+                              isDark ? 'border-white/5 hover:bg-white/5' : 'border-slate-50 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                              isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
+                            }`}>
+                              <FileText size={14} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-semibold truncate ${isDark ? 'text-slate-200 group-hover:text-white' : 'text-slate-800 group-hover:text-blue-600'}`}>
+                                New submission from #{sub.student}
+                              </p>
+                              <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                {sub.assessment_title}
+                              </p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    {showNotifications && recentSubmissions.length > 5 && (
+                      <button
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          const basePath = user?.role === 'SCHOOL' ? '/school' : user?.role === 'TEACHER' ? '/teacher' : '/admin';
+                          navigate(`${basePath}/submissions`);
+                        }}
+                        className={`w-full px-4 py-2 text-center text-xs font-semibold ${
+                          isDark ? 'text-blue-400 hover:bg-white/5 border-t border-white/10' : 'text-blue-600 hover:bg-slate-50 border-t border-slate-100'
+                        }`}
+                      >
+                        View all submissions
+                      </button>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Profile Dropdown */}
             <div ref={profileRef} className="relative pl-2 border-l border-slate-200">

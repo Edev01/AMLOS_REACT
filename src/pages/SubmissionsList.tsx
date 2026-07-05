@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import DashboardLayout from '../components/DashboardLayout';
 import { assessmentService } from '../api/services/assessmentService';
@@ -119,6 +120,9 @@ const SubmissionsList: React.FC = () => {
   // Detail view state
   const [viewingSubmission, setViewingSubmission] = useState<SubmissionData | null>(null);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewId = searchParams.get('view');
+
   const { data, isLoading } = useQuery({
     queryKey: ['submissions', page],
     queryFn: () => assessmentService.listSubmissions(page),
@@ -163,6 +167,16 @@ const SubmissionsList: React.FC = () => {
   const totalCount = rawData?.count ?? rawData?.data?.count ?? 0;
   const hasNext = !!(rawData?.next ?? rawData?.data?.next);
   const hasPrev = !!(rawData?.previous ?? rawData?.data?.previous);
+
+  // Auto-open submission if view parameter is present
+  useEffect(() => {
+    if (viewId && submissions.length > 0 && !viewingSubmission) {
+      const sub = submissions.find(s => String(s.id) === viewId);
+      if (sub) {
+        setViewingSubmission(sub);
+      }
+    }
+  }, [viewId, submissions, viewingSubmission]);
 
   // Client-side filtering
   const filteredSubmissions = submissions.filter((sub) => {
@@ -515,7 +529,13 @@ const SubmissionsList: React.FC = () => {
                     <span className="text-xs text-slate-400">• Student #{viewingSubmission.student}</span>
                   </div>
                 </div>
-                <button onClick={() => setViewingSubmission(null)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 transition-colors">
+                <button onClick={() => {
+                  setViewingSubmission(null);
+                  if (viewId) {
+                    searchParams.delete('view');
+                    setSearchParams(searchParams);
+                  }
+                }} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 transition-colors">
                   <X size={20} />
                 </button>
               </div>
@@ -646,14 +666,27 @@ const SubmissionsList: React.FC = () => {
                 <div className="flex gap-2">
                   {(user?.role === 'TEACHER' || user?.role === 'SCHOOL' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
                     <button
-                      onClick={() => { setViewingSubmission(null); handleOpenGradeModal(viewingSubmission); }}
+                      onClick={() => { 
+                        setViewingSubmission(null); 
+                        if (viewId) {
+                          searchParams.delete('view');
+                          setSearchParams(searchParams);
+                        }
+                        handleOpenGradeModal(viewingSubmission); 
+                      }}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:shadow-lg transition"
                     >
                       <Award size={14} /> Grade
                     </button>
                   )}
                   <button
-                    onClick={() => setViewingSubmission(null)}
+                    onClick={() => {
+                      setViewingSubmission(null);
+                      if (viewId) {
+                        searchParams.delete('view');
+                        setSearchParams(searchParams);
+                      }
+                    }}
                     className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-white transition-colors"
                   >
                     Close
