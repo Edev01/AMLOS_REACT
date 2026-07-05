@@ -64,13 +64,6 @@ const CampusDashboard: React.FC = () => {
           color="green"
         />
         <StatCard 
-          title="Active Classes" 
-          value="36" 
-          trend="-1" 
-          icon="classes" 
-          color="orange"
-        />
-        <StatCard 
           title="Attendance Today" 
           value="94.8%" 
           trend="+1.2%" 

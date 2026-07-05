@@ -28,6 +28,7 @@ import TeacherManagement from './pages/TeacherManagement';
 import AddTeacher from './pages/AddTeacher';
 import TeacherDetail from './pages/TeacherDetailPage';
 import SubmissionsList from './pages/SubmissionsList';
+import ComingSoon from './pages/ComingSoon';
 import MainLayout from './components/MainLayout';
 
 function App() {
@@ -78,6 +79,8 @@ function App() {
             <Route path="/admin/cms/slos" element={<CMSManagement view="slos" />} />
             <Route path="/admin/cms/slos/add" element={<CMSManagement view="add-slo" />} />
             <Route path="/admin/cms/slos/upload" element={<CMSManagement view="upload-slo" />} />
+            <Route path="/admin/hr-management" element={<ComingSoon title="HR Management" />} />
+            <Route path="/admin/finance-management" element={<ComingSoon title="Finance Management" />} />
             {/* Legacy route redirects */}
             <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/super-admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />

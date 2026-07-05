@@ -249,12 +249,10 @@ const DashboardOverview: React.FC = () => {
                   <tr className="text-left border-b border-slate-100 dark:border-white/10">
                     <th className="pb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">#</th>
                     <th className="pb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">School</th>
-                    <th className="pb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Students</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-white/5">
                   {topSchools.map((school: any, i: number) => {
-                    const students = studentCounts[school.id] ?? school.students_count ?? school.student_count ?? school.total_students ?? '—';
                     return (
                       <motion.tr key={school.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.22 + i * 0.04 }}
                         className="group hover:bg-slate-50/60 dark:hover:bg-white/5 transition-colors cursor-pointer"
@@ -266,14 +264,13 @@ const DashboardOverview: React.FC = () => {
                               {(school.school_name || school.name || 'S').charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-700 dark:text-white truncate max-w-[160px] group-hover:text-blue-500 transition-colors">{school.school_name || school.name || 'Unknown'}</p>
+                              <p className="text-sm font-semibold text-slate-700 dark:text-white truncate max-w-[220px] group-hover:text-blue-500 transition-colors">{school.school_name || school.name || 'Unknown'}</p>
                               {(school.city || school.address) && (
-                                <p className="text-xs text-slate-400 flex items-center gap-1 truncate max-w-[160px]"><MapPin size={10} /> {school.city || school.address?.split(',')[0]}</p>
+                                <p className="text-xs text-slate-400 flex items-center gap-1 truncate max-w-[220px]"><MapPin size={10} /> {school.city || school.address?.split(',')[0]}</p>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 text-right"><span className="text-sm font-semibold text-slate-700 dark:text-white">{typeof students === 'number' ? students.toLocaleString() : students}</span></td>
                       </motion.tr>
                     );
                   })}

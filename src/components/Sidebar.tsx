@@ -349,7 +349,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className={`relative flex items-center gap-3 px-6 py-6 border-b rounded-t-[24px] ${'border-slate-100'}`}
+        className={`relative flex items-center gap-3 py-6 border-b rounded-t-[24px] ${'border-slate-100'} ${collapsed ? 'justify-center px-2' : 'px-6'}`}
       >
         <div className={`flex items-center justify-center rounded-xl shadow-glow-blue flex-shrink-0 ${collapsed ? 'h-8 w-8' : 'h-10 w-10'} ${
           isSuperAdmin 

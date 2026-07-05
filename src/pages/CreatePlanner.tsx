@@ -43,7 +43,6 @@ const formatGradeLabel = (value: string) => {
 
 const STUDY_MODES = [
   { value: 'PARALLEL', label: 'Parallel (All subjects together)' },
-  { value: 'SEQUENTIAL', label: 'Sequential (One subject at a time)' },
   { value: 'CUSTOM', label: 'Custom (Weekly schedule)' },
 ];
 
@@ -588,10 +587,7 @@ const CreatePlanner: React.FC = () => {
       toast.error('Please select at least one subject');
       return;
     }
-    if (step === 2 && form.mode === 'SEQUENTIAL' && subjectOrder.length === 0) {
-      toast.error('Please arrange the subject order for sequential mode');
-      return;
-    }
+
     if (step === 2 && form.mode === 'CUSTOM') {
       const hasAnyDay = Object.values(customPattern).some(arr => arr.length > 0);
       if (!hasAnyDay) {

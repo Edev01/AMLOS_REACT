@@ -48,6 +48,12 @@ interface AssessmentManagementProps {
   view?: AssessmentView;
 }
 
+interface CognitiveLevelDetail {
+  mcq_count: number;
+  short_count: number;
+  long_count: number;
+}
+
 interface AssessmentFormState {
   title: string;
   grade: string;
@@ -56,9 +62,7 @@ interface AssessmentFormState {
   chapter_ids: string[];
   cognitive_levels: string[];
   categories: string[];
-  mcq_count: string;
-  short_count: string;
-  long_count: string;
+  cognitive_level_details: Record<string, CognitiveLevelDetail>;
 }
 
 interface CurriculumChapter extends Chapter {
@@ -81,6 +85,11 @@ const ASSESSMENT_TYPES: Array<{ value: AssessmentType; label: string; ratio: num
 const COGNITIVE_LEVELS = ['Knowledge', 'Understanding', 'Application'];
 const QUESTION_CATEGORIES = ['Conceptual', 'Past Paper', 'Book Exercise', 'Additional Question'];
 
+const DEFAULT_COGNITIVE_LEVEL_DETAILS: Record<string, CognitiveLevelDetail> = {
+  Knowledge: { mcq_count: 3, short_count: 2, long_count: 1 },
+  Understanding: { mcq_count: 2, short_count: 1, long_count: 0 },
+};
+
 const emptyForm: AssessmentFormState = {
   title: '',
   grade: '',
@@ -89,9 +98,7 @@ const emptyForm: AssessmentFormState = {
   chapter_ids: [],
   cognitive_levels: ['Knowledge', 'Understanding'],
   categories: ['Conceptual'],
-  mcq_count: '3',
-  short_count: '2',
-  long_count: '0',
+  cognitive_level_details: DEFAULT_COGNITIVE_LEVEL_DETAILS,
 };
 
 const extractList = (payload: any): any[] => {
@@ -1057,11 +1064,12 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   }, [allTemplates, search]);
 
   const totalQuestions = useMemo(() => {
-    const mcq = Number(form.mcq_count) || 0;
-    const short = Number(form.short_count) || 0;
-    const long = Number(form.long_count) || 0;
-    return mcq + short + long;
-  }, [form.mcq_count, form.short_count, form.long_count]);
+    return form.cognitive_levels.reduce((sum, level) => {
+      const detail = form.cognitive_level_details[level];
+      if (!detail) return sum;
+      return sum + (detail.mcq_count || 0) + (detail.short_count || 0) + (detail.long_count || 0);
+    }, 0);
+  }, [form.cognitive_levels, form.cognitive_level_details]);
 
   useEffect(() => {
     if (!editId) {
@@ -1081,9 +1089,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
       chapter_ids: (template.chapter_ids ?? []).map((id) => String(id)),
       cognitive_levels: template.cognitive_levels?.length ? template.cognitive_levels : ['Knowledge'],
       categories: template.categories?.length ? template.categories : ['Conceptual'],
-      mcq_count: String(template.mcq_count ?? 0),
-      short_count: String(template.short_count ?? 0),
-      long_count: String(template.long_count ?? 0),
+      cognitive_level_details: (template as any).cognitive_level_details ?? DEFAULT_COGNITIVE_LEVEL_DETAILS,
     });
     setLoadedEditId(editId);
   }, [editId, loadedEditId, templateDetailQuery.data]);
@@ -1244,6 +1250,17 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
       return null;
     }
 
+    // Build cognitive_level_details only for selected levels
+    const cognitive_level_details: Record<string, CognitiveLevelDetail> = {};
+    form.cognitive_levels.forEach((level) => {
+      const detail = form.cognitive_level_details[level];
+      cognitive_level_details[level] = {
+        mcq_count: detail?.mcq_count ?? 0,
+        short_count: detail?.short_count ?? 0,
+        long_count: detail?.long_count ?? 0,
+      };
+    });
+
     return {
       title: form.title.trim(),
       assessment_type: form.assessment_type,
@@ -1251,11 +1268,12 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
       subject: toIdValue(form.subject),
       chapter_ids: form.chapter_ids.map(toIdValue),
       cognitive_levels: form.cognitive_levels,
+      cognitive_level_details,
       categories: form.categories,
       total_questions: totalQuestions,
-      mcq_count: Number(form.mcq_count) || 0,
-      short_count: Number(form.short_count) || 0,
-      long_count: Number(form.long_count) || 0,
+      mcq_count: Object.values(cognitive_level_details).reduce((s, d) => s + d.mcq_count, 0),
+      short_count: Object.values(cognitive_level_details).reduce((s, d) => s + d.short_count, 0),
+      long_count: Object.values(cognitive_level_details).reduce((s, d) => s + d.long_count, 0),
     };
   };
 
@@ -1573,19 +1591,73 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                 </div>
                 <div className="lg:col-span-2">
                   <p className="mb-3 text-sm font-semibold text-gray-700">Cognitive Levels</p>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-3 mb-4">
                     {COGNITIVE_LEVELS.map((level) => (
-                      <label key={level} className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">
+                      <label key={level} className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                        form.cognitive_levels.includes(level)
+                          ? 'border-blue-300 bg-blue-50 text-blue-700'
+                          : 'border-slate-200 bg-white text-slate-600'
+                      }`}>
                         <input
                           type="checkbox"
                           checked={form.cognitive_levels.includes(level)}
-                          onChange={() => updateForm('cognitive_levels', toggleValue(form.cognitive_levels, level))}
+                          onChange={() => {
+                            const newLevels = toggleValue(form.cognitive_levels, level);
+                            // When adding a level, initialise its details if missing
+                            const newDetails = { ...form.cognitive_level_details };
+                            if (!newDetails[level]) {
+                              newDetails[level] = { mcq_count: 2, short_count: 1, long_count: 0 };
+                            }
+                            setForm(prev => ({ ...prev, cognitive_levels: newLevels, cognitive_level_details: newDetails }));
+                          }}
                           className="h-4 w-4 rounded border-slate-300 text-blue-600"
                         />
                         {level}
                       </label>
                     ))}
                   </div>
+                  {/* Per-level question count inputs */}
+                  {form.cognitive_levels.length > 0 && (
+                    <div className="space-y-4">
+                      {form.cognitive_levels.map((level) => {
+                        const detail = form.cognitive_level_details[level] ?? { mcq_count: 0, short_count: 0, long_count: 0 };
+                        const updateDetail = (field: keyof CognitiveLevelDetail, val: string) => {
+                          setForm(prev => ({
+                            ...prev,
+                            cognitive_level_details: {
+                              ...prev.cognitive_level_details,
+                              [level]: { ...prev.cognitive_level_details[level], [field]: Number(val) || 0 },
+                            },
+                          }));
+                        };
+                        return (
+                          <div key={level} className="rounded-xl border border-slate-200 bg-white p-4">
+                            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-blue-600">{level}</p>
+                            <div className="grid grid-cols-3 gap-3">
+                              <div>
+                                <label className="text-xs font-semibold text-gray-600">MCQs</label>
+                                <input type="number" min="0" value={detail.mcq_count}
+                                  onChange={e => updateDetail('mcq_count', e.target.value)}
+                                  className={fieldClass} />
+                              </div>
+                              <div>
+                                <label className="text-xs font-semibold text-gray-600">Short Qs</label>
+                                <input type="number" min="0" value={detail.short_count}
+                                  onChange={e => updateDetail('short_count', e.target.value)}
+                                  className={fieldClass} />
+                              </div>
+                              <div>
+                                <label className="text-xs font-semibold text-gray-600">Long Qs</label>
+                                <input type="number" min="0" value={detail.long_count}
+                                  onChange={e => updateDetail('long_count', e.target.value)}
+                                  className={fieldClass} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="lg:col-span-2">
                   <p className="mb-3 text-sm font-semibold text-gray-700">Question Sources</p>
@@ -1604,41 +1676,12 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                   </div>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 lg:col-span-2">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-2 flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Random Question Mix</p>
-                      <p className="text-xs text-slate-500">Total questions: {totalQuestions}</p>
+                      <p className="text-sm font-bold text-slate-900">Total Questions</p>
+                      <p className="text-xs text-slate-500">{totalQuestions} questions across all cognitive levels</p>
                     </div>
                     <Shuffle size={20} className="text-blue-500" />
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <FieldLabel label="MCQs">
-                      <input
-                        type="number"
-                        min="0"
-                        value={form.mcq_count}
-                        onChange={(event) => updateForm('mcq_count', event.target.value)}
-                        className={fieldClass}
-                      />
-                    </FieldLabel>
-                    <FieldLabel label="Short Questions">
-                      <input
-                        type="number"
-                        min="0"
-                        value={form.short_count}
-                        onChange={(event) => updateForm('short_count', event.target.value)}
-                        className={fieldClass}
-                      />
-                    </FieldLabel>
-                    <FieldLabel label="Long Questions">
-                      <input
-                        type="number"
-                        min="0"
-                        value={form.long_count}
-                        onChange={(event) => updateForm('long_count', event.target.value)}
-                        className={fieldClass}
-                      />
-                    </FieldLabel>
                   </div>
                 </div>
               </div>

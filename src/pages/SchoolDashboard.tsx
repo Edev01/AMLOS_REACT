@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { studentService } from '../api/services/studentService';
 import { Student } from '../types';
-import { Users, BookOpen, GraduationCap, Calendar } from 'lucide-react';
+import { Users, GraduationCap } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useNavigate } from 'react-router-dom';
 import { teacherService } from '../api/services/teacherService';
@@ -81,20 +81,10 @@ const SchoolDashboard: React.FC = () => {
       });
   }, []);
 
-  const uniqueClasses = new Set<string>();
-  students.forEach(student => {
-    const gradeVal = student.class_grade || student.grade || '';
-    const sectionVal = student.section || '';
-    if (gradeVal && sectionVal) {
-      uniqueClasses.add(`${gradeVal}-${sectionVal}`);
-    }
-  });
-  const totalClasses = uniqueClasses.size === 0 ? 0 : uniqueClasses.size;
 
   const stats = [
     { label: 'Total Students', value: students.length.toLocaleString(), change: '+12%', icon: Users, color: 'bg-blue-500' },
     { label: 'Total Teachers', value: teachers.length.toLocaleString(), change: '0', icon: GraduationCap, color: 'bg-emerald-500' },
-    { label: 'Active Classes', value: String(totalClasses), change: '0', icon: BookOpen, color: 'bg-purple-500' },
   ];
 
   const routePrefix = user?.campus_id ? `/campus/${user?.campus_id}` : '/school';
@@ -102,8 +92,6 @@ const SchoolDashboard: React.FC = () => {
   const quickActions = [
     { icon: Users, label: 'Add Student', color: 'from-blue-500 to-blue-600', path: `${routePrefix}/students/add` },
     { icon: GraduationCap, label: 'Add Teacher', color: 'from-purple-500 to-purple-600', path: `${routePrefix}/teachers/add` },
-    { icon: BookOpen, label: 'Create Class', color: 'from-cyan-500 to-cyan-600', path: `${routePrefix}/classes` },
-    { icon: Calendar, label: 'Schedule Event', color: 'from-emerald-500 to-emerald-600', path: `${routePrefix}/events` },
   ];
 
   return (
