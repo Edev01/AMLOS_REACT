@@ -206,7 +206,7 @@ const AddSchool: React.FC = () => {
           principal_name:      string;   // sent alongside username for redundancy
           email:               string;
           password:            string;
-          phone_number:        string;
+          phone:               string;
           website:             string;
           address:             string;
           city?:               string;
@@ -222,7 +222,7 @@ const AddSchool: React.FC = () => {
           principal_name:      values.principalName,             // redundancy
           email:               values.email,
           password:            values.password,
-          phone_number:        values.phone,
+          phone:               values.phone,
           website:             values.website || '',
           address:             values.address,
           city:                values.city || '',
