@@ -8,7 +8,7 @@ import api from '../api/services/api';
 import {
   School, Users, GraduationCap, ClipboardList,
   TrendingUp, TrendingDown, ArrowUpRight, Plus,
-  BookOpen, MapPin, Activity, RefreshCw,
+  BookOpen, MapPin, Activity, RefreshCw, FileText,
 } from 'lucide-react';
 
 /* helpers */
@@ -184,6 +184,7 @@ const DashboardOverview: React.FC = () => {
     { label: 'Add School', icon: <School size={16} />, color: 'bg-blue-500', path: '/admin/schools/add' },
     { label: 'Create Assessment', icon: <BookOpen size={16} />, color: 'bg-indigo-500', path: '/admin/assessments/create' },
     { label: 'Create Planner', icon: <ClipboardList size={16} />, color: 'bg-amber-500', path: '/admin/planners/create' },
+    { label: 'CMS Dashboard', icon: <FileText size={16} />, color: 'bg-emerald-500', path: '/admin/cms' },
   ];
 
   return (
