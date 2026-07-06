@@ -158,7 +158,7 @@ const DashboardOverview: React.FC = () => {
     if (!usersData) return null;
     return usersData.filter((u: any) => {
       const r = (u.role || u.role_name || '').toUpperCase();
-      return r.includes('ADMIN') || r === 'SUPER_ADMIN';
+      return r === 'ADMIN';
     }).length;
   }, [usersData]);
 

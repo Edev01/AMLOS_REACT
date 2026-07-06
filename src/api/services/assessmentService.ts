@@ -14,11 +14,16 @@ export interface AssessmentTemplatePayload {
   subject: number | string;
   chapter_ids: Array<number | string>;
   cognitive_levels: string[];
-  categories: string[];
-  total_questions: number;
-  mcq_count: number;
-  short_count: number;
-  long_count: number;
+  cognitive_level_details?: Record<string, {
+    mcq_count: number;
+    short_count: number;
+    long_count: number;
+  }>;
+  categories?: string[];
+  total_questions?: number;
+  mcq_count?: number;
+  short_count?: number;
+  long_count?: number;
 }
 
 export interface AssessmentTemplate extends Partial<AssessmentTemplatePayload> {
