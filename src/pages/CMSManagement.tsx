@@ -145,8 +145,12 @@ const StatCard: React.FC<{
   value: number | string;
   icon: React.ReactNode;
   tone: string;
-}> = ({ label, value, icon, tone }) => (
-  <div className="rounded-2xl border border-white/70 bg-white p-5 shadow-soft">
+  onClick?: () => void;
+}> = ({ label, value, icon, tone, onClick }) => (
+  <div
+    onClick={onClick}
+    className={`rounded-2xl border border-white/70 bg-white p-5 shadow-soft transition ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-blue-200' : ''}`}
+  >
     <div className="mb-4 flex items-center justify-between">
       <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone}`}>
         {icon}
@@ -155,6 +159,7 @@ const StatCard: React.FC<{
     </div>
     <p className="text-xs font-semibold text-slate-400">{label}</p>
     <p className="mt-1 text-2xl font-bold text-navy-800">{value}</p>
+    {onClick && <p className="mt-2 text-[11px] text-blue-500 font-medium">View all →</p>}
   </div>
 );
 
@@ -377,6 +382,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     name: '',
     difficulty_frequency: 'MEDIUM',
     estimated_time: '45',
+    google_drive_link: '',
   });
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkText, setBulkText] = useState('');
@@ -590,12 +596,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         description: classDescription.trim() || undefined,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_, __, _ctx) => {
       toast.success('Grade created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
+      const gradeName = className.trim();
       setClassName('');
       setClassDescription('');
-      navigate('/admin/cms/classes');
+      navigate(`/admin/cms/subjects?grade=${encodeURIComponent(gradeName)}`);
     },
     onError: () => toast.error('Failed to create grade.'),
   });
@@ -678,8 +685,22 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     onSuccess: () => {
       toast.success('Chapter created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
-      setChapterForm({ grade: '', subject: '', name: '' });
-      navigate('/admin/cms/chapters');
+      // Navigate to Add SLO for the chapter we just created, keeping subject context
+      queryClient.fetchQuery({
+        queryKey: ['cms', 'chapters', chapterForm.subject],
+        queryFn: () => fetchChaptersBySubjectEnriched(Number(chapterForm.subject), subjects),
+      }).then((chapters: any[]) => {
+        const newest = chapters?.[chapters.length - 1];
+        if (newest?.id) {
+          navigate(`/admin/cms/slos/add?subject=${chapterForm.subject}&chapter=${newest.id}`);
+        } else {
+          navigate(chapterForm.subject ? `/admin/cms/chapters?subject=${chapterForm.subject}` : '/admin/cms/chapters');
+        }
+        setChapterForm({ grade: '', subject: '', name: '' });
+      }).catch(() => {
+        setChapterForm({ grade: '', subject: '', name: '' });
+        navigate(chapterForm.subject ? `/admin/cms/chapters?subject=${chapterForm.subject}` : '/admin/cms/chapters');
+      });
     },
     onError: () => toast.error('Failed to create chapter.'),
   });
@@ -716,7 +737,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         name: sloForm.name.trim(),
         difficulty_frequency: sloForm.difficulty_frequency,
         estimated_time: Number(sloForm.estimated_time) || 0,
-      });
+        ...(sloForm.google_drive_link.trim() ? { google_drive_link: sloForm.google_drive_link.trim() } : {}),
+      } as any);
     },
     onSuccess: () => {
       toast.success('SLO created successfully.');
@@ -813,55 +835,37 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             <SecondaryButton onClick={() => navigate('/admin/cms/classes/add')}>
               <Plus size={16} /> Add Grade
             </SecondaryButton>
-            <PrimaryButton onClick={() => navigate('/admin/cms/subjects/add')}>
-              <Plus size={16} /> Add Subject
-            </PrimaryButton>
           </div>
         }
       />
       <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Grades" value={classOptions.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" />
-        <StatCard label="Total Subjects" value={subjects.length} icon={<BookOpen size={20} />} tone="bg-purple-100 text-purple-600" />
-        <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" />
-        <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" />
+        <StatCard label="Total Grades" value={classOptions.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" onClick={() => navigate('/admin/cms/classes')} />
+        <StatCard label="Total Subjects" value={subjects.length} icon={<BookOpen size={20} />} tone="bg-purple-100 text-purple-600" onClick={() => navigate('/admin/cms/subjects')} />
+        <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" onClick={() => navigate('/admin/cms/chapters')} />
+        <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" onClick={() => navigate('/admin/cms/slos')} />
       </div>
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-2xl border border-white/70 bg-white p-6 shadow-soft">
-          <h2 className="text-lg font-bold text-gray-900">CMS Flow</h2>
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
-            {[
-              ['Grade', 'Choose learning level'],
-              ['Subject', 'Map curriculum area'],
-              ['Chapter', 'Group study content'],
-              ['SLOs', 'Planner-ready objectives'],
-            ].map(([title, subtitle], index) => (
-              <div key={title} className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-                  {index + 1}
-                </div>
-                <p className="text-sm font-bold text-slate-900">{title}</p>
-                <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+      <div className="rounded-2xl border border-white/70 bg-white p-6 shadow-soft">
+        <h2 className="text-lg font-bold text-gray-900">CMS Flow</h2>
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+          {[
+            { title: 'Grade', subtitle: 'Choose learning level', path: '/admin/cms/classes' },
+            { title: 'Subject', subtitle: 'Map curriculum area', path: '/admin/cms/subjects' },
+            { title: 'Chapter', subtitle: 'Group study content', path: '/admin/cms/chapters' },
+            { title: 'SLOs', subtitle: 'Planner-ready objectives', path: '/admin/cms/slos' },
+          ].map(({ title, subtitle, path }, index) => (
+            <div
+              key={title}
+              onClick={() => navigate(path)}
+              className="cursor-pointer rounded-xl border border-slate-100 bg-slate-50/70 p-4 transition hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-sm"
+            >
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
+                {index + 1}
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-white/70 bg-white p-6 shadow-soft">
-          <h2 className="text-lg font-bold text-gray-900">Quick Stats</h2>
-          <div className="mt-5 space-y-4">
-            {[
-              { label: 'Grades', count: classOptions.length, icon: <GraduationCap size={16} /> },
-              { label: 'Subjects', count: subjects.length, icon: <BookOpen size={16} /> },
-              { label: 'Chapters', count: allChapters.length, icon: <Layers3 size={16} /> },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-500">{item.icon}</span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{item.count} {item.label}</p>
-                  <p className="text-xs text-slate-400">In curriculum</p>
-                </div>
-              </div>
-            ))}
-          </div>
+              <p className="text-sm font-bold text-slate-900">{title}</p>
+              <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+              <p className="mt-2 text-[11px] text-blue-500 font-medium">View all →</p>
+            </div>
+          ))}
         </div>
       </div>
     </>
@@ -954,7 +958,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const renderSubjects = () => (
     <>
       <SectionHeader
-        title={subjectGradeFilter ? `All Subjects - Grade ${subjectGradeFilter}` : 'All Subjects'}
+        title={subjectGradeFilter ? `All Subjects of Grade ${subjectGradeFilter}` : 'All Subjects'}
         subtitle="Subjects are grouped by grade and feed into planner creation."
         onBack={() => navigate('/admin/cms')}
         action={
@@ -977,7 +981,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             setSubjectGradeFilter(e.target.value);
             setHasSelectedSubjectFilter(true);
           }}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+          disabled={!!searchParams.get('grade')}
+          className={`rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${searchParams.get('grade') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
         >
           <option value="">All Grades</option>
           {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
@@ -1015,13 +1020,17 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 filteredSubjects.map((subject) => {
                   const counts = chapterCountsBySubject.get(getSubjectId(subject));
                   return (
-                    <tr key={subject.id} className="hover:bg-slate-50/70">
+                    <tr
+                      key={subject.id}
+                      className="hover:bg-blue-50/50 cursor-pointer transition"
+                      onClick={() => navigate(`/admin/cms/chapters?subject=${subject.id}`)}
+                    >
                       <td className="px-6 py-4 text-sm font-bold text-slate-900">{subject.name}</td>
                       <td className="px-6 py-4 text-sm text-slate-600">{subject.grade || 'N/A'}</td>
                       <td className="px-6 py-4 text-sm text-slate-500">{subject.description || 'N/A'}</td>
                       <td className="px-6 py-4 text-sm font-semibold text-slate-700">{counts?.chapters ?? (subject as any).total_chapters ?? (subject as any).chapters_count ?? 0}</td>
                       <td className="px-6 py-4 text-sm font-semibold text-slate-700">{counts?.slos ?? (subject as any).total_slos ?? (subject as any).slos_count ?? 0}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <IconButton title="View chapters" tone="blue" onClick={() => navigate(`/admin/cms/chapters?subject=${subject.id}`)}><Eye size={15} /></IconButton>
                           <IconButton title="Edit subject" onClick={() => setEditingSubject(subject)}><Pencil size={15} /></IconButton>
@@ -1044,7 +1053,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader 
         title="Add Subject" 
         subtitle="Create a subject under a grade." 
-        onBack={() => navigate('/admin/cms/subjects')}
+        onBack={() => navigate(searchParams.get('grade') ? `/admin/cms/subjects?grade=${encodeURIComponent(searchParams.get('grade')!)}` : '/admin/cms/subjects')}
       />
       <form
         onSubmit={(event) => {
@@ -1075,7 +1084,12 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
               <input value={subjectForm.name} onChange={(e) => setSubjectForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Mathematics" className={fieldClass} />
             </FieldLabel>
             <FieldLabel label="Grade">
-              <select value={subjectForm.grade} onChange={(e) => setSubjectForm((prev) => ({ ...prev, grade: e.target.value }))} className={`mt-2 ${selectClass}`}>
+              <select 
+                value={subjectForm.grade} 
+                onChange={(e) => setSubjectForm((prev) => ({ ...prev, grade: e.target.value }))} 
+                disabled={!!searchParams.get('grade')}
+                className={`mt-2 ${selectClass} ${searchParams.get('grade') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+              >
                 <option value="">Select Grade</option>
                 {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
               </select>
@@ -1107,25 +1121,31 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     return (
       <>
         <SectionHeader
-          title="All Chapters"
+          title={selectedSubject ? `All Chapters of ${selectedSubject.name}` : 'All Chapters'}
           subtitle="Select a grade and subject to view the related chapters."
-          onBack={() => navigate('/admin/cms')}
+          onBack={() => navigate(chapterSubjectId && selectedSubject ? `/admin/cms/subjects?grade=${encodeURIComponent(selectedSubject.grade || '')}` : '/admin/cms')}
           action={<PrimaryButton onClick={() => navigate(chapterSubjectId ? `/admin/cms/chapters/add?subject=${chapterSubjectId}` : '/admin/cms/chapters/add')}><Plus size={16} /> Add Chapter</PrimaryButton>}
         />
         <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[220px_280px_1fr]">
-          <select value={chapterGradeFilter} onChange={(e) => { setChapterGradeFilter(e.target.value); setChapterSubjectId(''); }} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100">
+          <select 
+            value={chapterGradeFilter} 
+            onChange={(e) => { setChapterGradeFilter(e.target.value); setChapterSubjectId(''); }} 
+            disabled={!!searchParams.get('subject')}
+            className={`rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+          >
             <option value="">Select Grade</option>
             {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
           </select>
-          <select value={chapterSubjectId} onChange={(e) => setChapterSubjectId(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100">
+          <select 
+            value={chapterSubjectId} 
+            onChange={(e) => setChapterSubjectId(e.target.value)} 
+            disabled={!!searchParams.get('subject')}
+            className={`rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+          >
             <option value="">Select Subject</option>
             {visibleSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
           </select>
-          <SearchInput
-            value={chapterSearch}
-            onChange={setChapterSearch}
-            placeholder="Search chapters by name, subject, grade"
-          />
+          <SearchInput value={chapterSearch} onChange={setChapterSearch} placeholder="Search chapters by name, subject, grade" />
         </div>
         {!chapterSubjectId ? (
           <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">Select a grade and subject to view chapters.</div>
@@ -1138,20 +1158,24 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {filteredChapters.map((chapter) => (
-              <div key={chapter.id} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-base font-bold text-slate-900">{chapter.name}</p>
-                    <p className="mt-1 text-xs text-slate-400">{selectedSubject?.name || chapter.subject_name || 'Subject'} / Grade {selectedSubject?.grade || chapter.subject_grade || 'N/A'}</p>
-                  </div>
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">{getChapterSlos(chapter).length} SLOs</span>
+          <div
+              key={chapter.id}
+              onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}
+              className="cursor-pointer rounded-2xl border border-slate-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-bold text-slate-900">{chapter.name}</p>
+                  <p className="mt-1 text-xs text-slate-400">{selectedSubject?.name || chapter.subject_name || 'Subject'} / Grade {selectedSubject?.grade || chapter.subject_grade || 'N/A'}</p>
                 </div>
-                <div className="mt-5 flex items-center justify-end gap-1">
-                  <IconButton title="Add SLO" tone="blue" onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}><Plus size={15} /></IconButton>
-                  <IconButton title="Edit chapter" onClick={() => setEditingChapter(chapter)}><Pencil size={15} /></IconButton>
-                  <IconButton title="Delete chapter" tone="red" onClick={() => setDeletingChapter(chapter)}><Trash2 size={15} /></IconButton>
-                </div>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">{getChapterSlos(chapter).length} SLOs</span>
               </div>
+              <div className="mt-5 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                <IconButton title="Add SLO" tone="blue" onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}><Plus size={15} /></IconButton>
+                <IconButton title="Edit chapter" onClick={() => setEditingChapter(chapter)}><Pencil size={15} /></IconButton>
+                <IconButton title="Delete chapter" tone="red" onClick={() => setDeletingChapter(chapter)}><Trash2 size={15} /></IconButton>
+              </div>
+            </div>
             ))}
           </div>
         )}
@@ -1164,7 +1188,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader 
         title="Add Chapter" 
         subtitle="Create a chapter under a selected subject." 
-        onBack={() => navigate('/admin/cms/chapters')}
+        onBack={() => navigate(searchParams.get('subject') ? `/admin/cms/chapters?subject=${searchParams.get('subject')}` : '/admin/cms/chapters')}
       />
       <form
         onSubmit={(event) => {
@@ -1192,13 +1216,23 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         >
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <FieldLabel label="Grade">
-              <select value={chapterForm.grade} onChange={(e) => setChapterForm({ grade: e.target.value, subject: '', name: chapterForm.name })} className={`mt-2 ${selectClass}`}>
+              <select 
+                value={chapterForm.grade} 
+                onChange={(e) => setChapterForm({ grade: e.target.value, subject: '', name: chapterForm.name })} 
+                disabled={!!searchParams.get('subject')}
+                className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+              >
                 <option value="">Select Grade</option>
                 {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
               </select>
             </FieldLabel>
             <FieldLabel label="Subject">
-              <select value={chapterForm.subject} onChange={(e) => setChapterForm((prev) => ({ ...prev, subject: e.target.value }))} className={`mt-2 ${selectClass}`}>
+              <select 
+                value={chapterForm.subject} 
+                onChange={(e) => setChapterForm((prev) => ({ ...prev, subject: e.target.value }))} 
+                disabled={!!searchParams.get('subject')}
+                className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+              >
                 <option value="">Select Subject</option>
                 {subjectsByGrade(chapterForm.grade).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
               </select>
@@ -1244,7 +1278,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader
         title="All SLOs"
         subtitle="SLOs are the objectives selected by the planner flow."
-        onBack={() => navigate('/admin/cms')}
+        onBack={() => navigate(sloFilterSubjectId ? `/admin/cms/chapters?subject=${sloFilterSubjectId}` : '/admin/cms')}
         action={
           <div className="flex items-center gap-2">
             <button
@@ -1346,7 +1380,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader
         title={bulk ? 'Upload SLOs' : 'Add SLO'}
         subtitle={bulk ? 'Upload a file or paste SLOs for the selected chapter.' : 'Create a single SLO under a selected chapter.'}
-        onBack={() => navigate('/admin/cms/slos')}
+        onBack={() => navigate(searchParams.get('chapter') ? `/admin/cms/slos?subject=${searchParams.get('subject')}&chapter=${searchParams.get('chapter')}` : '/admin/cms/slos')}
       />
       <form
         onSubmit={(event) => {
@@ -1392,19 +1426,34 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         >
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <FieldLabel label="Grade">
-              <select value={sloForm.grade} onChange={(e) => setSloForm((prev) => ({ ...prev, grade: e.target.value, subject: '', chapter: '' }))} className={`mt-2 ${selectClass}`}>
+              <select 
+                value={sloForm.grade} 
+                onChange={(e) => setSloForm((prev) => ({ ...prev, grade: e.target.value, subject: '', chapter: '' }))} 
+                disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
+                className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+              >
                 <option value="">Select Grade</option>
                 {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
               </select>
             </FieldLabel>
             <FieldLabel label="Subject">
-              <select value={sloForm.subject} onChange={(e) => setSloForm((prev) => ({ ...prev, subject: e.target.value, chapter: '' }))} className={`mt-2 ${selectClass}`}>
+              <select 
+                value={sloForm.subject} 
+                onChange={(e) => setSloForm((prev) => ({ ...prev, subject: e.target.value, chapter: '' }))} 
+                disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
+                className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+              >
                 <option value="">Select Subject</option>
                 {selectedSloSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
               </select>
             </FieldLabel>
             <FieldLabel label="Chapter">
-              <select value={sloForm.chapter} onChange={(e) => setSloForm((prev) => ({ ...prev, chapter: e.target.value }))} className={`mt-2 ${selectClass}`}>
+              <select 
+                value={sloForm.chapter} 
+                onChange={(e) => setSloForm((prev) => ({ ...prev, chapter: e.target.value }))} 
+                disabled={!!searchParams.get('chapter')}
+                className={`mt-2 ${selectClass} ${searchParams.get('chapter') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+              >
                 <option value="">Select Chapter</option>
                 {activeChapters.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.name}</option>)}
               </select>
@@ -1416,11 +1465,20 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 <option value="HIGH">HIGH</option>
               </select>
             </FieldLabel>
-            <FieldLabel label="Estimated Time">
+            <FieldLabel label="Estimated Time (in minutes)">
               <div className="relative mt-2">
                 <Clock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="number" min="0" value={sloForm.estimated_time} onChange={(e) => setSloForm((prev) => ({ ...prev, estimated_time: e.target.value }))} placeholder="Estimated time in minutes" className={`${fieldClass} mt-0 pl-11`} />
+                <input type="number" min="0" value={sloForm.estimated_time} onChange={(e) => setSloForm((prev) => ({ ...prev, estimated_time: e.target.value }))} placeholder="e.g. 45" className={`${fieldClass} mt-0 pl-11`} />
               </div>
+            </FieldLabel>
+            <FieldLabel label="Google Drive Link (optional)">
+              <input
+                type="url"
+                value={sloForm.google_drive_link}
+                onChange={(e) => setSloForm((prev) => ({ ...prev, google_drive_link: e.target.value }))}
+                placeholder="https://drive.google.com/..."
+                className={fieldClass}
+              />
             </FieldLabel>
             {bulk && (
               <FieldLabel label="Upload File (.csv, .txt, .xlsx)">
@@ -1469,17 +1527,49 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     'upload-slo': 'upload-slos',
   };
 
+  const isInFlow = ['add-class','add-subject','subjects','chapters','add-chapter','add-slo','upload-slo'].includes(view) &&
+    (searchParams.get('grade') || searchParams.get('subject') || searchParams.get('chapter'));
+
+  const flowSteps = [
+    { label: 'Grade', step: 1, done: !!(searchParams.get('grade') || searchParams.get('subject') || searchParams.get('chapter') || view === 'subjects' || view === 'add-subject' || view === 'chapters' || view === 'add-chapter' || view === 'add-slo') },
+    { label: 'Subject', step: 2, done: !!(searchParams.get('subject') || searchParams.get('chapter') || view === 'chapters' || view === 'add-chapter' || view === 'add-slo') },
+    { label: 'Chapter', step: 3, done: !!(searchParams.get('chapter') || view === 'add-slo') },
+    { label: 'SLOs', step: 4, done: view === 'add-slo' },
+  ];
+
   return (
     <DashboardLayout activePage={activePageMap[view]}>
-      <div className="mb-5 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-400">
-        <span>Grade</span>
-        <ArrowRight size={13} />
-        <span>Subject</span>
-        <ArrowRight size={13} />
-        <span>Chapter</span>
-        <ArrowRight size={13} />
-        <span>SLOs</span>
-      </div>
+      {isInFlow ? (
+        <div className="mb-6 flex items-center gap-0">
+          {flowSteps.map((s, i) => (
+            <React.Fragment key={s.label}>
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
+                s.done
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-slate-100 text-slate-400'
+              }`}>
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-black ${
+                  s.done ? 'bg-white/20 text-white' : 'bg-white text-slate-400'
+                }`}>{s.step}</span>
+                {s.label}
+              </div>
+              {i < flowSteps.length - 1 && (
+                <ArrowRight size={16} className={s.done ? 'text-blue-400 mx-1' : 'text-slate-300 mx-1'} />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      ) : (
+        <div className="mb-5 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-400">
+          <span>Grade</span>
+          <ArrowRight size={13} />
+          <span>Subject</span>
+          <ArrowRight size={13} />
+          <span>Chapter</span>
+          <ArrowRight size={13} />
+          <span>SLOs</span>
+        </div>
+      )}
       {renderContent()}
 
       {/* ── Modals ── */}

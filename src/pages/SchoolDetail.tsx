@@ -318,7 +318,7 @@ const SchoolDetail: React.FC = () => {
                 <Calendar size={14} className="text-gray-400" />
                 {(() => {
                   // 1. Try backend created_at / date_joined
-                  const apiDate = school?.created_at || school?.date_joined || school?.user?.date_joined || school?.user?.created_at;
+                  const apiDate = (school as any)?.created_at || (school as any)?.date_joined || (school as any)?.user?.date_joined || (school as any)?.user?.created_at;
                   if (apiDate) return formatJoinDate(apiDate);
                   // 2. Fallback: localStorage recorded at creation time
                   const localDate = getSchoolJoinDate(
