@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -126,6 +127,7 @@ const fieldGroups: { title: string; fields: FieldConfig[] }[] = [
 
 const AddSchool: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, isSuperAdmin } = useAuth();
   const [logoFile, setLogoFile] = useState<SchoolLogoFile | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -233,17 +235,20 @@ const AddSchool: React.FC = () => {
         const response = await api.post('/api/auth/school/create', payload);
         console.log('[AddSchool] ✅ Response:', response.status, response.data);
 
-        // Extract created_at and registration_number from response
-        const resData = response.data?.data || response.data || {};
-        const createdAt = resData.created_at || new Date().toISOString();
-        const regNumber = resData.registration_number || resData.registration_id || '';
+        // Parse API response: { data: { school: {...} }, created_at: "..." }
+        const resSchool = response.data?.data?.school || response.data?.data || response.data || {};
+        const createdAt = resSchool.created_at || response.data?.data?.created_at || new Date().toISOString();
+        const regNumber = resSchool.registration_number || resSchool.registration_id || '';
 
         // Save join date locally so it shows on the school detail page
         saveSchoolJoinDate(values.email, regNumber || undefined);
         if (createdAt) localStorage.setItem(`school_created_at_${values.email}`, createdAt);
 
         toast.success(`"${values.schoolName}" created successfully! 🎉`);
-        navigate('/admin/schools/all');
+
+        // Invalidate schools cache so the new school shows immediately
+        await queryClient.invalidateQueries({ queryKey: ['schools'] });
+        navigate('/admin/schools');
 
       } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
