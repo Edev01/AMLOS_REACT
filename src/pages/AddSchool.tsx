@@ -62,7 +62,6 @@ const validationSchema = Yup.object<FormValues>({
   phone: Yup.string().trim().required('Phone number is required'),
   website: Yup.string().trim().url('Enter a valid URL (e.g. https://school.com)').optional(),
   address: Yup.string().trim().required('Address is required'),
-  registrationNumber: Yup.string().trim().optional(),
   establishedYear: Yup.string()
     .matches(/^\d{4}$/, 'Must be a valid 4-digit year')
     .optional(),
@@ -78,7 +77,6 @@ const initialValues: FormValues = {
   phone: '',
   website: '',
   address: '',
-  registrationNumber: '',
   establishedYear: '',
 };
 
@@ -119,8 +117,7 @@ const fieldGroups: { title: string; fields: FieldConfig[] }[] = [
   {
     title: 'Official Info',
     fields: [
-      { name: 'registrationNumber', label: 'Registration Number', placeholder: 'REG-2024-001', icon: <Hash size={16} />     },
-      { name: 'establishedYear',    label: 'Established Year',    placeholder: '1995',         icon: <Calendar size={16} /> },
+      { name: 'establishedYear', label: 'Established Year', placeholder: '1995', icon: <Calendar size={16} /> },
     ],
   },
 ];
@@ -228,7 +225,6 @@ const AddSchool: React.FC = () => {
           city:                values.city || '',
           state:               values.state || '',
           zip_code:            values.zipCode ? parseInt(values.zipCode, 10) : 0,
-          registration_number: values.registrationNumber || `REG-${Date.now()}`,
           established_year:    values.establishedYear ? parseInt(values.establishedYear, 10) : new Date().getFullYear(),
           ...(profileImageUrl ? { profile_image: profileImageUrl } : {}),
         };
@@ -237,8 +233,14 @@ const AddSchool: React.FC = () => {
         const response = await api.post('/api/auth/school/create', payload);
         console.log('[AddSchool] ✅ Response:', response.status, response.data);
 
+        // Extract created_at and registration_number from response
+        const resData = response.data?.data || response.data || {};
+        const createdAt = resData.created_at || new Date().toISOString();
+        const regNumber = resData.registration_number || resData.registration_id || '';
+
         // Save join date locally so it shows on the school detail page
-        saveSchoolJoinDate(values.email, payload.registration_number);
+        saveSchoolJoinDate(values.email, regNumber || undefined);
+        if (createdAt) localStorage.setItem(`school_created_at_${values.email}`, createdAt);
 
         toast.success(`"${values.schoolName}" created successfully! 🎉`);
         navigate('/admin/schools/all');

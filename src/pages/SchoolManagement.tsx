@@ -57,7 +57,16 @@ const normalizeSchool = (raw: any): SchoolType => {
   const emailFromKeys = emailKnownKeys.map((k) => flat[k]).find((v) => typeof v === 'string' && EMAIL_RE_STRICT.test(v));
   const emailFromDeepScan = Object.values(flat).find((v) => typeof v === 'string' && EMAIL_RE_STRICT.test(v)) as string | undefined;
   const addressEmail = typeof raw.address === 'string' ? raw.address.match(EMAIL_RE_LOOSE)?.[0] : undefined;
-  return { ...raw, principal_name: principal, email: emailFromKeys || emailFromDeepScan || addressEmail };
+  // Pull registration number from all common backend field names
+  const regNumber =
+    raw.registration_number ||
+    raw.registration_id ||
+    raw.reg_no ||
+    raw.reg_number ||
+    flat['registration_number'] ||
+    flat['reg_id'] ||
+    '';
+  return { ...raw, principal_name: principal, email: emailFromKeys || emailFromDeepScan || addressEmail, registration_number: regNumber };
 };
 
 const getNumber = (...values: any[]): number | undefined => {
@@ -167,10 +176,10 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Only send fields that changed
+    // Send all filled fields (not just changed ones, to avoid missing fields issue)
     const payload: Record<string, any> = {};
     Object.entries(editFormData).forEach(([key, val]) => {
-      if (val && val !== (school as any)[key]) {
+      if (val !== undefined && val !== null && val !== '') {
         payload[key] = val;
       }
     });
@@ -188,6 +197,7 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
     { name: 'phone_number', label: 'Phone' },
     { name: 'address', label: 'Address' },
     { name: 'website', label: 'Website' },
+
   ];
 
   return (
@@ -551,6 +561,11 @@ const SchoolManagement: React.FC = () => {
                   <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5"><Users size={12} className="text-green-600" /><span className="text-xs font-bold text-green-700">{getStudentCount(s)}</span><span className="text-[10px] text-green-600">Students</span></div>
                   <div className="flex items-center gap-1.5 rounded-lg bg-pink-100 px-3 py-1.5"><GraduationCap size={12} className="text-pink-600" /><span className="text-xs font-bold text-pink-700">{getTeacherCount(s)}</span><span className="text-[10px] text-pink-600">Teachers</span></div>
                 </div>
+                {(s.created_at) && (
+                  <div className="text-[10px] text-gray-400 mb-2">
+                    Joined: {new Date(s.created_at).toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </div>
+                )}
                 <div className="flex items-center justify-end">
                   <div className="flex items-center gap-1">
                     <button onClick={(e) => { e.stopPropagation(); navigate(`/admin/schools/${s.id}`, { state: { school: s } }); }} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition" title="View"><Eye size={15} /></button>

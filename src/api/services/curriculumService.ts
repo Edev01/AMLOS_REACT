@@ -117,7 +117,7 @@ export const updateSlo = async (id: number | string, payload: {
   difficulty_frequency?: string;
   estimated_time?: number;
 }) => {
-  const response = await axiosInstance.post(`/api/curriculum/slos/${id}/update`, payload);
+  const response = await axiosInstance.patch(`/api/curriculum/slos/${id}/update`, payload);
   return response.data;
 };
 
