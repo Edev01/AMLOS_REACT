@@ -63,6 +63,7 @@ export interface User {
   campus_name?: string;    // Display name for UI
   active_tenant_id?: string; // Alias for campus_id
   access_level?: 'SUPER' | 'ADMIN' | 'USER'; // Access level for role granularity
+  profile_image?: string;
   profile?: {
     access_level?: 'SUPER' | 'ADMIN' | 'USER';
     [key: string]: unknown;
