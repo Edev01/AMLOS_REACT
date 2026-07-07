@@ -79,6 +79,7 @@ const initialValues: FormValues = {
   website: '',
   address: '',
   establishedYear: '',
+  registrationNumber: '',
 };
 
 // ─── Field Config ────────────────────────────────────────────────────────────
@@ -227,6 +228,7 @@ const AddSchool: React.FC = () => {
           city:                values.city || '',
           state:               values.state || '',
           zip_code:            values.zipCode ? parseInt(values.zipCode, 10) : 0,
+          registration_number: values.registrationNumber || '',
           established_year:    values.establishedYear ? parseInt(values.establishedYear, 10) : new Date().getFullYear(),
           ...(profileImageUrl ? { profile_image: profileImageUrl } : {}),
         };
