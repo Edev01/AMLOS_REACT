@@ -303,7 +303,7 @@ const DeleteModal: React.FC<{
 // ── Edit Modal ──
 const EditModal: React.FC<{
   title: string;
-  fields: { label: string; name: string; value: string; type?: string }[];
+  fields: { label: string; name: string; value: string; type?: string; options?: string[] }[];
   onClose: () => void;
   onSave: (values: Record<string, string>) => void;
   isSaving: boolean;
@@ -313,7 +313,7 @@ const EditModal: React.FC<{
   );
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-bold text-gray-900 mb-4">{title}</h3>
         <div className="space-y-4">
@@ -324,14 +324,25 @@ const EditModal: React.FC<{
                 <textarea
                   value={values[f.name]}
                   onChange={e => setValues(prev => ({ ...prev, [f.name]: e.target.value }))}
-                  className={`${fieldClass} min-h-24 resize-y`}
+                  className={`${fieldClass} min-h-24 resize-y mt-1`}
                 />
+              ) : f.type === 'select' ? (
+                <select
+                  value={values[f.name]}
+                  onChange={e => setValues(prev => ({ ...prev, [f.name]: e.target.value }))}
+                  className={`${selectClass} mt-1`}
+                >
+                  <option value="" disabled>Select {f.label}</option>
+                  {f.options?.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
               ) : (
                 <input
                   type={f.type || 'text'}
                   value={values[f.name]}
                   onChange={e => setValues(prev => ({ ...prev, [f.name]: e.target.value }))}
-                  className={fieldClass}
+                  className={`${fieldClass} mt-1`}
                 />
               )}
             </div>
@@ -516,7 +527,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       subject: subjectId || prev.subject,
       chapter: chapterId || prev.chapter,
     }));
-  }, [searchParams, subjects]);
+    if (view === 'slos') {
+      if (subject?.grade) setSloFilterGrade(subject.grade);
+      if (subjectId) setSloFilterSubjectId(subjectId);
+      if (chapterId) setSloFilterChapterId(chapterId);
+      if (subjectId && chapterId) setHasSearchedSlos(true);
+    }
+  }, [searchParams, subjects, view]);
 
   // ── Computed ──
 
@@ -743,8 +760,14 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     onSuccess: () => {
       toast.success('SLO created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
+      const currentSubject = sloForm.subject;
+      const currentChapter = sloForm.chapter;
       setSloForm((prev) => ({ ...prev, name: '' }));
-      navigate('/admin/cms/slos');
+      const params = new URLSearchParams();
+      if (currentSubject) params.append('subject', currentSubject);
+      if (currentChapter) params.append('chapter', currentChapter);
+      const q = params.toString();
+      navigate(q ? `/admin/cms/slos?${q}` : '/admin/cms/slos');
     },
     onError: () => toast.error('Failed to create SLO.'),
   });
@@ -806,9 +829,15 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     onSuccess: (count) => {
       toast.success(bulkFile ? 'SLOs uploaded successfully from file.' : `${count} SLOs uploaded successfully.`);
       queryClient.invalidateQueries({ queryKey: ['cms'] });
+      const currentSubject = sloForm.subject;
+      const currentChapter = sloForm.chapter;
       setBulkText('');
       setBulkFile(null);
-      navigate('/admin/cms/slos');
+      const params = new URLSearchParams();
+      if (currentSubject) params.append('subject', currentSubject);
+      if (currentChapter) params.append('chapter', currentChapter);
+      const q = params.toString();
+      navigate(q ? `/admin/cms/slos?${q}` : '/admin/cms/slos');
     },
     onError: () => toast.error('Failed to upload SLOs.'),
   });
@@ -1649,7 +1678,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             title="Edit SLO"
             fields={[
               { label: 'SLO Name', name: 'name', value: getSloTitle(editingSlo) },
-              { label: 'Difficulty Frequency', name: 'difficulty_frequency', value: editingSlo.difficulty_frequency || 'MEDIUM' },
+              { label: 'Difficulty Frequency', name: 'difficulty_frequency', value: editingSlo.difficulty_frequency || 'MEDIUM', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH'] },
               { label: 'Estimated Time (minutes)', name: 'estimated_time', value: String(getSloTime(editingSlo) || ''), type: 'number' },
             ]}
             onClose={() => setEditingSlo(null)}
