@@ -184,6 +184,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   const commandInputRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
+
+  // The effective profile image to show (from user object if backend provides it)
+  const effectiveProfileImage = user?.profile_image || '';
   
   const rawSchoolIdForDisplay = tenant.schoolId || user?.school_id || '';
   const schoolIdDisplayFallback =
@@ -614,8 +617,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                   <p className="text-[11px] leading-tight text-slate-500">{profileSubtitle}</p>
                 </div>
                 {/* Avatar */}
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue border border-transparent">
-                  {initials || 'AK'}
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue border border-transparent overflow-hidden">
+                  {effectiveProfileImage ? (
+                    <img src={effectiveProfileImage} alt="Profile" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    initials || 'AK'
+                  )}
                 </div>
                 <ChevronDown
                   size={14}
@@ -644,8 +651,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                         : 'bg-gradient-to-br from-accent-blue/5 to-accent-indigo/5 border-slate-100'
                     }`}>
                       <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-sm font-bold text-white shadow-glow-blue">
-                          {initials || 'AK'}
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-sm font-bold text-white shadow-glow-blue overflow-hidden">
+                          {effectiveProfileImage ? (
+                            <img src={effectiveProfileImage} alt="Profile" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          ) : (
+                            initials || 'AK'
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-bold truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>

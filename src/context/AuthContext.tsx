@@ -118,6 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearAllAuthData = useCallback(() => {
     Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+    localStorage.removeItem('school_profile_image'); // clear cached school avatar
     setAuthToken(null);
     setUser(null);
     setTenant({ campusId: null, campusName: null, schoolId: null, schoolName: null });
@@ -206,6 +207,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userId = isUserObject ? ((rawUserAny?.id || rawUserAny?.user_id || '1') as string | number) : (typeof rawUser === 'number' || typeof rawUser === 'string' ? rawUser : '1');
     const userEmail = isUserObject ? ((rawUserAny?.email || loggedInUsername || 'admin@eduadmin.com') as string) : (loggedInUsername || 'admin@eduadmin.com');
     const userUsername = isUserObject ? ((rawUserAny?.username || rawUserAny?.name || `Admin ID: ${userId}`) as string) : `Admin ID: ${userId}`;
+    const profileImage = 
+      (isUserObject && rawUserAny?.profile_image) ? rawUserAny.profile_image : 
+      (dataAny?.school?.profile_image || 
+       dataAny?.profile_image || 
+       responseAny?.school?.profile_image || 
+       dataUserAny?.school?.profile_image || 
+       dataUserAny?.profile?.profile_image || 
+       '');
 
     // Build user object with tenant context
     const loggedInUser: User = {
@@ -221,6 +230,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       access_level: accessLevel as 'SUPER' | 'ADMIN' | 'USER' | undefined,
       // Preserve any additional properties if user was a full object
       ...(isUserObject ? rawUser : {}),
+      // profile_image AFTER spread so it isn't overridden by rawUser's undefined value
+      profile_image: (profileImage || (isUserObject && rawUserAny?.profile_image) || '') as string,
     };
 
     // ─── STEP 1: Persist to localStorage SYNCHRONOUSLY ───

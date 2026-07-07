@@ -8,8 +8,9 @@ import api from '../api/services/api';
 import {
   School, Users, GraduationCap, ClipboardList,
   TrendingUp, TrendingDown, ArrowUpRight, Plus,
-  BookOpen, MapPin, Activity, RefreshCw, FileText,
+  BookOpen, MapPin, RefreshCw, FileText, BarChart2
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
 
 /* helpers */
 const parseList = (d: any, keys: string[]): any[] => {
@@ -164,16 +165,44 @@ const DashboardOverview: React.FC = () => {
 
   const userCount = adminCount;
 
-  const topSchools = useMemo(() => {
+  const schoolsOnboardedData = useMemo(() => {
     if (!schoolsData?.length) return [];
-    return [...schoolsData]
-      .sort((a: any, b: any) => {
-        const aS = studentCounts[a.id] ?? a.students_count ?? a.student_count ?? a.total_students ?? 0;
-        const bS = studentCounts[b.id] ?? b.students_count ?? b.student_count ?? b.total_students ?? 0;
-        return (bS as number) - (aS as number);
-      })
-      .slice(0, 5);
-  }, [schoolsData, studentCounts]);
+    
+    const monthlyCounts: Record<string, number> = {};
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    schoolsData.forEach((s: any) => {
+      const dateStr = s.created_at || s.createdAt || s.created;
+      if (dateStr) {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          const m = months[d.getMonth()];
+          const y = d.getFullYear();
+          const key = `${m} ${y}`;
+          monthlyCounts[key] = (monthlyCounts[key] || 0) + 1;
+        }
+      } else {
+        // Fallback for mock data or missing dates
+        const key = `Unknown`;
+        monthlyCounts[key] = (monthlyCounts[key] || 0) + 1;
+      }
+    });
+    
+    const res = Object.entries(monthlyCounts).map(([label, count]) => {
+      if (label === 'Unknown') return { label, count, timestamp: 0 };
+      const [m, y] = label.split(' ');
+      const mIdx = months.indexOf(m);
+      return {
+        label,
+        count,
+        timestamp: new Date(parseInt(y), mIdx, 1).getTime()
+      };
+    });
+    
+    res.sort((a, b) => a.timestamp - b.timestamp);
+    
+    return res.map(r => ({ month: r.label, count: r.count }));
+  }, [schoolsData]);
 
   const seed = (base: number | null) =>
     Array.from({ length: 8 }, (_, i) => Math.max(0, (base ?? 10) - 3 + i + Math.round(Math.random() * 2)));
@@ -214,69 +243,50 @@ const DashboardOverview: React.FC = () => {
       </motion.div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 gap-4 mb-8">
         <StatCard label="Total Schools" value={loadingSchools ? '—' : (schoolCount ?? '—')} icon={<School size={18} />} iconBg="bg-gradient-to-br from-blue-500 to-blue-600" sparkData={seed(schoolCount)} sparkColor="#3b82f6" change={12} loading={loadingSchools} onClick={() => navigate('/admin/schools')} />
         <StatCard label="Total Students" value={loadingStudents ? '—' : (displayStudents ?? '—')} icon={<Users size={18} />} iconBg="bg-gradient-to-br from-emerald-500 to-teal-500" sparkData={seed(displayStudents)} sparkColor="#10b981" change={8} loading={loadingStudents} />
-        <StatCard label="Platform Admins" value={loadingUsers ? '—' : (userCount ?? '—')} icon={<Activity size={18} />} iconBg="bg-gradient-to-br from-amber-500 to-orange-500" sparkData={seed(userCount)} sparkColor="#f59e0b" change={3} loading={loadingUsers} />
       </div>
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Top Schools */}
+        {/* Schools Onboarded Graph */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="lg:col-span-2 bg-white dark:bg-[#1e2635] rounded-2xl border border-slate-100 dark:border-white/10 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-base font-semibold text-slate-800 dark:text-white">Top Schools</h2>
-              <p className="text-xs text-slate-400 mt-0.5">By student enrollment</p>
+              <h2 className="text-base font-semibold text-slate-800 dark:text-white">Schools Onboarding</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Schools added per month</p>
             </div>
-            <button onClick={() => navigate('/admin/schools')} className="flex items-center gap-1.5 text-xs font-semibold text-blue-500 hover:text-blue-600 transition">
-              View All <ArrowUpRight size={13} />
-            </button>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-500">
+              <BarChart2 size={18} />
+            </div>
           </div>
           {loadingSchools ? (
-            <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-12 rounded-xl bg-slate-100 dark:bg-white/5 animate-pulse" />)}</div>
-          ) : topSchools.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+            <div className="h-[250px] w-full bg-slate-50 dark:bg-white/5 rounded-xl animate-pulse" />
+          ) : schoolsOnboardedData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 h-[250px] text-slate-400">
               <School size={32} className="mb-2 opacity-30" />
-              <p className="text-sm">No schools found</p>
-              <button onClick={() => navigate('/admin/schools/add')} className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-blue-500 hover:text-blue-600">
-                <Plus size={13} /> Add first school
-              </button>
+              <p className="text-sm">No schools onboarded yet</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left border-b border-slate-100 dark:border-white/10">
-                    <th className="pb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">#</th>
-                    <th className="pb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">School</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 dark:divide-white/5">
-                  {topSchools.map((school: any, i: number) => {
-                    return (
-                      <motion.tr key={school.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.22 + i * 0.04 }}
-                        className="group hover:bg-slate-50/60 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/admin/schools/${school.id}`)}>
-                        <td className="py-3 pr-3"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 dark:bg-white/10 text-xs font-bold text-slate-500 dark:text-slate-400">{i + 1}</span></td>
-                        <td className="py-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-500 text-sm font-bold">
-                              {(school.school_name || school.name || 'S').charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-700 dark:text-white truncate max-w-[220px] group-hover:text-blue-500 transition-colors">{school.school_name || school.name || 'Unknown'}</p>
-                              {(school.city || school.address) && (
-                                <p className="text-xs text-slate-400 flex items-center gap-1 truncate max-w-[220px]"><MapPin size={10} /> {school.city || school.address?.split(',')[0]}</p>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={schoolsOnboardedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} allowDecimals={false} />
+                  <Tooltip 
+                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                    labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
+                  />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={50}>
+                    {schoolsOnboardedData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index === schoolsOnboardedData.length - 1 ? '#3b82f6' : '#94a3b8'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           )}
         </motion.div>
