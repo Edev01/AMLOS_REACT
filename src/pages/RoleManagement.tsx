@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, UserCog, Shield, Loader2, AlertTriangle, Mail, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, UserCog, Shield, Loader2, AlertTriangle, Mail, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import Modal from '../components/Modal';
 import { userService } from '../api/services/userService';
+import { api } from '../api/services/api';
 
 const AVAILABLE_ROLES = [
   { label: 'Admin', value: 'ADMIN' },
@@ -22,6 +23,7 @@ const RoleManagement: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('');
+  const [roleFilter, setRoleFilter] = useState('ALL');
   
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -34,9 +36,15 @@ const RoleManagement: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const { data: usersData, isLoading } = useQuery({
-    queryKey: ['users', debouncedSearch, currentPage],
-    queryFn: () => userService.searchUsers(debouncedSearch, currentPage),
+  const { data: allUsersData, isLoading } = useQuery({
+    queryKey: ['all-users-role-management'],
+    queryFn: async () => {
+      const res = await api.get('/api/auth/users', { params: { page: 1, limit: 1000, page_size: 1000 } });
+      const rawList = Array.isArray(res.data) 
+        ? res.data 
+        : (res.data?.results ?? res.data?.data?.results ?? res.data?.data ?? []);
+      return rawList;
+    },
     staleTime: 1000 * 60, // 1 minute
   });
 
@@ -66,25 +74,41 @@ const RoleManagement: React.FC = () => {
     });
   };
 
-  // Extract users array from response
-  let usersList: any[] = [];
-  let totalCount = 0;
-  if (Array.isArray(usersData)) {
-    usersList = usersData;
-    totalCount = usersList.length;
-  } else if (usersData?.results && Array.isArray(usersData.results)) {
-    usersList = usersData.results;
-    totalCount = usersData.count || 0;
-  } else if (usersData?.data?.results && Array.isArray(usersData.data.results)) {
-    usersList = usersData.data.results;
-    totalCount = usersData?.data?.count || 0;
-  } else if (usersData?.data && Array.isArray(usersData.data)) {
-    usersList = usersData.data;
-    totalCount = usersList.length;
-  }
+  // Filter and Paginate locally
+  const filteredUsers = React.useMemo(() => {
+    if (!allUsersData) return [];
+    let list = [...allUsersData];
 
+    // Filter by role dropdown
+    if (roleFilter !== 'ALL') {
+      list = list.filter((u: any) => {
+        const r = (u.role || u.role_name || '').toUpperCase();
+        return r === roleFilter;
+      });
+    }
+
+    // Filter by search string
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      list = list.filter((u: any) => {
+        const name = (u.first_name || u.last_name 
+            ? `${u.first_name || ''} ${u.last_name || ''}` 
+            : (u.name || '')).toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        const username = (u.username || '').toLowerCase();
+        const roleName = (u.role || u.role_name || '').toLowerCase();
+        
+        return name.includes(q) || email.includes(q) || username.includes(q) || roleName.includes(q);
+      });
+    }
+    
+    return list;
+  }, [allUsersData, roleFilter, debouncedSearch]);
+
+  const totalCount = filteredUsers.length;
   const itemsPerPage = 10;
   const totalPages = Math.ceil(totalCount / itemsPerPage) || 1;
+  const usersList = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <DashboardLayout activePage="role-management">
@@ -96,16 +120,31 @@ const RoleManagement: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl shadow-soft border border-slate-200 overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row items-center gap-4 justify-between">
           <div className="relative w-full max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               type="text"
-              placeholder="Search users by name, username, or email..."
+              placeholder="Search users by name, username, email, or role..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
             />
+          </div>
+          <div className="relative w-full sm:w-auto min-w-[200px]">
+            <select
+              value={roleFilter}
+              onChange={(e) => { setRoleFilter(e.target.value); setCurrentPage(1); }}
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-3 pl-4 pr-10 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 font-medium text-slate-700"
+            >
+              <option value="ALL">All Roles</option>
+              {AVAILABLE_ROLES.map((role) => (
+                <option key={role.value} value={role.value}>{role.label}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+              <ChevronDown size={16} />
+            </div>
           </div>
         </div>
 
