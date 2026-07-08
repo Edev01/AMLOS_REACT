@@ -176,6 +176,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           ],
         },
         {
+          id: 'cms',
+          label: 'CMS Management',
+          icon: <FileText size={18} />,
+          children: [
+            { id: 'cms-dashboard', label: 'CMS Dashboard', path: '/admin/cms' },
+            { id: 'all-classes', label: 'All Classes', path: '/admin/cms/classes' },
+            { id: 'all-subjects', label: 'All Subjects', path: '/admin/cms/subjects' },
+            { id: 'all-chapters', label: 'All Chapters', path: '/admin/cms/chapters' },
+            { id: 'all-slos', label: 'All SLOs', path: '/admin/cms/slos' },
+          ],
+        },
+        {
           id: 'planner',
           label: 'Planner Management',
           icon: <CalendarDays size={18} />,
@@ -191,18 +203,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           children: [
             { id: 'create-assessment-template', label: 'Create Template', path: '/admin/assessments/templates/create' },
             { id: 'all-assessment-templates', label: 'All Templates', path: '/admin/assessments/templates' },
-          ],
-        },
-        {
-          id: 'cms',
-          label: 'CMS Management',
-          icon: <FileText size={18} />,
-          children: [
-            { id: 'cms-dashboard', label: 'CMS Dashboard', path: '/admin/cms' },
-            { id: 'all-classes', label: 'All Classes', path: '/admin/cms/classes' },
-            { id: 'all-subjects', label: 'All Subjects', path: '/admin/cms/subjects' },
-            { id: 'all-chapters', label: 'All Chapters', path: '/admin/cms/chapters' },
-            { id: 'all-slos', label: 'All SLOs', path: '/admin/cms/slos' },
           ],
         },
         {

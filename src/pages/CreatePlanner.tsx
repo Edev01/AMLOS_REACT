@@ -73,8 +73,7 @@ const CreatePlanner: React.FC = () => {
     exam_type: '',
     start_date: '',
     end_date: '',
-    min_study_time_daily: '30',
-    max_study_time_daily: '120',
+    study_time_daily: '120',
     grade: '',
     mode: 'PARALLEL',
     weekends_off: false,
@@ -357,7 +356,7 @@ const CreatePlanner: React.FC = () => {
 
     const totalHours = totalMinutes / 60;
     const requiredHoursPerDay = days > 0 ? totalHours / days : 0;
-    const limitHoursPerDay = (Number(form.max_study_time_daily) || 120) / 60;
+    const limitHoursPerDay = (Number(form.study_time_daily) || 120) / 60;
     const isExceeded = requiredHoursPerDay > limitHoursPerDay;
 
     // Suggest solutions
@@ -471,8 +470,7 @@ const CreatePlanner: React.FC = () => {
       slo_ids: selectedSloIds.map(id => Number(id)),
       start_date: form.start_date,
       end_date: form.end_date,
-      min_study_time_daily: Number(form.min_study_time_daily) || 30,
-      max_study_time_daily: Number(form.max_study_time_daily) || 120,
+      study_time_daily: Number(form.study_time_daily) || 120,
       plan_type: (isSuperAdmin || user?.role === 'SUPER_ADMIN') ? 'RECOMMENDED' : 'CUSTOM',
     };
 
@@ -496,7 +494,7 @@ const CreatePlanner: React.FC = () => {
     console.log('Final Submission Payload:', payload);
     console.log('Submission Payload (formatted):', JSON.stringify(payload, null, 2));
     console.log('slo_ids type check:', typeof payload.slo_ids[0], 'values:', payload.slo_ids);
-    console.log('study_time type check:', typeof payload.min_study_time_daily, typeof payload.max_study_time_daily);
+    console.log('study_time type check:', typeof payload.study_time_daily);
 
     try {
       const response = await studyPlanService.createPlan(payload);
@@ -755,8 +753,25 @@ const CreatePlanner: React.FC = () => {
                 </div>
               </div>
 
-              {field('Min Study Time Daily (min)', 'min_study_time_daily', '30', 'number')}
-              {field('Max Study Time Daily (min)', 'max_study_time_daily', '120', 'number')}
+              <div className="md:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  Daily Study Time (min) <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="30"
+                    max="480"
+                    step="15"
+                    value={form.study_time_daily}
+                    onChange={e => setFormField('study_time_daily', e.target.value)}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="w-16 text-center rounded-lg border border-gray-200 bg-gray-50 py-1 px-2 text-sm font-semibold text-gray-700">
+                    {form.study_time_daily}
+                  </div>
+                </div>
+              </div>
               <div className="md:col-span-2 lg:col-span-3">
                 <label className="mb-3 block text-sm font-medium text-gray-700">
                   Study Mode <span className="text-red-500">*</span>
@@ -1022,7 +1037,7 @@ const CreatePlanner: React.FC = () => {
                   <p className="text-xs text-red-700 dark:text-red-300 mt-1 leading-relaxed">
                     The selected SLOs require an estimated <strong>{metrics.totalHours.toFixed(1)} hours</strong> of study.
                     Over the plan duration of <strong>{metrics.days} days</strong>, this requires <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>.
-                    However, your defined maximum limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
+                    However, your defined limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.study_time_daily} minutes).
                   </p>
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
                     <div>
@@ -1031,8 +1046,8 @@ const CreatePlanner: React.FC = () => {
                       </label>
                       <input
                         type="number"
-                        value={form.max_study_time_daily}
-                        onChange={e => setFormField('max_study_time_daily', e.target.value)}
+                        value={form.study_time_daily}
+                        onChange={e => setFormField('study_time_daily', e.target.value)}
                         placeholder="e.g. 384"
                         className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
                       />
@@ -1209,7 +1224,7 @@ const CreatePlanner: React.FC = () => {
                     <p className="text-xs text-red-700 dark:text-red-300 mt-1 leading-relaxed">
                       The selected SLOs require an estimated <strong>{metrics.totalHours.toFixed(1)} hours</strong> of study.
                       Over the plan duration of <strong>{metrics.days} days</strong>, this requires <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>.
-                      However, your defined maximum limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
+                      However, your defined limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.study_time_daily} minutes).
                     </p>
                     <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
                       <div>
@@ -1218,8 +1233,8 @@ const CreatePlanner: React.FC = () => {
                         </label>
                         <input
                           type="number"
-                          value={form.max_study_time_daily}
-                          onChange={e => setFormField('max_study_time_daily', e.target.value)}
+                          value={form.study_time_daily}
+                          onChange={e => setFormField('study_time_daily', e.target.value)}
                           placeholder="e.g. 384"
                           className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
                         />
@@ -1250,7 +1265,7 @@ const CreatePlanner: React.FC = () => {
                 <div className="mb-6 p-4 border border-emerald-100 dark:border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-500/10 rounded-xl flex items-center gap-3">
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold">✓</span>
                   <p className="text-xs text-emerald-800 dark:text-emerald-400">
-                    Based on selected SLOs, students will study about <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>. This is within your daily limit of <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.max_study_time_daily} minutes).
+                    Based on selected SLOs, students will study about <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>. This is within your daily limit of <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.study_time_daily} minutes).
                   </p>
                 </div>
               )}
@@ -1284,7 +1299,7 @@ const CreatePlanner: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">Study Time</p>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{form.min_study_time_daily || '30'} - {form.max_study_time_daily || '120'} min/day</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{form.study_time_daily || '120'} min/day</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">Start Date</p>

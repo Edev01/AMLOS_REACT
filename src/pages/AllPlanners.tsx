@@ -9,7 +9,7 @@ import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { studyPlanService } from '../api/services/studyPlanService';
-import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Clock, Layers, X, AlertTriangle, Loader2, Star, History, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Clock, Layers, X, AlertTriangle, Loader2, Star, History, CheckCircle2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Planner Type Definition
@@ -26,8 +26,7 @@ interface Planner {
   startDate?: string;
   endDate?: string;
   dailyLimit?: string;
-  minStudyTime?: number;
-  maxStudyTime?: number;
+  studyTimeDaily?: number;
   mode?: string;
   sloCount?: number;
   selectedSubjects?: number[];
@@ -85,13 +84,12 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
     mode: planner.mode || 'PARALLEL',
     start_date: planner.startDate || '',
     end_date: planner.endDate || '',
-    min_study_time_daily: planner.minStudyTime || '',
-    max_study_time_daily: planner.maxStudyTime || '',
+    study_time_daily: planner.studyTimeDaily || '',
   });
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm(prev => {
-      if (['min_study_time_daily', 'max_study_time_daily'].includes(name)) {
+      if (['study_time_daily'].includes(name)) {
         return { ...prev, [name]: value === '' ? '' : Number(value) };
       }
       return { ...prev, [name]: value };
@@ -113,8 +111,7 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
       mode: form.mode,
       start_date: form.start_date,
       end_date: form.end_date,
-      min_study_time_daily: !form.min_study_time_daily || Number(form.min_study_time_daily) === 0 ? null : Number(form.min_study_time_daily),
-      max_study_time_daily: !form.max_study_time_daily || Number(form.max_study_time_daily) === 0 ? null : Number(form.max_study_time_daily),
+      study_time_daily: !form.study_time_daily || Number(form.study_time_daily) === 0 ? null : Number(form.study_time_daily),
     };
     console.log("Sending Payload:", cleanPayload);
     onSave(planId, cleanPayload);
@@ -126,8 +123,7 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
     { name: 'mode', label: 'Mode', type: 'select', options: ['PARALLEL','SEQUENTIAL','CUSTOM'] },
     { name: 'start_date', label: 'Start Date', type: 'date' },
     { name: 'end_date', label: 'End Date', type: 'date' },
-    { name: 'min_study_time_daily', label: 'Min Study Time (min)', type: 'number' },
-    { name: 'max_study_time_daily', label: 'Max Study Time (min)', type: 'number' },
+    { name: 'study_time_daily', label: 'Daily Study Time (min)', type: 'number' },
   ];
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
@@ -205,6 +201,102 @@ const DeletePlannerModal: React.FC<DeletePlannerModalProps> = ({ planner, onClos
 
 const AllPlanners: React.FC = () => {
   const navigate = useNavigate();
+const ViewPlannerDrawer: React.FC<{ planner: Planner, onClose: () => void }> = ({ planner, onClose }) => {
+  const name = planner.name || 'Untitled Planner';
+  const grade = planner.grade || 'N/A';
+  const examType = planner.examType || 'N/A';
+  const duration = planner.duration || 'N/A';
+  const mode = planner.mode || 'PARALLEL';
+  const studyTimeDaily = planner.studyTimeDaily || 0;
+  const sloCount = planner.sloCount || 0;
+  const subjects = planner.subjects || [];
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60]" onClick={onClose} />
+      <motion.div 
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[70] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50 sticky top-0 z-10">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">{name}</h2>
+            <p className="text-sm text-gray-500">Planner Details</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition">
+            <X size={20} className="text-gray-500" />
+          </button>
+        </div>
+        
+        <div className="p-6 space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Info size={18} className="text-blue-600" />
+              General Information
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Grade</p>
+                <p className="text-sm font-semibold text-gray-900">{grade}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Exam Type</p>
+                <p className="text-sm font-semibold text-gray-900">{examType}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Duration</p>
+                <p className="text-sm font-semibold text-gray-900">{duration}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Study Time</p>
+                <p className="text-sm font-semibold text-gray-900">{studyTimeDaily} min/day</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Study Mode</p>
+                <p className="text-sm font-semibold text-gray-900">
+                    {mode === 'PARALLEL' ? 'Parallel' : 
+                     mode === 'SEQUENTIAL' ? 'Sequential' : 
+                     'Custom'}
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Total SLOs</p>
+                <p className="text-sm font-semibold text-gray-900">{sloCount} Objectives</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <BookOpen size={18} className="text-indigo-600" />
+              Included Subjects
+            </h3>
+            
+            {subjects.length > 0 ? (
+              <ul className="space-y-2">
+                {subjects.map((sub: string, i: number) => (
+                  <li key={i} className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/50 border border-indigo-100 text-indigo-900 font-medium text-sm">
+                    <div className="w-6 h-6 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center text-xs font-bold">
+                      {i + 1}
+                    </div>
+                    {typeof sub === 'object' ? (sub as any).title || (sub as any).name || JSON.stringify(sub) : String(sub)}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500 italic p-3 bg-gray-50 rounded-xl">No subjects explicitly listed</p>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+};
+
   const queryClient = useQueryClient();
   const { user, tenant, isSuperAdmin } = useAuth();
   const { isDark } = useTheme();
@@ -212,6 +304,7 @@ const AllPlanners: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [editingPlanner, setEditingPlanner] = useState<Planner | null>(null);
   const [deletingPlanner, setDeletingPlanner] = useState<Planner | null>(null);
+  const [viewingPlanner, setViewingPlanner] = useState<Planner | null>(null);
   const itemsPerPage = 6;
 
   const { data: plannersData, isLoading, isError, error, refetch } = useQuery({
@@ -253,8 +346,7 @@ const AllPlanners: React.FC = () => {
         examType: p.plan_type || p.exam_type || p.examType || 'N/A',
         startDate: p.start_date || 'N/A',
         endDate: p.end_date || 'N/A',
-        minStudyTime: p.min_study_time_daily || p.min_study_time || p.daily_limit_minutes || 0,
-        maxStudyTime: p.max_study_time_daily || p.max_study_time || 0,
+        studyTimeDaily: p.study_time_daily || p.min_study_time_daily || p.min_study_time || p.daily_limit_minutes || 0,
         mode: p.mode || 'PARALLEL',
         sloCount: (() => {
           if (Array.isArray(p.slo_ids)) return p.slo_ids.length;
@@ -382,10 +474,7 @@ const AllPlanners: React.FC = () => {
         mode: data.mode,
         start_date: data.start_date,
         end_date: data.end_date,
-        min_study_time: Number(data.min_study_time_daily || data.min_study_time),
-        max_study_time: Number(data.max_study_time_daily || data.max_study_time),
-        min_study_time_daily: Number(data.min_study_time_daily || data.min_study_time),
-        max_study_time_daily: Number(data.max_study_time_daily || data.max_study_time),
+        study_time_daily: Number(data.study_time_daily),
       };
       await studyPlanService.updatePlan(id, finalPayload);
     },
@@ -451,15 +540,13 @@ const AllPlanners: React.FC = () => {
                     <tr className="bg-gradient-to-r from-accent-blue to-accent-indigo text-white">
                       <th className="px-6 py-4 text-left text-sm font-semibold">Planner Name</th>
                       <th className="px-6 py-4 text-center text-sm font-semibold">Grade</th>
-                      <th className="px-6 py-4 text-center text-sm font-semibold">Subjects</th>
-                      <th className="px-6 py-4 text-center text-sm font-semibold">Status</th>
                       <th className="px-6 py-4 text-center text-sm font-semibold">Created Date</th>
                       <th className="px-6 py-4 text-center text-sm font-semibold">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {paginatedPlanners.map((planner, index) => (
-                      <motion.tr key={planner.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                      <motion.tr key={planner.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => setViewingPlanner(planner)}>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-start gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-white shadow-md"><BookOpen size={18} /></div>
@@ -470,19 +557,10 @@ const AllPlanners: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-center"><div className="flex items-center justify-center gap-2"><GraduationCap size={15} className="text-accent-indigo" /><span className="text-sm text-navy-800 dark:text-slate-200">{planner.grade || '—'}</span></div></td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex flex-col items-center justify-center gap-1.5">
-                            {planner.subjects.slice(0, 3).map((s, i) => (
-                              <span key={i} className="px-2.5 py-0.5 text-[11px] font-medium rounded-md bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 max-w-[120px] truncate">{typeof s === 'object' ? (s as any).title || (s as any).name || JSON.stringify(s) : String(s)}</span>
-                            ))}
-                            {planner.subjects.length > 3 && <span className="px-2 py-0.5 text-[10px] font-medium text-slate-400">+{planner.subjects.length - 3} more</span>}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center"><StatusBadge status={planner.status} /></td>
                         <td className="px-6 py-4 text-center"><span className="text-sm text-slate-500 dark:text-slate-400">{planner.createdDate}</span></td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-2">
-                            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => navigate(`${getBasePath()}/${planner.id}`)} className="p-2 text-accent-blue hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="View"><Eye size={16} /></motion.button>
+                            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => setViewingPlanner(planner)} className="p-2 text-accent-blue hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="View"><Eye size={16} /></motion.button>
                             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => setEditingPlanner(planner)} className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors" title="Edit"><Edit size={16} /></motion.button>
                             <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => setDeletingPlanner(planner)} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors" title="Delete"><Trash2 size={16} /></motion.button>
                           </div>
@@ -527,6 +605,14 @@ const AllPlanners: React.FC = () => {
             onClose={() => setDeletingPlanner(null)}
             onConfirm={() => deleteMutation.mutate(deletingPlanner.id)}
             isDeleting={deleteMutation.isPending}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {viewingPlanner && (
+          <ViewPlannerDrawer
+            planner={viewingPlanner}
+            onClose={() => setViewingPlanner(null)}
           />
         )}
       </AnimatePresence>

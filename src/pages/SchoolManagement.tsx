@@ -167,7 +167,7 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
     email: school.email || '',
     address: school.address || '',
     website: school.website || '',
-    phone_number: (school as any).phone_number || (school as any).phone || '',
+    phone: (school as any).phone || (school as any).phone_number || '',
   });
 
   const handleChange = (e: React.ChangeEvent<any>) => {
@@ -194,7 +194,7 @@ const EditSchoolModal: React.FC<EditModalProps> = ({ school, onClose, onSave, is
     { name: 'school_name', label: 'School Name' },
     { name: 'principal_name', label: 'Principal Name' },
     { name: 'email', label: 'Email', type: 'email' },
-    { name: 'phone_number', label: 'Phone' },
+    { name: 'phone', label: 'Phone' },
     { name: 'address', label: 'Address' },
     { name: 'website', label: 'Website' },
 
