@@ -23,6 +23,7 @@ import {
   Eye,
   Pencil,
   Trash2,
+  Check,
   Loader2,
   ArrowRight,
   ArrowLeft,
@@ -1565,34 +1566,40 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     'upload-slo': 'upload-slos',
   };
 
-  const isInFlow = ['add-class','add-subject','subjects','chapters','add-chapter','add-slo','upload-slo'].includes(view) &&
-    (searchParams.get('grade') || searchParams.get('subject') || searchParams.get('chapter'));
+  let currentStep = 0;
+  if (view === 'add-class') currentStep = 1;
+  else if (view === 'subjects' || view === 'add-subject') currentStep = 2;
+  else if (view === 'chapters' || view === 'add-chapter') currentStep = 3;
+  else if (view === 'slos' || view === 'add-slo' || view === 'upload-slo') currentStep = 4;
+
+  const isInFlow = currentStep > 0;
 
   const flowSteps = [
-    { label: 'Grade', step: 1, done: !!(searchParams.get('grade') || searchParams.get('subject') || searchParams.get('chapter') || view === 'subjects' || view === 'add-subject' || view === 'chapters' || view === 'add-chapter' || view === 'add-slo') },
-    { label: 'Subject', step: 2, done: !!(searchParams.get('subject') || searchParams.get('chapter') || view === 'chapters' || view === 'add-chapter' || view === 'add-slo') },
-    { label: 'Chapter', step: 3, done: !!(searchParams.get('chapter') || view === 'add-slo') },
-    { label: 'SLOs', step: 4, done: view === 'add-slo' },
+    { n: 1, title: 'Grade', sub: 'Setup curriculum grade' },
+    { n: 2, title: 'Subject', sub: 'Add subjects to grade' },
+    { n: 3, title: 'Chapter', sub: 'Add chapters to subject' },
+    { n: 4, title: 'SLOs', sub: 'Define learning outcomes' },
   ];
 
   return (
     <DashboardLayout activePage={activePageMap[view]}>
       {isInFlow ? (
-        <div className="mb-6 flex items-center gap-0">
+        <div className="flex items-center justify-between mb-10 max-w-3xl mx-auto">
           {flowSteps.map((s, i) => (
-            <React.Fragment key={s.label}>
-              <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
-                s.done
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-400'
-              }`}>
-                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-black ${
-                  s.done ? 'bg-white/20 text-white' : 'bg-white text-slate-400'
-                }`}>{s.step}</span>
-                {s.label}
+            <React.Fragment key={s.n}>
+              <div className="flex items-center gap-3">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                    currentStep >= s.n ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                  }`}>
+                  {currentStep > s.n ? <Check size={16} /> : s.n}
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{s.title}</p>
+                  <p className="text-[10px] text-gray-400">{s.sub}</p>
+                </div>
               </div>
               {i < flowSteps.length - 1 && (
-                <ArrowRight size={16} className={s.done ? 'text-blue-400 mx-1' : 'text-slate-300 mx-1'} />
+                <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${currentStep > s.n ? 'bg-blue-600' : 'bg-gray-200'}`} />
               )}
             </React.Fragment>
           ))}

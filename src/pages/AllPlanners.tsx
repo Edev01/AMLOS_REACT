@@ -9,6 +9,7 @@ import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { studyPlanService } from '../api/services/studyPlanService';
+import { getGrades } from '../api/services/curriculumService';
 import { Plus, Search, Eye, Edit, Copy, Trash2, Calendar, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Clock, Layers, X, AlertTriangle, Loader2, Star, History, CheckCircle2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -77,6 +78,12 @@ interface EditPlannerModalProps {
   isSaving: boolean;
 }
 const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, onSave, isSaving }) => {
+  const { data: gradesData } = useQuery({
+    queryKey: ['grades'],
+    queryFn: getGrades,
+    staleTime: 300000,
+  });
+
   const [form, setForm] = useState({
     title: planner.name || '',
     plan_type: planner.examType || '',
@@ -112,6 +119,9 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
       start_date: form.start_date,
       end_date: form.end_date,
       study_time_daily: !form.study_time_daily || Number(form.study_time_daily) === 0 ? null : Number(form.study_time_daily),
+      slo_ids: raw.slo_ids || raw.slos || [],
+      subject_ids: raw.subject_ids || raw.subjects || [],
+      chapter_ids: raw.chapter_ids || raw.chapters || [],
     };
     console.log("Sending Payload:", cleanPayload);
     onSave(planId, cleanPayload);
@@ -119,8 +129,8 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
   const fields = [
     { name: 'title', label: 'Title', type: 'text' },
     { name: 'plan_type', label: 'Plan Type', type: 'text' },
-    { name: 'grade', label: 'Grade', type: 'text' },
-    { name: 'mode', label: 'Mode', type: 'select', options: ['PARALLEL','SEQUENTIAL','CUSTOM'] },
+    { name: 'grade', label: 'Grade', type: 'select', options: gradesData ? gradesData.map((g: any) => g.name) : [planner.grade || ''] },
+    { name: 'mode', label: 'Mode', type: 'select', options: ['PARALLEL','CUSTOM'] },
     { name: 'start_date', label: 'Start Date', type: 'date' },
     { name: 'end_date', label: 'End Date', type: 'date' },
     { name: 'study_time_daily', label: 'Daily Study Time (min)', type: 'number' },

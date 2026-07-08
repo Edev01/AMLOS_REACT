@@ -317,25 +317,28 @@ const PaperCheckerManagement: React.FC = () => {
               {checkers.map((checker: any) => (
                 <motion.div key={checker.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm hover:shadow-md transition p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-start justify-between mb-4 gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       {checker.profile_image ? (
                         <img src={checker.profile_image} alt="avatar"
-                          className="w-12 h-12 rounded-xl object-cover shadow-md" />
+                          className="w-12 h-12 shrink-0 rounded-xl object-cover shadow-md" />
                       ) : (
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
+                        <div className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
                           {(checker.email || 'C')[0].toUpperCase()}
                         </div>
                       )}
-                      <div>
-                        <p className="font-bold text-sm text-gray-900 dark:text-slate-100">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm text-gray-900 dark:text-slate-100 truncate" title={[checker.first_name, checker.last_name].filter(Boolean).join(' ') || checker.email?.split('@')[0] || 'Checker'}>
                           {[checker.first_name, checker.last_name].filter(Boolean).join(' ') || checker.email?.split('@')[0] || 'Checker'}
                         </p>
-                        <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5"><Mail size={11} />{checker.email || 'N/A'}</p>
+                        <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5 truncate" title={checker.email || 'N/A'}>
+                          <Mail size={11} className="shrink-0" />
+                          <span className="truncate">{checker.email || 'N/A'}</span>
+                        </p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-[10px] font-bold uppercase bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full">Checker</span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-[10px] font-bold uppercase bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 px-2.5 py-1 rounded-full">Checker</span>
                       <span className="text-[10px] text-gray-400">ID #{checker.id}</span>
                     </div>
                   </div>

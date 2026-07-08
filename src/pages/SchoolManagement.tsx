@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 
 const icons = ['🏫', '🎓', '🌿', '📚', '🏛️', '🎒'];
 const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
-const SCHOOLS_PAGE_SIZE = 12;
+const SCHOOLS_PAGE_SIZE = 10;
 
 interface SchoolsPage {
   schools: SchoolType[];
@@ -578,10 +578,11 @@ const SchoolManagement: React.FC = () => {
           </div>
 
           {/* Pagination Controls */}
-          {actualTotalPages > 1 && (
+          {actualTotalPages > 0 && (
             <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-6">
               <div className="flex items-center text-sm text-gray-500">
                 Page <span className="font-semibold text-gray-900 mx-1">{page}</span> of <span className="font-semibold text-gray-900 mx-1">{actualTotalPages}</span>
+
               </div>
               <div className="flex items-center gap-2">
                 <button

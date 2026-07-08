@@ -708,11 +708,11 @@ const CreatePlanner: React.FC = () => {
                 <select
                   value={form.exam_type}
                   onChange={e => setFormField('exam_type', e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  className="w-full appearance-none rounded-lg border border-gray-200 bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-white px-4 py-2.5 pr-10 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="" disabled>Select Exam Type</option>
+                  <option value="" disabled className="dark:bg-slate-800 dark:text-gray-400">Select Exam Type</option>
                   {(currentExamTypes || []).map(et => (
-                    <option key={et.value} value={et.value}>{et.label}</option>
+                    <option key={et.value} value={et.value} className="dark:bg-slate-800 dark:text-white">{et.label}</option>
                   ))}
                 </select>
               </div>
@@ -1374,7 +1374,7 @@ const CreatePlanner: React.FC = () => {
 
                 <div className="border-t border-gray-200 pt-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected Subjects</p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{(selectedSubjects?.length || 0)} subjects hello</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{(selectedSubjects?.length || 0)} subjects</p>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {(selectedSubjects || []).map(id => {
                       const sub = (allSubjects || []).find((s: Subject) => s?.id === id);
@@ -1391,11 +1391,33 @@ const CreatePlanner: React.FC = () => {
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Selected SLOs</p>
                   <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{(selectedSloIds?.length || 0)} SLOs</p>
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {(selectedSloIds || []).map(sloId => (
-                      <span key={sloId} className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-md">
-                        SLO #{sloId}
-                      </span>
-                    ))}
+                    {(selectedSloIds || []).map(sloId => {
+                      let sloObj: SLO | null = null;
+                      let subjectName = '';
+                      for (const [subId, chapters] of Object.entries(chaptersBySubject)) {
+                        for (const chapter of chapters || []) {
+                          const found = (chapter.slos || []).find(s => s.id === sloId);
+                          if (found) {
+                            sloObj = found;
+                            subjectName = allSubjects.find(s => s.id === parseInt(subId))?.name || '';
+                            break;
+                          }
+                        }
+                        if (sloObj) break;
+                      }
+
+                      const sloName = sloObj ? (sloObj.name || sloObj.slo_text || `SLO #${sloId}`) : `SLO #${sloId}`;
+
+                      return (
+                        <span 
+                          key={sloId} 
+                          title={sloObj ? `${subjectName}: ${sloName}` : ''}
+                          className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-md cursor-help flex items-center gap-1"
+                        >
+                          <span className="max-w-[200px] truncate">{sloName}</span>
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
