@@ -31,7 +31,9 @@ import {
   Clock,
   AlertTriangle,
   Download,
+  ClipboardList,
 } from 'lucide-react';
+import ExamTypesModal from '../components/ExamTypesModal';
 
 type CMSView =
   | 'dashboard'
@@ -407,6 +409,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const [deletingChapter, setDeletingChapter] = useState<CMSChapter | null>(null);
   const [editingSlo, setEditingSlo] = useState<CMSSlo | null>(null);
   const [deletingSlo, setDeletingSlo] = useState<CMSSlo | null>(null);
+  const [managingExamTypesGrade, setManagingExamTypesGrade] = useState<string | null>(null);
 
   // ═══ QUERIES ═══
 
@@ -937,6 +940,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 </span>
               </div>
               <div className="mt-6 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                <IconButton title="Exam Types" tone="blue" onClick={() => setManagingExamTypesGrade(grade.name)}><ClipboardList size={15} /></IconButton>
                 <IconButton title="View subjects" tone="blue" onClick={() => navigate(`/admin/cms/subjects?grade=${encodeURIComponent(grade.name)}`)}><Eye size={15} /></IconButton>
                 <IconButton title="Edit" onClick={() => setEditingGrade(grade)}><Pencil size={15} /></IconButton>
                 <IconButton title="Delete" tone="red" onClick={() => setDeletingGrade(grade)}><Trash2 size={15} /></IconButton>
@@ -945,6 +949,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           ))}
         </div>
       )}
+      <ExamTypesModal
+        isOpen={!!managingExamTypesGrade}
+        onClose={() => setManagingExamTypesGrade(null)}
+        grade={managingExamTypesGrade || ''}
+      />
     </>
   );
 
