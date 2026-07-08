@@ -161,9 +161,9 @@ const DashboardOverview: React.FC = () => {
   const assessmentChartData = getChartData(assessments, assessmentFilter);
 
   const stats = [
-    { label: 'Total Schools', value: schoolsCount.toLocaleString(), change: `+${schoolsThisMonth} this month`, icon: School, color: 'text-blue-600', bg: 'bg-blue-50', badgeColor: 'bg-emerald-100 text-emerald-700' },
-    { label: 'Total Planners', value: plannersCount.toLocaleString(), change: `+${plannersThisMonth} this month`, icon: ClipboardList, color: 'text-amber-600', bg: 'bg-amber-50', badgeColor: 'bg-emerald-100 text-emerald-700' },
-    { label: 'Total Assessments', value: assessmentsCount.toLocaleString(), change: `+${assessmentsThisMonth} this month`, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50', badgeColor: 'bg-emerald-100 text-emerald-700' },
+    { label: 'Total Schools', value: schoolsCount.toLocaleString(), change: `+${schoolsThisMonth} this month`, icon: School, color: 'text-blue-600', bg: 'bg-blue-50', badgeColor: 'bg-emerald-100 text-emerald-700', path: '/admin/schools' },
+    { label: 'Total Planners', value: plannersCount.toLocaleString(), change: `+${plannersThisMonth} this month`, icon: ClipboardList, color: 'text-amber-600', bg: 'bg-amber-50', badgeColor: 'bg-emerald-100 text-emerald-700', path: '/admin/planners' },
+    { label: 'Total Assessments', value: assessmentsCount.toLocaleString(), change: `+${assessmentsThisMonth} this month`, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50', badgeColor: 'bg-emerald-100 text-emerald-700', path: '/admin/assessments/templates' },
   ];
 
   return (
@@ -199,7 +199,7 @@ const DashboardOverview: React.FC = () => {
       {/* Stats Cards */}
       <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {stats.map((stat, index) => (
-          <motion.div key={index} variants={itemVariants} className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm hover:shadow-md transition">
+          <motion.div key={index} variants={itemVariants} onClick={() => navigate(stat.path)} className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm hover:shadow-md transition cursor-pointer">
             <div className="flex justify-between items-start mb-4">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg} dark:bg-opacity-10`}>
                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
