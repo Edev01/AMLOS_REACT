@@ -21,7 +21,8 @@ export interface CreatePaperCheckerPayload {
 
 export interface AssignPayload {
   subject_id: number | string;
-  student_ids: (number | string)[];
+  portion: string;
+  student_ids: number[];
 }
 
 export const paperCheckerService = {

@@ -120,17 +120,15 @@ const CreateCheckerModal: React.FC<{ onClose: () => void; onCreated: () => void 
 // ── Assign Modal ───────────────────────────────────────────────────
 const AssignModal: React.FC<{ checker: any; onClose: () => void }> = ({ checker, onClose }) => {
   const [subjectId, setSubjectId] = useState('');
+  const [portion, setPortion] = useState('full');
   const [studentIds, setStudentIds] = useState('');
   const { data: subjects = [] } = useQuery({ queryKey: ['subjects-list'], queryFn: getSubjects });
 
   const mutation = useMutation({
     mutationFn: () => paperCheckerService.assignToChecker(checker.id, {
       subject_id: Number(subjectId),
-      student_ids: studentIds.split(',').map(s => {
-        const val = s.trim();
-        const num = Number(val);
-        return isNaN(num) ? val : num;
-      }).filter(Boolean),
+      portion,
+      student_ids: studentIds ? studentIds.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n)) : [],
     }),
     onSuccess: () => { toast.success('Assigned successfully!'); onClose(); },
     onError: (e: any) => {
@@ -161,11 +159,20 @@ const AssignModal: React.FC<{ checker: any; onClose: () => void }> = ({ checker,
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Student IDs (comma-separated)</label>
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Portion</label>
+            <select value={portion} onChange={e => setPortion(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none transition">
+              <option value="full">Full</option>
+              <option value="half">Half</option>
+              <option value="quarter">Quarter</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Student IDs (optional)</label>
             <input value={studentIds} onChange={e => setStudentIds(e.target.value)}
-              placeholder="e.g. 5, 12, 18"
+              placeholder="e.g. 10, 15"
               className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none transition" />
-            <p className="text-xs text-gray-400 mt-1">Enter half, quarter, full, or specific student IDs</p>
+            <p className="text-xs text-gray-400 mt-1">Enter specific student IDs separated by commas</p>
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
