@@ -29,6 +29,7 @@ import AddTeacher from './pages/AddTeacher';
 import TeacherDetail from './pages/TeacherDetailPage';
 import SubmissionsList from './pages/SubmissionsList';
 import PaperCheckerManagement from './pages/PaperCheckerManagement';
+import CheckerDashboard from './pages/CheckerDashboard';
 import ComingSoon from './pages/ComingSoon';
 import MainLayout from './components/MainLayout';
 
@@ -127,6 +128,13 @@ function App() {
             <Route path="/school/submissions" element={<SubmissionsList />} />
             <Route path="/school/analytics" element={<div>Analytics Page</div>} />
             <Route path="/school/settings" element={<div>Settings Page</div>} />
+          </Route>
+
+          {/* ============================================
+              PAPER CHECKER ROUTES
+              ============================================ */}
+          <Route element={<ProtectedRoute allowedRoles={['PAPER_CHECKER']} />}>
+            <Route path="/checker-dashboard" element={<CheckerDashboard />} />
           </Route>
 
           {/* ============================================

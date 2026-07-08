@@ -126,10 +126,17 @@ const AssignModal: React.FC<{ checker: any; onClose: () => void }> = ({ checker,
   const mutation = useMutation({
     mutationFn: () => paperCheckerService.assignToChecker(checker.id, {
       subject_id: Number(subjectId),
-      student_ids: studentIds.split(',').map(s => Number(s.trim())).filter(Boolean),
+      student_ids: studentIds.split(',').map(s => {
+        const val = s.trim();
+        const num = Number(val);
+        return isNaN(num) ? val : num;
+      }).filter(Boolean),
     }),
     onSuccess: () => { toast.success('Assigned successfully!'); onClose(); },
-    onError: (e: any) => toast.error(e?.response?.data?.message || e?.response?.data?.detail || 'Assignment failed'),
+    onError: (e: any) => {
+      const msg = extractError(e);
+      toast.error(msg);
+    },
   });
 
   return (
