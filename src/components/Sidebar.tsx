@@ -29,6 +29,7 @@ import {
   DollarSign,
   UserCog,
   GraduationCap as StudentIcon,
+  ClipboardCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -204,6 +205,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
             { id: 'create-assessment-template', label: 'Create Template', path: '/admin/assessments/templates/create' },
             { id: 'all-assessment-templates', label: 'All Templates', path: '/admin/assessments/templates' },
           ],
+        },
+        {
+          id: 'paper-checkers',
+          label: 'Paper Checkers',
+          icon: <ClipboardCheck size={18} />,
+          path: '/admin/paper-checkers',
         },
         {
           id: 'role-management',
