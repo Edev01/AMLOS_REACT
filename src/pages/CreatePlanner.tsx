@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -7,6 +8,7 @@ import api from '../api/services/api';
 import { getChaptersBySubject } from '../api/services/studentService';
 import { getGrades } from '../api/services/curriculumService';
 import { studyPlanService } from '../api/services/studyPlanService';
+import { examTypeService, ExamType } from '../api/services/examTypeService';
 import { Subject, Chapter, SLO } from '../types';
 import EmptyState from '../components/EmptyState';
 import toast from 'react-hot-toast';
@@ -83,6 +85,33 @@ const CreatePlanner: React.FC = () => {
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
+
+  // Exam Types (Fetched Dynamically)
+  const { data: allExamTypesResponse } = useQuery({
+    queryKey: ['cms', 'exam-types'],
+    queryFn: examTypeService.getExamTypes,
+  });
+
+  const currentExamTypes = React.useMemo(() => {
+    if (!allExamTypesResponse) return EXAM_TYPES;
+    
+    // API returns { success: true, data: [...] }
+    const list = Array.isArray(allExamTypesResponse) 
+      ? allExamTypesResponse 
+      : (allExamTypesResponse.data || []);
+      
+    if (!Array.isArray(list)) return EXAM_TYPES;
+    
+    // Filter by selected grade
+    const filtered = list
+      .filter((et: ExamType) => et.grade === form.grade)
+      .map((et: ExamType) => ({
+        value: et.name,
+        label: et.name
+      }));
+
+    return filtered.length > 0 ? filtered : EXAM_TYPES;
+  }, [allExamTypesResponse, form.grade]);
 
   // Fetch grades from CMS database
   const [cmsGrades, setCmsGrades] = useState<GradeOption[]>([]);
@@ -677,13 +706,13 @@ const CreatePlanner: React.FC = () => {
                   Exam Type
                 </label>
                 <select
-                  value={form.exam_type || ''}
+                  value={form.exam_type}
                   onChange={e => setFormField('exam_type', e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="">Select Exam Type</option>
-                  {(EXAM_TYPES || []).map(et => (
-                    <option key={et?.value || ''} value={et?.value || ''}>{et?.label || ''}</option>
+                  <option value="" disabled>Select Exam Type</option>
+                  {(currentExamTypes || []).map(et => (
+                    <option key={et.value} value={et.value}>{et.label}</option>
                   ))}
                 </select>
               </div>
@@ -1282,10 +1311,10 @@ const CreatePlanner: React.FC = () => {
                       {selectedGradeLabel || '—'}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">Exam Type</p>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                      {(EXAM_TYPES || []).find(et => et?.value === form.exam_type)?.label || form.exam_type || '—'}
+                  <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/10">
+                    <p className="text-xs text-slate-500 mb-1">Exam Type</p>
+                    <p className="font-semibold text-slate-800 dark:text-white">
+                      {(currentExamTypes || []).find(et => et?.value === form.exam_type)?.label || form.exam_type || '—'}
                     </p>
                   </div>
                   <div>
