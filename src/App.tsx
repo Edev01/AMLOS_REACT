@@ -28,6 +28,8 @@ import TeacherManagement from './pages/TeacherManagement';
 import AddTeacher from './pages/AddTeacher';
 import TeacherDetail from './pages/TeacherDetailPage';
 import SubmissionsList from './pages/SubmissionsList';
+import PaperCheckerManagement from './pages/PaperCheckerManagement';
+import CheckerDashboard from './pages/CheckerDashboard';
 import ComingSoon from './pages/ComingSoon';
 import MainLayout from './components/MainLayout';
 
@@ -79,6 +81,7 @@ function App() {
             <Route path="/admin/cms/slos" element={<CMSManagement view="slos" />} />
             <Route path="/admin/cms/slos/add" element={<CMSManagement view="add-slo" />} />
             <Route path="/admin/cms/slos/upload" element={<CMSManagement view="upload-slo" />} />
+            <Route path="/admin/paper-checkers" element={<PaperCheckerManagement />} />
             <Route path="/admin/hr-management" element={<ComingSoon title="HR Management" />} />
             <Route path="/admin/finance-management" element={<ComingSoon title="Finance Management" />} />
             {/* Legacy route redirects */}
@@ -125,6 +128,13 @@ function App() {
             <Route path="/school/submissions" element={<SubmissionsList />} />
             <Route path="/school/analytics" element={<div>Analytics Page</div>} />
             <Route path="/school/settings" element={<div>Settings Page</div>} />
+          </Route>
+
+          {/* ============================================
+              PAPER CHECKER ROUTES
+              ============================================ */}
+          <Route element={<ProtectedRoute allowedRoles={['PAPER_CHECKER']} />}>
+            <Route path="/checker-dashboard" element={<CheckerDashboard />} />
           </Route>
 
           {/* ============================================

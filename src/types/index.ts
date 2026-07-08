@@ -10,7 +10,7 @@ export interface LoginCredentials {
 
 // --- Role ---
 // Multi-tenant RBAC roles as returned by backend
-export type Role = 'SUPER_ADMIN' | 'CAMPUS_ADMIN' | 'ADMIN' | 'SCHOOL_ADMIN' | 'SCHOOL' | 'TEACHER';
+export type Role = 'SUPER_ADMIN' | 'CAMPUS_ADMIN' | 'ADMIN' | 'SCHOOL_ADMIN' | 'SCHOOL' | 'TEACHER' | 'PAPER_CHECKER';
 
 /**
  * Role hierarchy and access levels
@@ -22,6 +22,7 @@ export const ROLE_HIERARCHY: Record<Role, number> = {
   SCHOOL_ADMIN: 40,    // Legacy - school level
   SCHOOL: 35,          // School-level access (simplified role)
   TEACHER: 20,         // Class level
+  PAPER_CHECKER: 10,   // Grading access only
 };
 
 /**
@@ -49,6 +50,7 @@ export const ROLE_DASHBOARD_MAP: Record<Role, string> = {
   SCHOOL: '/school/dashboard', // School admin dashboard
   ADMIN: '/dashboard',
   TEACHER: '/teacher-dashboard',
+  PAPER_CHECKER: '/checker-dashboard',
 };
 
 // --- User ---
