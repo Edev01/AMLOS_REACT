@@ -708,11 +708,11 @@ const CreatePlanner: React.FC = () => {
                 <select
                   value={form.exam_type}
                   onChange={e => setFormField('exam_type', e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  className="w-full appearance-none rounded-lg border border-gray-200 bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-white px-4 py-2.5 pr-10 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="" disabled>Select Exam Type</option>
+                  <option value="" disabled className="dark:bg-slate-800 dark:text-gray-400">Select Exam Type</option>
                   {(currentExamTypes || []).map(et => (
-                    <option key={et.value} value={et.value}>{et.label}</option>
+                    <option key={et.value} value={et.value} className="dark:bg-slate-800 dark:text-white">{et.label}</option>
                   ))}
                 </select>
               </div>
