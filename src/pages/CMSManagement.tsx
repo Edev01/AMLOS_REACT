@@ -1278,7 +1278,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   // ── SLOs ──
   const handleExportSlos = () => {
     if (!filteredSloRows || filteredSloRows.length === 0) return;
-    const headers = ['SLO', 'Chapter', 'Subject', 'Difficulty', 'Est. Time'];
+    const headers = ['SLO', 'Chapter', 'Subject', 'Priority', 'Est. Time'];
     const csvContent = [
       headers.join(','),
       ...filteredSloRows.map((slo: any) => {
@@ -1376,7 +1376,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 <th className="px-6 py-4 text-sm font-bold text-left w-[40%]">SLO</th>
                 <th className="px-6 py-4 text-sm font-bold text-center whitespace-nowrap">Chapter</th>
                 <th className="px-6 py-4 text-sm font-bold text-center">Subject</th>
-                <th className="px-6 py-4 text-sm font-bold text-center">Difficulty</th>
+                <th className="px-6 py-4 text-sm font-bold text-center">Priority</th>
                 <th className="px-6 py-4 text-sm font-bold text-center whitespace-nowrap">Est. Time</th>
                 <th className="px-6 py-4 text-sm font-bold text-center">Actions</th>
               </tr>
@@ -1487,7 +1487,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 {activeChapters.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.name}</option>)}
               </select>
             </FieldLabel>
-            <FieldLabel label="Difficulty Frequency">
+            <FieldLabel label="Priority">
               <select value={sloForm.difficulty_frequency} onChange={(e) => setSloForm((prev) => ({ ...prev, difficulty_frequency: e.target.value }))} className={`mt-2 ${selectClass}`}>
                 <option value="LOW">LOW</option>
                 <option value="MEDIUM">MEDIUM</option>
@@ -1678,7 +1678,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             title="Edit SLO"
             fields={[
               { label: 'SLO Name', name: 'name', value: getSloTitle(editingSlo) },
-              { label: 'Difficulty Frequency', name: 'difficulty_frequency', value: editingSlo.difficulty_frequency || 'MEDIUM', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH'] },
+              { label: 'Priority', name: 'difficulty_frequency', value: editingSlo.difficulty_frequency || 'MEDIUM', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH'] },
               { label: 'Estimated Time (minutes)', name: 'estimated_time', value: String(getSloTime(editingSlo) || ''), type: 'number' },
             ]}
             onClose={() => setEditingSlo(null)}

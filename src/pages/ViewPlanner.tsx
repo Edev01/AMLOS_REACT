@@ -68,8 +68,7 @@ const ViewPlanner: React.FC = () => {
   const startDate = planner.start_date || planner.startDate || 'N/A';
   const endDate = planner.end_date || planner.endDate || 'N/A';
   const mode = planner.mode || planner.study_mode || 'PARALLEL';
-  const minTime = planner.min_study_time_daily || planner.min_study_time || planner.daily_limit_minutes || planner.minStudyTimeDaily || 0;
-  const maxTime = planner.max_study_time_daily || planner.max_study_time || planner.maxStudyTimeDaily || 0;
+  const studyTimeDaily = planner.study_time_daily || planner.min_study_time_daily || planner.min_study_time || planner.daily_limit_minutes || 0;
   
   const subjects = (() => {
     if (planner.subject_order && Array.isArray(planner.subject_order)) {
@@ -121,13 +120,6 @@ const ViewPlanner: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-            planner.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 
-            planner.status === 'draft' ? 'bg-amber-100 text-amber-700' : 
-            'bg-gray-100 text-gray-700'
-          }`}>
-            {planner.status || 'Active'}
-          </span>
         </div>
       </div>
 
@@ -177,7 +169,7 @@ const ViewPlanner: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Daily Study Time</p>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{minTime}m - {maxTime}m</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{studyTimeDaily} min/day</p>
                 </div>
               </div>
 
