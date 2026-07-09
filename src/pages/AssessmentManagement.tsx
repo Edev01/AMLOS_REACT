@@ -808,11 +808,6 @@ const buildAssessmentPaperHtml = (assessment: any) => {
         : '<div class="empty-state">No questions were returned for this assessment.</div>'
     }
   </main>
-  <script>
-    window.addEventListener('load', function () {
-      window.setTimeout(function () { window.print(); }, 350);
-    });
-  </script>
 </body>
 </html>`;
 };

@@ -123,26 +123,66 @@ const SchoolDashboard: React.FC = () => {
     setCurrentDate(new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
   }, []);
 
-  useEffect(() => {
-    studentService.getStudents().then(data => {
-      if (Array.isArray(data)) setStudents(data);
-    }).catch(console.error);
-      
-    teacherService.getTeachers().then(data => {
-      if (Array.isArray(data)) setTeachers(data);
-    }).catch(console.error);
+  const CACHE_KEY = 'school_dashboard_cache';
 
-    // Provide a default empty array for results if the response format is unexpected
-    assessmentService.listSubmissions(1).then(res => {
-      if (res && res.count !== undefined) {
-        setSubmissionsCount(res.count);
-        // Safely check for results array
-        const resultsArray = res.results || [];
-        // Using `submitted_at` or `created_at` for submissions
-        const thisMonth = getThisMonthCount(resultsArray.map(item => ({ ...item, created_at: item.submitted_at || item.created_at })));
-        setSubmissionsThisMonth(thisMonth);
+  const loadFromCache = () => {
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const data = JSON.parse(cached);
+        setStudents(data.studentsData || []);
+        setTeachers(data.teachersData || []);
+        setSubmissionsCount(data.submissionsCount || 0);
+        setSubmissionsThisMonth(data.submissionsThisMonth || 0);
+        return true;
       }
-    }).catch(console.error);
+    } catch (e) {
+      console.error('Failed to load cache', e);
+    }
+    return false;
+  };
+
+  const fetchData = async () => {
+    loadFromCache();
+
+    try {
+      const [studentsRes, teachersRes, submissionsRes] = await Promise.all([
+        studentService.getStudents(),
+        teacherService.getTeachers(),
+        assessmentService.listSubmissions(1)
+      ]);
+
+      const studentsData = Array.isArray(studentsRes) ? studentsRes : [];
+      const teachersData = Array.isArray(teachersRes) ? teachersRes : [];
+      
+      let submissionsTotalCount = 0;
+      let thisMonthSubmissions = 0;
+      
+      if (submissionsRes && submissionsRes.count !== undefined) {
+        submissionsTotalCount = submissionsRes.count;
+        const resultsArray = submissionsRes.results || [];
+        thisMonthSubmissions = getThisMonthCount(resultsArray.map((item: any) => ({ ...item, created_at: item.submitted_at || item.created_at })));
+      }
+
+      setStudents(studentsData);
+      setTeachers(teachersData);
+      setSubmissionsCount(submissionsTotalCount);
+      setSubmissionsThisMonth(thisMonthSubmissions);
+
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+        studentsData,
+        teachersData,
+        submissionsCount: submissionsTotalCount,
+        submissionsThisMonth: thisMonthSubmissions
+      }));
+
+    } catch (error) {
+      console.error("Error fetching school dashboard data", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
   const studentsThisMonth = getThisMonthCount(students);
