@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -65,6 +65,7 @@ const getSubjectIcon = (name: string) => {
 
 const CreatePlanner: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, tenant, isSuperAdmin } = useAuth();
   const { isDark } = useTheme();
 
@@ -538,6 +539,9 @@ const CreatePlanner: React.FC = () => {
       } else if (user?.role === 'SCHOOL') {
         destination = '/school/planners';
       }
+
+      // Invalidate the 'planners' cache so the list auto-updates without refresh
+      queryClient.invalidateQueries({ queryKey: ['planners'] });
 
       navigate(destination);
     } catch (err: any) {

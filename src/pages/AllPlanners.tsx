@@ -84,14 +84,16 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
     staleTime: 300000,
   });
 
+  // Use rawObject (actual API data) for form initialization, not the UI-mapped planner
+  const raw = (planner as any).rawObject || {};
   const [form, setForm] = useState({
-    title: planner.name || '',
-    plan_type: planner.examType || '',
-    grade: planner.grade || '',
-    mode: planner.mode || 'PARALLEL',
-    start_date: planner.startDate || '',
-    end_date: planner.endDate || '',
-    study_time_daily: planner.studyTimeDaily || '',
+    title: raw.title || raw.plan_name || planner.name || '',
+    plan_type: raw.plan_type || planner.examType || '',
+    grade: raw.grade || planner.grade || '',
+    mode: raw.mode || planner.mode || 'PARALLEL',
+    start_date: raw.start_date || (planner.startDate !== 'N/A' ? planner.startDate : '') || '',
+    end_date: raw.end_date || (planner.endDate !== 'N/A' ? planner.endDate : '') || '',
+    study_time_daily: raw.study_time_daily || planner.studyTimeDaily || '',
   });
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -109,37 +111,31 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
       console.error("Error: planId is missing before sending request!");
       return;
     }
+    // Backend expects the exact same keys as POST endpoint.
+    // GET returns "scheduled_slos" (objects) but PATCH expects "slo_ids" (numbers).
     const raw = (planner as any).rawObject || {};
-    
-    // Extract slo_ids safely from scheduled_slos or slo_ids
-    let extractedSloIds: any[] = [];
-    if (Array.isArray(raw.slo_ids)) extractedSloIds = raw.slo_ids;
-    else if (Array.isArray(raw.scheduled_slos)) extractedSloIds = raw.scheduled_slos.map((s: any) => s.slo_id || s.id);
-    else if (Array.isArray(raw.slos)) extractedSloIds = raw.slos.map((s: any) => s.slo_id || s.id || s);
 
-    // Extract subject_ids safely
-    let extractedSubjectIds: any[] = [];
-    if (Array.isArray(raw.subject_ids)) extractedSubjectIds = raw.subject_ids;
-    else if (Array.isArray(raw.subjects)) extractedSubjectIds = raw.subjects.map((s: any) => s.id || s.subject_id || s);
+    // Extract slo_ids from raw data (GET gives scheduled_slos, we need slo_ids)
+    let sloIds: number[] = [];
+    if (Array.isArray(raw.slo_ids) && raw.slo_ids.length > 0) {
+      sloIds = raw.slo_ids;
+    } else if (Array.isArray(raw.scheduled_slos) && raw.scheduled_slos.length > 0) {
+      sloIds = raw.scheduled_slos
+        .map((s: any) => Number(s.slo || s.slo_id || s.id))
+        .filter((n: number) => !isNaN(n) && n > 0);
+    }
 
-    // Extract chapter_ids safely
-    let extractedChapterIds: any[] = [];
-    if (Array.isArray(raw.chapter_ids)) extractedChapterIds = raw.chapter_ids;
-    else if (Array.isArray(raw.chapters)) extractedChapterIds = raw.chapters.map((c: any) => c.id || c.chapter_id || c);
-
-    const cleanPayload = {
+    // Build payload with ONLY the keys backend expects (POST/PATCH format)
+    const cleanPayload: Record<string, any> = {
       title: form.title,
-      plan_name: form.title,
-      plan_type: form.plan_type || form.mode,
+      plan_type: form.plan_type,
       grade: form.grade,
       mode: form.mode,
       start_date: form.start_date,
       end_date: form.end_date,
       study_time_daily: !form.study_time_daily || Number(form.study_time_daily) === 0 ? null : Number(form.study_time_daily),
-      min_study_time_daily: !form.study_time_daily || Number(form.study_time_daily) === 0 ? null : Number(form.study_time_daily),
-      slo_ids: extractedSloIds,
-      subject_ids: extractedSubjectIds,
-      chapter_ids: extractedChapterIds,
+      skip_weekends: raw.skip_weekends ?? false,
+      slo_ids: sloIds,
     };
 
     console.log("Sending Payload:", cleanPayload);

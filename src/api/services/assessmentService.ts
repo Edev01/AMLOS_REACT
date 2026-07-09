@@ -158,4 +158,11 @@ export const assessmentService = {
     });
     return response.data;
   },
+
+  bulkUploadAssessment: async (formData: FormData) => {
+    const response = await api.post('/api/assessments/bulk-upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
 };
