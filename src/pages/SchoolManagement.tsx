@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { School as SchoolType } from '../types';
 import { Plus, Search, Eye, Trash2, Pencil, MapPin, Users, GraduationCap, School, Building2, Mail, X, AlertTriangle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { CardSkeleton } from '../components/Skeleton';
 
 const icons = ['🏫', '🎓', '🌿', '📚', '🏛️', '🎒'];
 const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
@@ -535,7 +536,11 @@ const SchoolManagement: React.FC = () => {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" /></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {[...Array(6)].map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
       ) : filtered.length === 0 && !isForbidden ? (
         <div className="rounded-2xl border bg-white p-12 text-center text-gray-500">No schools found.</div>
       ) : !isForbidden && (

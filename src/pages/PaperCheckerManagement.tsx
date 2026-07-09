@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Loader2, Users, ClipboardList, UserCheck, BookOpen, Star, Mail, Phone, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { CardSkeleton } from '../components/Skeleton';
 import { paperCheckerService } from '../api/services/paperCheckerService';
 import { getSubjects } from '../api/services/curriculumService';
 
@@ -303,8 +304,10 @@ const PaperCheckerManagement: React.FC = () => {
       {tab === 'checkers' && (
         <>
           {checkersQuery.isLoading ? (
-            <div className="flex items-center justify-center h-48 gap-3 text-slate-500">
-              <Loader2 className="animate-spin text-blue-600" size={24} /><span>Loading paper checkers...</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {[...Array(6)].map((_, i) => (
+                <CardSkeleton key={i} />
+              ))}
             </div>
           ) : checkers.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 gap-3 text-slate-400 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">

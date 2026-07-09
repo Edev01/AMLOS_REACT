@@ -16,7 +16,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   height,
   animation = 'shimmer',
 }) => {
-  const baseStyles = 'bg-slate-200';
+  const baseStyles = 'bg-slate-200 dark:bg-slate-700';
   
   const variantStyles = {
     text: 'rounded',
@@ -44,7 +44,7 @@ export const StatCardSkeleton: React.FC = () => (
   <motion.div
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
-    className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 p-5 shadow-soft"
+    className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl border border-white/50 dark:border-slate-700 p-5 shadow-soft"
   >
     <div className="flex items-start gap-4">
       <Skeleton variant="rounded" width={48} height={48} className="rounded-xl flex-shrink-0" />
@@ -61,7 +61,7 @@ export const ChartSkeleton: React.FC = () => (
   <motion.div
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
-    className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 p-6 shadow-soft h-[300px]"
+    className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl border border-white/50 dark:border-slate-700 p-6 shadow-soft h-[300px]"
   >
     <div className="flex items-center justify-between mb-4">
       <div className="space-y-2">
@@ -89,16 +89,16 @@ export const TableSkeleton: React.FC<{ rows?: number }> = ({ rows = 5 }) => (
   <motion.div
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
-    className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 shadow-soft overflow-hidden"
+    className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl border border-white/50 dark:border-slate-700 shadow-soft overflow-hidden"
   >
     {/* Header */}
-    <div className="flex items-center gap-4 px-6 py-4 border-b border-slate-100">
+    <div className="flex items-center gap-4 px-6 py-4 border-b border-slate-100 dark:border-slate-700">
       {[...Array(4)].map((_, i) => (
         <Skeleton key={i} variant="text" width={`${20 + Math.random() * 15}%`} height={14} />
       ))}
     </div>
     {/* Rows */}
-    <div className="divide-y divide-slate-50">
+    <div className="divide-y divide-slate-50 dark:divide-slate-700/50">
       {[...Array(rows)].map((_, rowIndex) => (
         <div key={rowIndex} className="flex items-center gap-4 px-6 py-4">
           <Skeleton variant="circular" width={32} height={32} />
@@ -148,6 +148,31 @@ export const DashboardOverviewSkeleton: React.FC = () => (
       <ChartSkeleton />
     </div>
   </div>
+);
+
+// Card Skeleton
+export const CardSkeleton: React.FC = () => (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl border border-gray-100 dark:border-slate-700 p-5 shadow-sm"
+  >
+    <div className="flex items-start gap-3 mb-4">
+      <Skeleton variant="rounded" width={44} height={44} className="rounded-xl flex-shrink-0" />
+      <div className="flex-1 space-y-2 mt-1">
+        <Skeleton variant="text" width="70%" height={16} />
+        <Skeleton variant="text" width="40%" height={12} />
+      </div>
+    </div>
+    <div className="space-y-3">
+      <Skeleton variant="text" width="100%" height={14} />
+      <Skeleton variant="text" width="80%" height={14} />
+      <div className="pt-2 flex justify-between">
+        <Skeleton variant="text" width="30%" height={12} />
+        <Skeleton variant="text" width="20%" height={12} />
+      </div>
+    </div>
+  </motion.div>
 );
 
 export default Skeleton;

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import Modal from '../components/Modal';
+import { Skeleton } from '../components/Skeleton';
 import api from '../api/services/api';
 import { useAuth } from '../context/AuthContext';
 import { getGrades } from '../api/services/curriculumService';
@@ -1405,8 +1406,21 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
           <span>Actions</span>
         </div>
         {templatesQuery.isLoading ? (
-          <div className="flex items-center justify-center py-16 text-slate-500">
-            <Loader2 size={20} className="mr-2 animate-spin" /> Loading templates...
+          <div className="divide-y divide-slate-50 dark:divide-slate-700/50">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="grid grid-cols-[minmax(220px,1.45fr)_70px_minmax(110px,0.8fr)_minmax(120px,0.85fr)_100px_136px] items-center gap-3 px-5 py-5">
+                <Skeleton variant="text" width="60%" height={16} />
+                <Skeleton variant="text" width="80%" height={16} />
+                <Skeleton variant="text" width="90%" height={16} />
+                <Skeleton variant="text" width="70%" height={16} />
+                <Skeleton variant="text" width="50%" height={16} />
+                <div className="flex justify-center gap-2">
+                   <Skeleton variant="circular" width={24} height={24} />
+                   <Skeleton variant="circular" width={24} height={24} />
+                   <Skeleton variant="circular" width={24} height={24} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : filteredTemplates.length === 0 ? (
           <div className="py-16 text-center text-sm text-slate-500">No templates found.</div>
