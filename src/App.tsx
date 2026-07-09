@@ -67,20 +67,8 @@ function App() {
             <Route path="/admin/planners" element={<AllPlanners />} />
             <Route path="/admin/planners/create" element={<CreatePlanner />} />
             <Route path="/admin/planners/:id" element={<ViewPlanner />} />
-            <Route path="/admin/assessments" element={<AssessmentManagement />} />
-            <Route path="/admin/assessments/templates" element={<AssessmentManagement view="templates" />} />
-            <Route path="/admin/assessments/templates/create" element={<AssessmentManagement view="create-template" />} />
-            <Route path="/admin/assessments/generated" element={<AssessmentManagement view="generated" />} />
-            <Route path="/admin/cms" element={<CMSManagement />} />
-            <Route path="/admin/cms/classes" element={<CMSManagement view="classes" />} />
-            <Route path="/admin/cms/classes/add" element={<CMSManagement view="add-class" />} />
-            <Route path="/admin/cms/subjects" element={<CMSManagement view="subjects" />} />
-            <Route path="/admin/cms/subjects/add" element={<CMSManagement view="add-subject" />} />
-            <Route path="/admin/cms/chapters" element={<CMSManagement view="chapters" />} />
-            <Route path="/admin/cms/chapters/add" element={<CMSManagement view="add-chapter" />} />
-            <Route path="/admin/cms/slos" element={<CMSManagement view="slos" />} />
-            <Route path="/admin/cms/slos/add" element={<CMSManagement view="add-slo" />} />
-            <Route path="/admin/cms/slos/upload" element={<CMSManagement view="upload-slo" />} />
+            <Route path="/admin/assessments/*" element={<AssessmentManagement />} />
+            <Route path="/admin/cms/*" element={<CMSManagement />} />
             <Route path="/admin/paper-checkers" element={<PaperCheckerManagement />} />
             <Route path="/admin/hr-management" element={<ComingSoon title="HR Management" />} />
             <Route path="/admin/finance-management" element={<ComingSoon title="Finance Management" />} />
