@@ -11,6 +11,7 @@ import {
   createSlo, updateSlo, deleteSlo, bulkUploadSlos,
 } from '../api/services/curriculumService';
 import { Chapter, SLO, Subject } from '../types';
+import { assessmentService } from '../api/services/assessmentService';
 import {
   BookOpen,
   FileText,
@@ -846,6 +847,21 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     onError: () => toast.error('Failed to upload SLOs.'),
   });
 
+  const bulkUploadAssessmentMutation = useMutation({
+    mutationFn: async ({ file, chapterId }: { file: File, chapterId: string | number }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('chapter_id', String(chapterId));
+      await assessmentService.bulkUploadAssessment(formData);
+    },
+    onSuccess: () => {
+      toast.success('Assessment data uploaded successfully.');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'Failed to upload assessment data.');
+    },
+  });
+
   const handleBulkFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1210,6 +1226,20 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">{getChapterSlos(chapter).length} SLOs</span>
               </div>
               <div className="mt-5 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                <label className="cursor-pointer rounded-lg p-1.5 transition text-purple-600 hover:bg-purple-50 flex items-center justify-center" title="Bulk Upload Assessment Data">
+                  <input type="file" className="hidden" accept=".csv,.xlsx,.xls,.json" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      bulkUploadAssessmentMutation.mutate({ file, chapterId: chapter.id });
+                    }
+                    e.target.value = '';
+                  }} />
+                  {bulkUploadAssessmentMutation.isPending && bulkUploadAssessmentMutation.variables?.chapterId === chapter.id ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Upload size={15} />
+                  )}
+                </label>
                 <IconButton title="Add SLO" tone="blue" onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}><Plus size={15} /></IconButton>
                 <IconButton title="Edit chapter" onClick={() => setEditingChapter(chapter)}><Pencil size={15} /></IconButton>
                 <IconButton title="Delete chapter" tone="red" onClick={() => setDeletingChapter(chapter)}><Trash2 size={15} /></IconButton>
