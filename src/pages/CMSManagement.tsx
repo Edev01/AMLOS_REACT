@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -370,6 +370,20 @@ const EditModal: React.FC<{
 
 const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  let currentView = view;
+  if (location.pathname === '/admin/cms/classes') currentView = 'classes';
+  else if (location.pathname === '/admin/cms/classes/add') currentView = 'add-class';
+  else if (location.pathname === '/admin/cms/subjects') currentView = 'subjects';
+  else if (location.pathname === '/admin/cms/subjects/add') currentView = 'add-subject';
+  else if (location.pathname === '/admin/cms/chapters') currentView = 'chapters';
+  else if (location.pathname === '/admin/cms/chapters/add') currentView = 'add-chapter';
+  else if (location.pathname === '/admin/cms/slos') currentView = 'slos';
+  else if (location.pathname === '/admin/cms/slos/add') currentView = 'add-slo';
+  else if (location.pathname === '/admin/cms/slos/upload') currentView = 'upload-slo';
+  else if (location.pathname === '/admin/cms') currentView = 'dashboard';
+
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
@@ -469,11 +483,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const allChapters = allChaptersQuery.data ?? [];
 
   const activeChapterSubjectId =
-    view === 'chapters'
+    currentView === 'chapters'
       ? chapterSubjectId
-      : view === 'slos'
+      : currentView === 'slos'
         ? sloFilterSubjectId
-        : view === 'add-slo' || view === 'upload-slo'
+        : currentView === 'add-slo' || currentView === 'upload-slo'
           ? sloForm.subject
           : '';
 
@@ -504,14 +518,14 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   useEffect(() => {
     const grade = searchParams.get('grade');
-    if (view === 'add-subject' && grade) {
+    if (currentView === 'add-subject' && grade) {
       setSubjectForm((prev) => (prev.grade === grade ? prev : { ...prev, grade }));
     }
   }, [searchParams, view]);
 
   useEffect(() => {
     const subjectId = searchParams.get('subject');
-    if (view === 'add-chapter' && subjectId) {
+    if (currentView === 'add-chapter' && subjectId) {
       const subject = subjects.find((item) => String(item.id) === subjectId);
       setChapterForm((prev) => ({
         ...prev,
@@ -532,7 +546,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       subject: subjectId || prev.subject,
       chapter: chapterId || prev.chapter,
     }));
-    if (view === 'slos') {
+    if (currentView === 'slos') {
       if (subject?.grade) setSloFilterGrade(subject.grade);
       if (subjectId) setSloFilterSubjectId(subjectId);
       if (chapterId) setSloFilterChapterId(chapterId);
@@ -561,7 +575,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   }, [allChapters]);
 
   const sloRows = useMemo(() => {
-    if (view === 'slos') {
+    if (currentView === 'slos') {
       if (!hasSearchedSlos || !sloFilterChapterId) return [];
       const chapter = activeChapters.find((ch) => String(ch.id) === sloFilterChapterId);
       if (!chapter) return [];
@@ -1571,15 +1585,15 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   );
 
   const renderContent = () => {
-    if (view === 'classes') return renderClasses();
-    if (view === 'add-class') return renderAddClass();
-    if (view === 'subjects') return renderSubjects();
-    if (view === 'add-subject') return renderAddSubject();
-    if (view === 'chapters') return renderChapters();
-    if (view === 'add-chapter') return renderAddChapter();
-    if (view === 'slos') return renderSlos();
-    if (view === 'add-slo') return renderSloForm(false);
-    if (view === 'upload-slo') return renderSloForm(true);
+    if (currentView === 'classes') return renderClasses();
+    if (currentView === 'add-class') return renderAddClass();
+    if (currentView === 'subjects') return renderSubjects();
+    if (currentView === 'add-subject') return renderAddSubject();
+    if (currentView === 'chapters') return renderChapters();
+    if (currentView === 'add-chapter') return renderAddChapter();
+    if (currentView === 'slos') return renderSlos();
+    if (currentView === 'add-slo') return renderSloForm(false);
+    if (currentView === 'upload-slo') return renderSloForm(true);
     return renderDashboard();
   };
 
@@ -1597,10 +1611,10 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   };
 
   let currentStep = 0;
-  if (view === 'add-class') currentStep = 1;
-  else if (view === 'subjects' || view === 'add-subject') currentStep = 2;
-  else if (view === 'chapters' || view === 'add-chapter') currentStep = 3;
-  else if (view === 'slos' || view === 'add-slo' || view === 'upload-slo') currentStep = 4;
+  if (currentView === 'add-class') currentStep = 1;
+  else if (currentView === 'subjects' || currentView === 'add-subject') currentStep = 2;
+  else if (currentView === 'chapters' || currentView === 'add-chapter') currentStep = 3;
+  else if (currentView === 'slos' || currentView === 'add-slo' || currentView === 'upload-slo') currentStep = 4;
 
   const isInFlow = currentStep > 0;
 

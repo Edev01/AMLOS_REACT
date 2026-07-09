@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -808,11 +808,6 @@ const buildAssessmentPaperHtml = (assessment: any) => {
         : '<div class="empty-state">No questions were returned for this assessment.</div>'
     }
   </main>
-  <script>
-    window.addEventListener('load', function () {
-      window.setTimeout(function () { window.print(); }, 350);
-    });
-  </script>
 </body>
 </html>`;
 };
@@ -912,6 +907,14 @@ const writeToPrintWindow = (printWindow: Window | null, html: string) => {
 
 const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'dashboard' }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  let currentView = view;
+  if (location.pathname === '/admin/assessments/templates') currentView = 'templates';
+  else if (location.pathname === '/admin/assessments/templates/create') currentView = 'create-template';
+  else if (location.pathname === '/admin/assessments/generated') currentView = 'generated';
+  else if (location.pathname === '/admin/assessments') currentView = 'dashboard';
+
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -972,7 +975,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   const submissionsQuery = useQuery({
     queryKey: ['assessments', 'submissions', submissionsPage],
     queryFn: () => assessmentService.listSubmissions(submissionsPage),
-    enabled: view === 'submissions',
+    enabled: currentView === 'submissions',
     retry: 1,
   });
 
@@ -994,7 +997,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   const availableQuery = useQuery({
     queryKey: ['assessments', 'available'],
     queryFn: assessmentService.listAvailableAssessments,
-    enabled: view === 'generated',
+    enabled: currentView === 'generated',
     retry: 1,
     staleTime: 30 * 1000,
   });
@@ -2042,10 +2045,10 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   };
 
   const renderContent = () => {
-    if (view === 'templates') return renderTemplates();
-    if (view === 'create-template') return renderCreateTemplate();
-    if (view === 'generated') return renderGenerated();
-    if (view === 'submissions') return renderSubmissions();
+    if (currentView === 'templates') return renderTemplates();
+    if (currentView === 'create-template') return renderCreateTemplate();
+    if (currentView === 'generated') return renderGenerated();
+    if (currentView === 'submissions') return renderSubmissions();
     return renderDashboard();
   };
 

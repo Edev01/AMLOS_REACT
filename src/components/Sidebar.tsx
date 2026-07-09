@@ -353,7 +353,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
       
       {/* Brand Header with Glass Effect */}
       <motion.div 
-        initial={{ opacity: 0, y: -10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
         className={`relative flex items-center gap-3 py-6 border-b rounded-t-[24px] ${'border-slate-100'} ${collapsed ? 'justify-center px-2' : 'px-6'}`}
@@ -423,11 +423,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           const itemActive = isActive(item.path, item.id);
 
           return (
-            <motion.div 
-              key={item.id}
-              className="relative group"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+              <motion.div 
+                key={item.id}
+                className="relative group"
+                initial={false}
+                animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.3, delay: index * 0.05, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
               <button

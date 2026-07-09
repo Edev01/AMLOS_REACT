@@ -119,8 +119,32 @@ const DashboardOverview: React.FC = () => {
   const [plannerFilter, setPlannerFilter] = useState<'week' | 'month' | '6months'>('6months');
   const [assessmentFilter, setAssessmentFilter] = useState<'week' | 'month' | '6months'>('6months');
 
+  const CACHE_KEY = 'admin_dashboard_cache';
+
+  const loadFromCache = () => {
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const data = JSON.parse(cached);
+        setSchools(data.schoolsData || []);
+        setSchoolsCount(data.schoolsTotal || 0);
+        setPlanners(data.plannersData || []);
+        setPlannersCount(data.plannersTotal || 0);
+        setAssessments(data.assessmentsData || []);
+        setAssessmentsCount(data.assessmentsTotal || 0);
+        return true;
+      }
+    } catch (e) {
+      console.error('Failed to load cache', e);
+    }
+    return false;
+  };
+
   const fetchData = async () => {
-    setLoading(true);
+    // If no cache exists, show loading spinner
+    const hasCache = loadFromCache();
+    if (!hasCache) setLoading(true);
+
     try {
       const [schoolsRes, plannersRes, assessmentsRes] = await Promise.all([
         api.get('/api/auth/schools', { params: { page: 1, limit: 100, page_size: 100 } }),
@@ -130,16 +154,28 @@ const DashboardOverview: React.FC = () => {
 
       const schoolsData = schoolsRes.data?.data?.results || schoolsRes.data?.results || schoolsRes.data?.schools || [];
       const schoolsTotal = schoolsRes.data?.data?.count || schoolsRes.data?.count || schoolsData.length;
-      setSchools(schoolsData);
-      setSchoolsCount(schoolsTotal);
-
-      const plannersData = plannersRes?.data || plannersRes || [];
-      setPlanners(Array.isArray(plannersData) ? plannersData : []);
-      setPlannersCount(Array.isArray(plannersData) ? plannersData.length : 0);
+      
+      const plannersDataRaw = plannersRes?.data || plannersRes || [];
+      const plannersData = Array.isArray(plannersDataRaw) ? plannersDataRaw : [];
+      const plannersTotal = Array.isArray(plannersDataRaw) ? plannersDataRaw.length : 0;
 
       const assessmentsData = assessmentsRes?.results || [];
+      const assessmentsTotal = assessmentsRes?.count || assessmentsData.length;
+      
+      // Update State
+      setSchools(schoolsData);
+      setSchoolsCount(schoolsTotal);
+      setPlanners(plannersData);
+      setPlannersCount(plannersTotal);
       setAssessments(assessmentsData);
-      setAssessmentsCount(assessmentsRes?.count || assessmentsData.length);
+      setAssessmentsCount(assessmentsTotal);
+
+      // Save to cache for instant loading next time
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+        schoolsData, schoolsTotal,
+        plannersData, plannersTotal,
+        assessmentsData, assessmentsTotal
+      }));
       
     } catch (error) {
       console.error("Error fetching dashboard data", error);

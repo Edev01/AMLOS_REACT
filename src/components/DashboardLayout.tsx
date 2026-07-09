@@ -429,7 +429,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
       <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-[104px]' : 'ml-[104px] lg:ml-[352px]'}`}>
         {/* Top navigation bar with Glassmorphism */}
         <motion.header 
-          initial={{ opacity: 0, y: -20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           className={`sticky top-4 z-20 flex h-[68px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 rounded-[24px] mr-4 ml-4 lg:ml-0 bg-white text-slate-800 ${
@@ -715,7 +715,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
 
         {/* Page content with animations */}
         <motion.main 
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
           className={`p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-64px)] transition-colors duration-300 ${

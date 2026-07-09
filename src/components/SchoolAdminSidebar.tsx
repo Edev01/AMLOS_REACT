@@ -166,7 +166,7 @@ const SchoolAdminSidebar: React.FC<SidebarProps> = ({ activePage, collapsed = fa
         
         {/* Brand Header */}
         <motion.div 
-          initial={{ opacity: 0, y: -10 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className={`relative flex items-center gap-3 py-6 border-b rounded-t-[24px] ${'border-slate-100'} ${collapsed ? 'justify-center px-2' : 'px-5'}`}
         >
