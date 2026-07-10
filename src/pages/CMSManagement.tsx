@@ -1610,14 +1610,14 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const activePageMap: Record<CMSView, string> = {
     dashboard: 'cms-dashboard',
     classes: 'all-classes',
-    'add-class': 'add-class',
+    'add-class': 'all-classes',
     subjects: 'all-subjects',
-    'add-subject': 'add-subject',
+    'add-subject': 'all-subjects',
     chapters: 'all-chapters',
-    'add-chapter': 'add-chapter',
+    'add-chapter': 'all-chapters',
     slos: 'all-slos',
-    'add-slo': 'add-slo',
-    'upload-slo': 'upload-slos',
+    'add-slo': 'all-slos',
+    'upload-slo': 'all-slos',
   };
 
   let currentStep = 0;
@@ -1636,7 +1636,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   ];
 
   return (
-    <DashboardLayout activePage={activePageMap[view]}>
+    <DashboardLayout activePage={activePageMap[currentView]}>
       {isInFlow ? (
         <div className="flex items-center justify-between mb-10 max-w-3xl mx-auto">
           {flowSteps.map((s, i) => (

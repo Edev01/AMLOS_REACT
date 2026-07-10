@@ -5,7 +5,8 @@ import { studentService } from '../api/services/studentService';
 import { teacherService } from '../api/services/teacherService';
 import { assessmentService } from '../api/services/assessmentService';
 import { Student, Teacher } from '../types';
-import { Users, GraduationCap, ClipboardList } from 'lucide-react';
+import { Users, GraduationCap, ClipboardList, RefreshCw, Loader2 } from 'lucide-react';
+import { StatCardSkeleton, ChartSkeleton } from '../components/Skeleton';
 import DashboardLayout from '../components/DashboardLayout';
 import {
   AreaChart,
@@ -108,6 +109,7 @@ const SchoolDashboard: React.FC = () => {
   const [submissionsCount, setSubmissionsCount] = useState<number>(0);
   const [submissionsThisMonth, setSubmissionsThisMonth] = useState<number>(0);
 
+  const [loading, setLoading] = useState(true);
   const [studentFilter, setStudentFilter] = useState<'week' | 'month' | '6months'>('6months');
   const [teacherFilter, setTeacherFilter] = useState<'week' | 'month' | '6months'>('6months');
 
@@ -142,8 +144,26 @@ const SchoolDashboard: React.FC = () => {
     return false;
   };
 
-  const fetchData = async () => {
-    loadFromCache();
+  const fetchData = async (forceRefresh = false) => {
+    let apiCompleted = false;
+
+    if (forceRefresh) {
+      setStudents([]);
+      setTeachers([]);
+      setSubmissionsCount(0);
+      setSubmissionsThisMonth(0);
+      setLoading(true);
+
+      // Flash skeleton loader for exactly 300ms, then show cached data if API is still loading
+      setTimeout(() => {
+        if (!apiCompleted) {
+          loadFromCache();
+        }
+      }, 300);
+    } else {
+      const hasCache = loadFromCache();
+      if (!hasCache) setLoading(true);
+    }
 
     try {
       const [studentsRes, teachersRes, submissionsRes] = await Promise.all([
@@ -151,6 +171,7 @@ const SchoolDashboard: React.FC = () => {
         teacherService.getTeachers(),
         assessmentService.listSubmissions(1)
       ]);
+      apiCompleted = true;
 
       const studentsData = Array.isArray(studentsRes) ? studentsRes : [];
       const teachersData = Array.isArray(teachersRes) ? teachersRes : [];
@@ -178,6 +199,8 @@ const SchoolDashboard: React.FC = () => {
 
     } catch (error) {
       console.error("Error fetching school dashboard data", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -197,6 +220,8 @@ const SchoolDashboard: React.FC = () => {
     { label: 'Submissions', value: submissionsCount.toLocaleString(), change: `+${submissionsThisMonth} this month`, icon: ClipboardList, color: 'text-emerald-600', bg: 'bg-emerald-50', badgeColor: 'bg-emerald-100 text-emerald-700' },
   ];
 
+  const showSkeleton = loading && students.length === 0;
+
   return (
     <DashboardLayout activePage="dashboard">
       <style>{`
@@ -205,34 +230,60 @@ const SchoolDashboard: React.FC = () => {
         }
       `}</style>
       <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-          {greeting}, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{schoolDisplayName}</span>
-        </h1>
-        <p className="text-slate-500 mt-1 text-sm">{currentDate}</p>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              {greeting}, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{schoolDisplayName}</span>
+            </h1>
+            <p className="text-slate-500 mt-1 text-sm">{currentDate}</p>
+          </div>
+          <button
+            onClick={() => fetchData(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/15 transition shadow-sm"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </motion.div>
 
       {/* Stats Cards */}
-      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {stats.map((stat, index) => (
-          <motion.div key={index} variants={itemVariants} className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm hover:shadow-md transition">
-            <div className="flex justify-between items-start mb-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg} dark:bg-opacity-10`}>
-                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+      {showSkeleton ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {[...Array(3)].map((_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {stats.map((stat, index) => (
+            <motion.div key={index} variants={itemVariants} className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm hover:shadow-md transition">
+              <div className="flex justify-between items-start mb-4">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg} dark:bg-opacity-10`}>
+                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                </div>
+                <div className={`px-2.5 py-1 text-[11px] font-bold rounded-md ${stat.badgeColor}`}>
+                  {stat.change}
+                </div>
               </div>
-              <div className={`px-2.5 py-1 text-[11px] font-bold rounded-md ${stat.badgeColor}`}>
-                {stat.change}
+              <div>
+                <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{stat.value}</h3>
+                <p className="text-sm text-gray-500">{stat.label}</p>
               </div>
-            </div>
-            <div>
-              <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{stat.value}</h3>
-              <p className="text-sm text-gray-500">{stat.label}</p>
-            </div>
-          </motion.div>
-        ))}
-      </motion.div>
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
 
       {/* Charts Grid */}
-      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      {showSkeleton ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {[...Array(2)].map((_, i) => (
+            <ChartSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         
         {/* Student Trend Chart */}
         <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm">
@@ -307,6 +358,7 @@ const SchoolDashboard: React.FC = () => {
         </motion.div>
 
       </motion.div>
+      )}
     </DashboardLayout>
   );
 };
