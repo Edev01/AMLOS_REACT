@@ -463,8 +463,18 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         });
       }
     });
+    // Ensure the grade from URL is present so the dropdown doesn't default to the first option
+    const urlGrade = searchParams.get('grade');
+    if (urlGrade && !merged.has(urlGrade.toLowerCase())) {
+      merged.set(urlGrade.toLowerCase(), {
+        id: `url-${urlGrade}`,
+        name: urlGrade,
+        description: 'Selected from URL',
+      });
+    }
+    
     return Array.from(merged.values());
-  }, [grades, subjects]);
+  }, [grades, subjects, searchParams]);
 
   const filteredClasses = useMemo(() => {
     return classOptions.filter((g) =>
@@ -521,7 +531,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     if (currentView === 'add-subject' && grade) {
       setSubjectForm((prev) => (prev.grade === grade ? prev : { ...prev, grade }));
     }
-  }, [searchParams, view]);
+  }, [searchParams, currentView]);
 
   useEffect(() => {
     const subjectId = searchParams.get('subject');
@@ -533,7 +543,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         subject: subjectId,
       }));
     }
-  }, [searchParams, view, subjects]);
+  }, [searchParams, currentView, subjects]);
 
   useEffect(() => {
     const subjectId = searchParams.get('subject');
@@ -552,7 +562,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       if (chapterId) setSloFilterChapterId(chapterId);
       if (subjectId && chapterId) setHasSearchedSlos(true);
     }
-  }, [searchParams, subjects, view]);
+  }, [searchParams, subjects, currentView]);
 
   // ── Computed ──
 
@@ -596,7 +606,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         subject_grade: chapter.subject_grade,
       }))
     );
-  }, [allChapters, activeChapters, view, hasSearchedSlos, sloFilterChapterId]);
+  }, [allChapters, activeChapters, currentView, hasSearchedSlos, sloFilterChapterId]);
 
   const filteredSloRows = useMemo(() => {
     return sloRows.filter((slo) =>
