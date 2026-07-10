@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/services/api';
 import { studyPlanService } from '../api/services/studyPlanService';
 import { assessmentService } from '../api/services/assessmentService';
+import { StatCardSkeleton, ChartSkeleton } from '../components/Skeleton';
 import {
   School, ClipboardList, BookOpen,
   RefreshCw, FileText
@@ -140,10 +141,25 @@ const DashboardOverview: React.FC = () => {
     return false;
   };
 
-  const fetchData = async () => {
-    // If no cache exists, show loading spinner
-    const hasCache = loadFromCache();
-    if (!hasCache) setLoading(true);
+  const fetchData = async (forceRefresh = false) => {
+    let apiCompleted = false;
+
+    if (forceRefresh) {
+      setSchools([]);
+      setPlanners([]);
+      setAssessments([]);
+      setLoading(true);
+
+      // Flash skeleton loader for exactly 300ms, then show cached data if API is still loading
+      setTimeout(() => {
+        if (!apiCompleted) {
+          loadFromCache();
+        }
+      }, 300);
+    } else {
+      const hasCache = loadFromCache();
+      if (!hasCache) setLoading(true);
+    }
 
     try {
       const [schoolsRes, plannersRes, assessmentsRes] = await Promise.all([
@@ -151,6 +167,7 @@ const DashboardOverview: React.FC = () => {
         studyPlanService.listPlans(),
         assessmentService.listTemplates(1)
       ]);
+      apiCompleted = true;
 
       const schoolsData = schoolsRes.data?.data?.results || schoolsRes.data?.results || schoolsRes.data?.schools || [];
       const schoolsTotal = schoolsRes.data?.data?.count || schoolsRes.data?.count || schoolsData.length;
@@ -202,6 +219,8 @@ const DashboardOverview: React.FC = () => {
     { label: 'Total Assessments', value: assessmentsCount.toLocaleString(), change: `+${assessmentsThisMonth} this month`, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50', badgeColor: 'bg-emerald-100 text-emerald-700', path: '/admin/assessments/templates' },
   ];
 
+  const showSkeleton = loading && schools.length === 0;
+
   return (
     <DashboardLayout activePage="dashboard">
       <style>{`
@@ -223,7 +242,7 @@ const DashboardOverview: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/15 transition shadow-sm"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -233,27 +252,42 @@ const DashboardOverview: React.FC = () => {
       </motion.div>
 
       {/* Stats Cards */}
-      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {stats.map((stat, index) => (
-          <motion.div key={index} variants={itemVariants} onClick={() => navigate(stat.path)} className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm hover:shadow-md transition cursor-pointer">
-            <div className="flex justify-between items-start mb-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg} dark:bg-opacity-10`}>
-                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+      {showSkeleton ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {[...Array(3)].map((_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {stats.map((stat, index) => (
+            <motion.div key={index} variants={itemVariants} onClick={() => navigate(stat.path)} className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm hover:shadow-md transition cursor-pointer">
+              <div className="flex justify-between items-start mb-4">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg} dark:bg-opacity-10`}>
+                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                </div>
+                <div className={`px-2.5 py-1 text-[11px] font-bold rounded-md ${stat.badgeColor}`}>
+                  {stat.change}
+                </div>
               </div>
-              <div className={`px-2.5 py-1 text-[11px] font-bold rounded-md ${stat.badgeColor}`}>
-                {stat.change}
+              <div>
+                <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{stat.value}</h3>
+                <p className="text-sm text-gray-500">{stat.label}</p>
               </div>
-            </div>
-            <div>
-              <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{stat.value}</h3>
-              <p className="text-sm text-gray-500">{stat.label}</p>
-            </div>
-          </motion.div>
-        ))}
-      </motion.div>
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
 
       {/* Charts Grid */}
-      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {showSkeleton ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {[...Array(3)].map((_, i) => (
+            <ChartSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* School Trend Chart */}
         <motion.div variants={itemVariants} className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm">
@@ -364,6 +398,7 @@ const DashboardOverview: React.FC = () => {
         </motion.div>
 
       </motion.div>
+      )}
     </DashboardLayout>
   );
 };
