@@ -1237,9 +1237,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {filteredChapters.map((chapter) => (
-          <div
+            <div
               key={chapter.id}
-              onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}
+              onClick={() => navigate(`/admin/cms/slos?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}
               className="cursor-pointer rounded-2xl border border-slate-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition"
             >
               <div className="flex items-start justify-between gap-3">
