@@ -36,6 +36,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import ExamTypesModal from '../components/ExamTypesModal';
+import { CardSkeleton } from '../components/Skeleton';
 
 type CMSView =
   | 'dashboard'
@@ -960,7 +961,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         className="mb-5"
       />
       {gradesQuery.isLoading ? (
-        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading grades...</div>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
       ) : filteredClasses.length === 0 ? (
         <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No grades found.</div>
       ) : (
