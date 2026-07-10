@@ -1237,9 +1237,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {filteredChapters.map((chapter) => (
-          <div
+            <div
               key={chapter.id}
-              onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}
+              onClick={() => navigate(`/admin/cms/slos?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}
               className="cursor-pointer rounded-2xl border border-slate-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition"
             >
               <div className="flex items-start justify-between gap-3">
@@ -1610,14 +1610,14 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const activePageMap: Record<CMSView, string> = {
     dashboard: 'cms-dashboard',
     classes: 'all-classes',
-    'add-class': 'add-class',
+    'add-class': 'all-classes',
     subjects: 'all-subjects',
-    'add-subject': 'add-subject',
+    'add-subject': 'all-subjects',
     chapters: 'all-chapters',
-    'add-chapter': 'add-chapter',
+    'add-chapter': 'all-chapters',
     slos: 'all-slos',
-    'add-slo': 'add-slo',
-    'upload-slo': 'upload-slos',
+    'add-slo': 'all-slos',
+    'upload-slo': 'all-slos',
   };
 
   let currentStep = 0;
@@ -1636,7 +1636,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   ];
 
   return (
-    <DashboardLayout activePage={activePageMap[view]}>
+    <DashboardLayout activePage={activePageMap[currentView]}>
       {isInFlow ? (
         <div className="flex items-center justify-between mb-10 max-w-3xl mx-auto">
           {flowSteps.map((s, i) => (
