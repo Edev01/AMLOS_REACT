@@ -29,6 +29,7 @@ import AddTeacher from './pages/AddTeacher';
 import TeacherDetail from './pages/TeacherDetailPage';
 import SubmissionsList from './pages/SubmissionsList';
 import PaperCheckerManagement from './pages/PaperCheckerManagement';
+import PaperCheckerDetail from './pages/PaperCheckerDetail';
 import CheckerDashboard from './pages/CheckerDashboard';
 import ComingSoon from './pages/ComingSoon';
 import MainLayout from './components/MainLayout';
@@ -70,6 +71,7 @@ function App() {
             <Route path="/admin/assessments/*" element={<AssessmentManagement />} />
             <Route path="/admin/cms/*" element={<CMSManagement />} />
             <Route path="/admin/paper-checkers" element={<PaperCheckerManagement />} />
+            <Route path="/admin/paper-checkers/:id" element={<PaperCheckerDetail />} />
             <Route path="/admin/hr-management" element={<ComingSoon title="HR Management" />} />
             <Route path="/admin/finance-management" element={<ComingSoon title="Finance Management" />} />
             {/* Legacy route redirects */}
