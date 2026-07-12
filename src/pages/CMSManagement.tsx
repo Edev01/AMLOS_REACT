@@ -34,9 +34,10 @@ import {
   AlertTriangle,
   Download,
   ClipboardList,
+  RefreshCw,
 } from 'lucide-react';
 import ExamTypesModal from '../components/ExamTypesModal';
-import { CardSkeleton } from '../components/Skeleton';
+import { CardSkeleton, StatCardSkeleton } from '../components/Skeleton';
 
 type CMSView =
   | 'dashboard'
@@ -154,17 +155,17 @@ const StatCard: React.FC<{
 }> = ({ label, value, icon, tone, onClick }) => (
   <div
     onClick={onClick}
-    className={`rounded-2xl border border-white/70 bg-white p-5 shadow-soft transition ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-blue-200' : ''}`}
+    className={`rounded-2xl border border-white/70 bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-soft transition ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-slate-600' : ''}`}
   >
     <div className="mb-4 flex items-center justify-between">
-      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone}`}>
+      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone} dark:bg-opacity-20`}>
         {icon}
       </div>
-      <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">CMS</span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">CMS</span>
     </div>
-    <p className="text-xs font-semibold text-slate-400">{label}</p>
-    <p className="mt-1 text-2xl font-bold text-navy-800">{value}</p>
-    {onClick && <p className="mt-2 text-[11px] text-blue-500 font-medium">View all →</p>}
+    <p className="text-xs font-semibold text-slate-400 dark:text-slate-400">{label}</p>
+    <p className="mt-1 text-2xl font-bold text-navy-800 dark:text-white">{value}</p>
+    {onClick && <p className="mt-2 text-[11px] text-blue-500 dark:text-blue-400 font-medium">View all →</p>}
   </div>
 );
 
@@ -204,9 +205,12 @@ const fieldClass =
 const selectClass =
   'w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100';
 
-const FieldLabel: React.FC<{ label: string; children: React.ReactNode; className?: string }> = ({ label, children, className = '' }) => (
+const FieldLabel: React.FC<{ label: string; children: React.ReactNode; className?: string; required?: boolean }> = ({ label, children, className = '', required }) => (
   <div className={`block ${className}`}>
-    <span className="text-sm font-semibold text-gray-700">{label}</span>
+    <span className="text-sm font-semibold text-gray-700">
+      {label}
+      {required && <span className="text-red-500 ml-1 font-bold">*</span>}
+    </span>
     {children}
   </div>
 );
@@ -387,10 +391,32 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefreshCmsData = async () => {
+    setIsRefreshing(true);
+    sessionStorage.removeItem('cms_grades');
+    sessionStorage.removeItem('cms_subjects');
+    sessionStorage.removeItem('cms_all_chapters');
+    
+    try {
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['cms', 'grades'] }),
+        queryClient.refetchQueries({ queryKey: ['cms', 'subjects'] }),
+      ]);
+      await queryClient.refetchQueries({ queryKey: ['cms', 'chapters', 'all'] });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // ── Form state ──
   const [className, setClassName] = useState('');
   const [classDescription, setClassDescription] = useState('');
+  const [gradeFormErrors, setGradeFormErrors] = useState({ name: '', description: '' });
+  const [gradeFormGeneralError, setGradeFormGeneralError] = useState('');
   const [classSearch, setClassSearch] = useState('');
   const [subjectSearch, setSubjectSearch] = useState('');
   const [subjectGradeFilter, setSubjectGradeFilter] = useState(searchParams.get('grade') || '');
@@ -404,16 +430,30 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const [sloFilterChapterId, setSloFilterChapterId] = useState('');
   const [hasSearchedSlos, setHasSearchedSlos] = useState(false);
   const [subjectForm, setSubjectForm] = useState({ name: '', grade: searchParams.get('grade') || '', description: '' });
+  const [subjectFormErrors, setSubjectFormErrors] = useState({ name: '', grade: '', description: '' });
+  const [subjectFormGeneralError, setSubjectFormGeneralError] = useState('');
   const [chapterForm, setChapterForm] = useState({ grade: '', subject: '', name: '' });
+  const [chapterFormErrors, setChapterFormErrors] = useState({ grade: '', subject: '', name: '' });
+  const [chapterFormGeneralError, setChapterFormGeneralError] = useState('');
   const [sloForm, setSloForm] = useState({
     grade: '',
     subject: '',
     chapter: '',
     name: '',
-    difficulty_frequency: 'MEDIUM',
-    estimated_time: '45',
+    difficulty_frequency: '',
+    estimated_time: '0',
     google_drive_link: '',
   });
+  const [sloFormErrors, setSloFormErrors] = useState({
+    grade: '',
+    subject: '',
+    chapter: '',
+    difficulty_frequency: '',
+    name: '',
+    estimated_time: '',
+    google_drive_link: '',
+  });
+  const [sloFormGeneralError, setSloFormGeneralError] = useState('');
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkText, setBulkText] = useState('');
 
@@ -431,20 +471,48 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   // ═══ QUERIES ═══
 
   // Grades
-  const gradesQuery = useQuery({
+  const gradesQuery = useQuery<Grade[]>({
     queryKey: ['cms', 'grades'],
     queryFn: getGrades,
     staleTime: 5 * 60 * 1000,
+    initialData: () => {
+      try {
+        const cached = sessionStorage.getItem('cms_grades');
+        return cached ? (JSON.parse(cached) as Grade[]) : undefined;
+      } catch {
+        return undefined;
+      }
+    }
   });
   const grades: Grade[] = gradesQuery.data ?? [];
 
+  useEffect(() => {
+    if (gradesQuery.data && gradesQuery.data.length > 0) {
+      sessionStorage.setItem('cms_grades', JSON.stringify(gradesQuery.data));
+    }
+  }, [gradesQuery.data]);
+
   // Subjects
-  const subjectsQuery = useQuery({
+  const subjectsQuery = useQuery<Subject[]>({
     queryKey: ['cms', 'subjects'],
     queryFn: getSubjects,
     staleTime: 5 * 60 * 1000,
+    initialData: () => {
+      try {
+        const cached = sessionStorage.getItem('cms_subjects');
+        return cached ? (JSON.parse(cached) as Subject[]) : undefined;
+      } catch {
+        return undefined;
+      }
+    }
   });
   const subjects: Subject[] = subjectsQuery.data ?? [];
+
+  useEffect(() => {
+    if (subjectsQuery.data && subjectsQuery.data.length > 0) {
+      sessionStorage.setItem('cms_subjects', JSON.stringify(subjectsQuery.data));
+    }
+  }, [subjectsQuery.data]);
 
   // Class options derived from grades
   const classOptions = useMemo(() => {
@@ -485,13 +553,27 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   // Chapters
   const shouldLoadAllChapters = ['dashboard', 'subjects'].includes(view);
-  const allChaptersQuery = useQuery({
+  const allChaptersQuery = useQuery<CMSChapter[]>({
     queryKey: ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')],
     queryFn: () => fetchAllChapters(subjects),
     enabled: shouldLoadAllChapters && subjects.length > 0,
     staleTime: 5 * 60 * 1000,
+    initialData: () => {
+      try {
+        const cached = sessionStorage.getItem('cms_all_chapters');
+        return cached ? (JSON.parse(cached) as CMSChapter[]) : undefined;
+      } catch {
+        return undefined;
+      }
+    }
   });
-  const allChapters = allChaptersQuery.data ?? [];
+  const allChapters: CMSChapter[] = allChaptersQuery.data ?? [];
+
+  useEffect(() => {
+    if (allChaptersQuery.data && allChaptersQuery.data.length > 0) {
+      sessionStorage.setItem('cms_all_chapters', JSON.stringify(allChaptersQuery.data));
+    }
+  }, [allChaptersQuery.data]);
 
   const activeChapterSubjectId =
     currentView === 'chapters'
@@ -565,6 +647,38 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     }
   }, [searchParams, subjects, currentView]);
 
+  // Reset forms and validation errors when switching views
+  useEffect(() => {
+    // Reset grade form
+    setClassName('');
+    setClassDescription('');
+    setGradeFormErrors({ name: '', description: '' });
+    setGradeFormGeneralError('');
+
+    // Reset subject form
+    const grade = searchParams.get('grade') || '';
+    setSubjectForm({ name: '', grade, description: '' });
+    setSubjectFormErrors({ name: '', grade: '', description: '' });
+    setSubjectFormGeneralError('');
+
+    // Reset chapter form
+    setChapterFormErrors({ grade: '', subject: '', name: '' });
+    setChapterFormGeneralError('');
+
+    // Reset SLO form errors
+    setSloForm((prev) => ({ ...prev, name: '', google_drive_link: '', difficulty_frequency: '', estimated_time: '0' }));
+    setSloFormErrors({
+      grade: '',
+      subject: '',
+      chapter: '',
+      difficulty_frequency: '',
+      name: '',
+      estimated_time: '',
+      google_drive_link: '',
+    });
+    setSloFormGeneralError('');
+  }, [currentView, searchParams]);
+
   // ── Computed ──
 
   const subjectsByGrade = (grade: string) =>
@@ -623,6 +737,11 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     );
   }, [sloRows, sloSearch]);
 
+  const isDashboardLoading =
+    (gradesQuery.isLoading && grades.length === 0) ||
+    (subjectsQuery.isLoading && subjects.length === 0) ||
+    (shouldLoadAllChapters && allChaptersQuery.isLoading && allChapters.length === 0);
+
   const filteredSubjects = subjects.filter((subject) => {
     const matchesSearch = matchesSearchQuery(subjectSearch, [
       subject.name,
@@ -649,9 +768,35 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       const gradeName = className.trim();
       setClassName('');
       setClassDescription('');
+      setGradeFormErrors({ name: '', description: '' });
+      setGradeFormGeneralError('');
       navigate(`/admin/cms/subjects?grade=${encodeURIComponent(gradeName)}`);
     },
-    onError: () => toast.error('Failed to create grade.'),
+    onError: (error: any) => {
+      const data = error?.response?.data;
+      let errMsg = 'Failed to create grade.';
+      if (data) {
+        if (typeof data === 'string') {
+          errMsg = data;
+        } else if (typeof data === 'object') {
+          const errors = { name: '', description: '' };
+          if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
+          if (data.description) errors.description = Array.isArray(data.description) ? data.description[0] : data.description;
+          if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+          
+          const generalErr = data.error || data.message || data.detail;
+          
+          if (errors.name || errors.description) {
+            setGradeFormErrors(errors);
+            return;
+          }
+          if (generalErr) {
+            errMsg = generalErr;
+          }
+        }
+      }
+      setGradeFormGeneralError(errMsg);
+    },
   });
 
   const updateGradeMutation = useMutation({
@@ -694,7 +839,32 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       setSubjectForm({ name: '', grade: createdGrade, description: '' });
       navigate(createdGrade ? `/admin/cms/subjects?grade=${encodeURIComponent(createdGrade)}` : '/admin/cms/subjects');
     },
-    onError: () => toast.error('Failed to create subject.'),
+    onError: (error: any) => {
+      const data = error?.response?.data;
+      let errMsg = 'Failed to create subject.';
+      if (data) {
+        if (typeof data === 'string') {
+          errMsg = data;
+        } else if (typeof data === 'object') {
+          const errors = { name: '', grade: '', description: '' };
+          if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
+          if (data.grade) errors.grade = Array.isArray(data.grade) ? data.grade[0] : data.grade;
+          if (data.description) errors.description = Array.isArray(data.description) ? data.description[0] : data.description;
+          if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+          
+          const generalErr = data.error || data.message || data.detail;
+          
+          if (errors.name || errors.grade || errors.description) {
+            setSubjectFormErrors(errors);
+            return;
+          }
+          if (generalErr) {
+            errMsg = generalErr;
+          }
+        }
+      }
+      setSubjectFormGeneralError(errMsg);
+    },
   });
 
   const updateSubjectMutation = useMutation({
@@ -708,7 +878,6 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     },
     onError: () => toast.error('Failed to update subject.'),
   });
-
   const deleteSubjectMutation = useMutation({
     mutationFn: async (id: number | string) => {
       await deleteSubject(id);
@@ -723,35 +892,64 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   // ── Chapters ──
   const createChapterMutation = useMutation({
-    mutationFn: async () => {
-      await createChapter({
-        subject: Number(chapterForm.subject),
-        name: chapterForm.name.trim(),
-      });
-    },
-    onSuccess: () => {
+    mutationFn: () => createChapter({
+      subject: Number(chapterForm.subject),
+      name: chapterForm.name.trim(),
+    }),
+    onSuccess: (data: any) => {
       toast.success('Chapter created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
-      // Navigate to Add SLO for the chapter we just created, keeping subject context
-      queryClient.fetchQuery({
-        queryKey: ['cms', 'chapters', chapterForm.subject],
-        queryFn: () => fetchChaptersBySubjectEnriched(Number(chapterForm.subject), subjects),
-      }).then((chapters: any[]) => {
-        const newest = chapters?.[chapters.length - 1];
-        if (newest?.id) {
-          navigate(`/admin/cms/slos/add?subject=${chapterForm.subject}&chapter=${newest.id}`);
-        } else {
+      
+      const newChapterId = data?.id;
+      if (newChapterId) {
+        navigate(`/admin/cms/slos/add?subject=${chapterForm.subject}&chapter=${newChapterId}`);
+        setChapterForm({ grade: '', subject: '', name: '' });
+      } else {
+        // Fallback to fetch query if ID is not returned
+        queryClient.fetchQuery({
+          queryKey: ['cms', 'chapters', chapterForm.subject],
+          queryFn: () => fetchChaptersBySubjectEnriched(Number(chapterForm.subject), subjects),
+        }).then((chapters: any[]) => {
+          const newest = chapters?.[chapters.length - 1];
+          if (newest?.id) {
+            navigate(`/admin/cms/slos/add?subject=${chapterForm.subject}&chapter=${newest.id}`);
+          } else {
+            navigate(chapterForm.subject ? `/admin/cms/chapters?subject=${chapterForm.subject}` : '/admin/cms/chapters');
+          }
+          setChapterForm({ grade: '', subject: '', name: '' });
+        }).catch(() => {
+          setChapterForm({ grade: '', subject: '', name: '' });
           navigate(chapterForm.subject ? `/admin/cms/chapters?subject=${chapterForm.subject}` : '/admin/cms/chapters');
-        }
-        setChapterForm({ grade: '', subject: '', name: '' });
-      }).catch(() => {
-        setChapterForm({ grade: '', subject: '', name: '' });
-        navigate(chapterForm.subject ? `/admin/cms/chapters?subject=${chapterForm.subject}` : '/admin/cms/chapters');
-      });
+        });
+      }
     },
-    onError: () => toast.error('Failed to create chapter.'),
+    onError: (error: any) => {
+      const data = error?.response?.data;
+      let errMsg = 'Failed to create chapter.';
+      if (data) {
+        if (typeof data === 'string') {
+          errMsg = data;
+        } else if (typeof data === 'object') {
+          const errors = { grade: '', subject: '', name: '' };
+          if (data.grade) errors.grade = Array.isArray(data.grade) ? data.grade[0] : data.grade;
+          if (data.subject) errors.subject = Array.isArray(data.subject) ? data.subject[0] : data.subject;
+          if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
+          if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+          
+          const generalErr = data.error || data.message || data.detail;
+          
+          if (errors.grade || errors.subject || errors.name) {
+            setChapterFormErrors(errors);
+            return;
+          }
+          if (generalErr) {
+            errMsg = generalErr;
+          }
+        }
+      }
+      setChapterFormGeneralError(errMsg);
+    },
   });
-
   const updateChapterMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number | string; data: Record<string, string> }) => {
       await updateChapter(id, { name: data.name });
@@ -784,7 +982,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         name: sloForm.name.trim(),
         difficulty_frequency: sloForm.difficulty_frequency,
         estimated_time: Number(sloForm.estimated_time) || 0,
-        ...(sloForm.google_drive_link.trim() ? { google_drive_link: sloForm.google_drive_link.trim() } : {}),
+        google_drive_link: sloForm.google_drive_link.trim(),
       } as any);
     },
     onSuccess: () => {
@@ -792,14 +990,61 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       const currentSubject = sloForm.subject;
       const currentChapter = sloForm.chapter;
-      setSloForm((prev) => ({ ...prev, name: '' }));
+      setSloForm((prev) => ({ ...prev, name: '', google_drive_link: '', difficulty_frequency: '', estimated_time: '0' }));
+      setSloFormErrors({
+        grade: '',
+        subject: '',
+        chapter: '',
+        difficulty_frequency: '',
+        name: '',
+        estimated_time: '',
+        google_drive_link: '',
+      });
+      setSloFormGeneralError('');
       const params = new URLSearchParams();
       if (currentSubject) params.append('subject', currentSubject);
       if (currentChapter) params.append('chapter', currentChapter);
       const q = params.toString();
       navigate(q ? `/admin/cms/slos?${q}` : '/admin/cms/slos');
     },
-    onError: () => toast.error('Failed to create SLO.'),
+    onError: (error: any) => {
+      const data = error?.response?.data;
+      let errMsg = 'Failed to create SLO.';
+      if (data) {
+        if (typeof data === 'string') {
+          errMsg = data;
+        } else if (typeof data === 'object') {
+          const errors = {
+            grade: '',
+            subject: '',
+            chapter: '',
+            difficulty_frequency: '',
+            name: '',
+            estimated_time: '',
+            google_drive_link: '',
+          };
+          if (data.grade) errors.grade = Array.isArray(data.grade) ? data.grade[0] : data.grade;
+          if (data.subject) errors.subject = Array.isArray(data.subject) ? data.subject[0] : data.subject;
+          if (data.chapter) errors.chapter = Array.isArray(data.chapter) ? data.chapter[0] : data.chapter;
+          if (data.difficulty_frequency) errors.difficulty_frequency = Array.isArray(data.difficulty_frequency) ? data.difficulty_frequency[0] : data.difficulty_frequency;
+          if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
+          if (data.estimated_time) errors.estimated_time = Array.isArray(data.estimated_time) ? data.estimated_time[0] : data.estimated_time;
+          if (data.google_drive_link) errors.google_drive_link = Array.isArray(data.google_drive_link) ? data.google_drive_link[0] : data.google_drive_link;
+          if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+          
+          const generalErr = data.error || data.message || data.detail;
+          
+          if (errors.grade || errors.subject || errors.chapter || errors.difficulty_frequency || errors.name || errors.estimated_time || errors.google_drive_link) {
+            setSloFormErrors(errors);
+            return;
+          }
+          if (generalErr) {
+            errMsg = generalErr;
+          }
+        }
+      }
+      setSloFormGeneralError(errMsg);
+    },
   });
 
   const updateSloMutation = useMutation({
@@ -906,20 +1151,35 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         subtitle="Manage grades, subjects, chapters, and SLOs used by planner generation."
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleRefreshCmsData}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/15 transition shadow-sm"
+            >
+              <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
             <SecondaryButton onClick={() => navigate('/admin/cms/classes/add')}>
               <Plus size={16} /> Add Grade
             </SecondaryButton>
           </div>
         }
       />
-      <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Grades" value={classOptions.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" onClick={() => navigate('/admin/cms/classes')} />
-        <StatCard label="Total Subjects" value={subjects.length} icon={<BookOpen size={20} />} tone="bg-purple-100 text-purple-600" onClick={() => navigate('/admin/cms/subjects')} />
-        <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" onClick={() => navigate('/admin/cms/chapters')} />
-        <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" onClick={() => navigate('/admin/cms/slos')} />
-      </div>
-      <div className="rounded-2xl border border-white/70 bg-white p-6 shadow-soft">
-        <h2 className="text-lg font-bold text-gray-900">CMS Flow</h2>
+      {isDashboardLoading ? (
+        <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Total Grades" value={classOptions.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" onClick={() => navigate('/admin/cms/classes')} />
+          <StatCard label="Total Subjects" value={subjects.length} icon={<BookOpen size={20} />} tone="bg-purple-100 text-purple-600" onClick={() => navigate('/admin/cms/subjects')} />
+          <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" onClick={() => navigate('/admin/cms/chapters')} />
+          <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" onClick={() => navigate('/admin/cms/slos')} />
+        </div>
+      )}
+      <div className="rounded-2xl border border-white/70 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-soft">
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white">CMS Flow</h2>
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
           {[
             { title: 'Grade', subtitle: 'Choose learning level', path: '/admin/cms/classes' },
@@ -930,14 +1190,14 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             <div
               key={title}
               onClick={() => navigate(path)}
-              className="cursor-pointer rounded-xl border border-slate-100 bg-slate-50/70 p-4 transition hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-sm"
+              className="cursor-pointer rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50 p-4 transition hover:border-blue-200 dark:hover:border-slate-600 hover:bg-blue-50/40 dark:hover:bg-slate-900 hover:shadow-sm"
             >
               <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
                 {index + 1}
               </div>
-              <p className="text-sm font-bold text-slate-900">{title}</p>
-              <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
-              <p className="mt-2 text-[11px] text-blue-500 font-medium">View all →</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{title}</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+              <p className="mt-2 text-[11px] text-blue-500 dark:text-blue-400 font-medium">View all →</p>
             </div>
           ))}
         </div>
@@ -1010,7 +1270,15 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         subtitle="Create a new grade for curriculum organization." 
         onBack={() => navigate('/admin/cms/classes')}
       />
-      <form onSubmit={(e) => { e.preventDefault(); if (!className.trim()) { toast.error('Grade name is required.'); return; } createGradeMutation.mutate(); }}>
+      <form onSubmit={(e) => { 
+        e.preventDefault(); 
+        setGradeFormGeneralError('');
+        const errors = { name: '', description: '' };
+        if (!className.trim()) errors.name = 'Grade name is required.';
+        setGradeFormErrors(errors);
+        if (errors.name) return; 
+        createGradeMutation.mutate(); 
+      }}>
         <FormCard
           eyebrow="Grade Setup"
           title="Grade Details"
@@ -1026,12 +1294,44 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           }
         >
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <FieldLabel label="Grade Name">
-              <input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="9, 10, CSS, MDCAT" className={fieldClass} />
-            </FieldLabel>
-            <FieldLabel label="Description" className="lg:col-span-2">
-              <textarea value={classDescription} onChange={(e) => setClassDescription(e.target.value)} placeholder="Optional description" className={`${fieldClass} min-h-32 resize-y`} />
-            </FieldLabel>
+            <div>
+              <FieldLabel label="Grade Name" required>
+                <input 
+                  value={className} 
+                  onChange={(e) => {
+                    setClassName(e.target.value);
+                    if (e.target.value.trim()) setGradeFormErrors((prev) => ({ ...prev, name: '' }));
+                    setGradeFormGeneralError('');
+                  }} 
+                  placeholder="9, 10, CSS, MDCAT" 
+                  className={`${fieldClass} ${gradeFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                />
+              </FieldLabel>
+              {gradeFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{gradeFormErrors.name}</p>}
+            </div>
+            
+            <div className="lg:col-span-2">
+              <FieldLabel label="Description">
+                <textarea 
+                  value={classDescription} 
+                  onChange={(e) => {
+                    setClassDescription(e.target.value);
+                    if (e.target.value.trim()) setGradeFormErrors((prev) => ({ ...prev, description: '' }));
+                    setGradeFormGeneralError('');
+                  }} 
+                  placeholder="Optional description" 
+                  className={`${fieldClass} min-h-32 resize-y ${gradeFormErrors.description ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                />
+              </FieldLabel>
+              {gradeFormErrors.description && <p className="text-xs text-red-500 mt-1.5 ml-1">{gradeFormErrors.description}</p>}
+            </div>
+
+            {gradeFormGeneralError && (
+              <div className="lg:col-span-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                <span>{gradeFormGeneralError}</span>
+              </div>
+            )}
           </div>
         </FormCard>
       </form>
@@ -1142,10 +1442,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (!subjectForm.name.trim() || !subjectForm.grade.trim()) {
-            toast.error('Subject name and grade are required.');
-            return;
-          }
+          setSubjectFormGeneralError('');
+          const errors = { name: '', grade: '', description: '' };
+          if (!subjectForm.name.trim()) errors.name = 'Subject name is required.';
+          if (!subjectForm.grade.trim()) errors.grade = 'Grade is required.';
+          if (!subjectForm.description.trim()) errors.description = 'Description is required.';
+          setSubjectFormErrors(errors);
+          if (errors.name || errors.grade || errors.description) return;
           createSubjectMutation.mutate();
         }}
       >
@@ -1164,23 +1467,58 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           }
         >
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <FieldLabel label="Subject Name">
-              <input value={subjectForm.name} onChange={(e) => setSubjectForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Mathematics" className={fieldClass} />
+            <div>
+              <FieldLabel label="Subject Name" required>
+                <input 
+                  value={subjectForm.name} 
+                  onChange={(e) => {
+                    setSubjectForm((prev) => ({ ...prev, name: e.target.value }));
+                    if (e.target.value.trim()) setSubjectFormErrors((prev) => ({ ...prev, name: '' }));
+                    setSubjectFormGeneralError('');
+                  }} 
+                  placeholder="Mathematics" 
+                  className={`${fieldClass} ${subjectFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                />
+              </FieldLabel>
+              {subjectFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{subjectFormErrors.name}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Grade" required>
+                <select 
+                  value={subjectForm.grade} 
+                  onChange={(e) => {
+                    setSubjectForm((prev) => ({ ...prev, grade: e.target.value }));
+                    if (e.target.value.trim()) setSubjectFormErrors((prev) => ({ ...prev, grade: '' }));
+                    setSubjectFormGeneralError('');
+                  }} 
+                  disabled={!!searchParams.get('grade')}
+                  className={`mt-2 ${selectClass} ${searchParams.get('grade') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${subjectFormErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Grade</option>
+                  {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                </select>
+              </FieldLabel>
+              {subjectFormErrors.grade && <p className="text-xs text-red-500 mt-1.5 ml-1">{subjectFormErrors.grade}</p>}
+            </div>
+            <FieldLabel label="Description" className="lg:col-span-2" required>
+              <textarea 
+                value={subjectForm.description} 
+                onChange={(e) => {
+                  setSubjectForm((prev) => ({ ...prev, description: e.target.value }));
+                  if (e.target.value.trim()) setSubjectFormErrors((prev) => ({ ...prev, description: '' }));
+                  setSubjectFormGeneralError('');
+                }} 
+                placeholder="Core mathematics curriculum for grade 10" 
+                className={`${fieldClass} min-h-32 resize-y ${subjectFormErrors.description ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+              />
+              {subjectFormErrors.description && <p className="text-xs text-red-500 mt-1.5 ml-1">{subjectFormErrors.description}</p>}
             </FieldLabel>
-            <FieldLabel label="Grade">
-              <select 
-                value={subjectForm.grade} 
-                onChange={(e) => setSubjectForm((prev) => ({ ...prev, grade: e.target.value }))} 
-                disabled={!!searchParams.get('grade')}
-                className={`mt-2 ${selectClass} ${searchParams.get('grade') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
-              >
-                <option value="">Select Grade</option>
-                {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
-              </select>
-            </FieldLabel>
-            <FieldLabel label="Description" className="lg:col-span-2">
-              <textarea value={subjectForm.description} onChange={(e) => setSubjectForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Core mathematics curriculum for grade 10" className={`${fieldClass} min-h-32 resize-y`} />
-            </FieldLabel>
+            {subjectFormGeneralError && (
+              <div className="lg:col-span-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                <span>{subjectFormGeneralError}</span>
+              </div>
+            )}
           </div>
         </FormCard>
       </form>
@@ -1291,10 +1629,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (!chapterForm.subject || !chapterForm.name.trim()) {
-            toast.error('Subject and chapter name are required.');
-            return;
-          }
+          setChapterFormGeneralError('');
+          const errors = { grade: '', subject: '', name: '' };
+          if (!chapterForm.grade) errors.grade = 'Grade is required.';
+          if (!chapterForm.subject) errors.subject = 'Subject is required.';
+          if (!chapterForm.name.trim()) errors.name = 'Chapter name is required.';
+          setChapterFormErrors(errors);
+          if (errors.grade || errors.subject || errors.name) return;
           createChapterMutation.mutate();
         }}
       >
@@ -1313,31 +1654,64 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           }
         >
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <FieldLabel label="Grade">
-              <select 
-                value={chapterForm.grade} 
-                onChange={(e) => setChapterForm({ grade: e.target.value, subject: '', name: chapterForm.name })} 
-                disabled={!!searchParams.get('subject')}
-                className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
-              >
-                <option value="">Select Grade</option>
-                {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
-              </select>
-            </FieldLabel>
-            <FieldLabel label="Subject">
-              <select 
-                value={chapterForm.subject} 
-                onChange={(e) => setChapterForm((prev) => ({ ...prev, subject: e.target.value }))} 
-                disabled={!!searchParams.get('subject')}
-                className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
-              >
-                <option value="">Select Subject</option>
-                {subjectsByGrade(chapterForm.grade).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
-              </select>
-            </FieldLabel>
-            <FieldLabel label="Chapter Name" className="lg:col-span-2">
-              <input value={chapterForm.name} onChange={(e) => setChapterForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Algebra Basics" className={fieldClass} />
-            </FieldLabel>
+            <div>
+              <FieldLabel label="Grade" required>
+                <select 
+                  value={chapterForm.grade} 
+                  onChange={(e) => {
+                    setChapterForm({ grade: e.target.value, subject: '', name: chapterForm.name });
+                    setChapterFormErrors((prev) => ({ ...prev, grade: '', subject: '' }));
+                    setChapterFormGeneralError('');
+                  }} 
+                  disabled={!!searchParams.get('subject')}
+                  className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${chapterFormErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Grade</option>
+                  {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                </select>
+              </FieldLabel>
+              {chapterFormErrors.grade && <p className="text-xs text-red-500 mt-1.5 ml-1">{chapterFormErrors.grade}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Subject" required>
+                <select 
+                  value={chapterForm.subject} 
+                  onChange={(e) => {
+                    setChapterForm((prev) => ({ ...prev, subject: e.target.value }));
+                    if (e.target.value) setChapterFormErrors((prev) => ({ ...prev, subject: '' }));
+                    setChapterFormGeneralError('');
+                  }} 
+                  disabled={!!searchParams.get('subject')}
+                  className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${chapterFormErrors.subject ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Subject</option>
+                  {subjectsByGrade(chapterForm.grade).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+                </select>
+              </FieldLabel>
+              {chapterFormErrors.subject && <p className="text-xs text-red-500 mt-1.5 ml-1">{chapterFormErrors.subject}</p>}
+            </div>
+            <div className="lg:col-span-2">
+              <FieldLabel label="Chapter Name" required>
+                <input 
+                  value={chapterForm.name} 
+                  onChange={(e) => {
+                    setChapterForm((prev) => ({ ...prev, name: e.target.value }));
+                    if (e.target.value.trim()) setChapterFormErrors((prev) => ({ ...prev, name: '' }));
+                    setChapterFormGeneralError('');
+                  }} 
+                  placeholder="Algebra Basics" 
+                  className={`${fieldClass} ${chapterFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                />
+              </FieldLabel>
+              {chapterFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{chapterFormErrors.name}</p>}
+            </div>
+
+            {chapterFormGeneralError && (
+              <div className="lg:col-span-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                <span>{chapterFormGeneralError}</span>
+              </div>
+            )}
           </div>
         </FormCard>
       </form>
@@ -1392,7 +1766,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             >
               <Upload size={16} /> Upload SLOs
             </button>
-            <PrimaryButton onClick={() => navigate('/admin/cms/slos/add')}><Plus size={16} /> Add SLO</PrimaryButton>
+            <PrimaryButton onClick={() => {
+              const params = new URLSearchParams();
+              if (sloFilterSubjectId) params.append('subject', sloFilterSubjectId);
+              if (sloFilterChapterId) params.append('chapter', sloFilterChapterId);
+              const q = params.toString();
+              navigate(q ? `/admin/cms/slos/add?${q}` : '/admin/cms/slos/add');
+            }}><Plus size={16} /> Add SLO</PrimaryButton>
           </div>
         }
       />
@@ -1483,6 +1863,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <form
         onSubmit={(event) => {
           event.preventDefault();
+          setSloFormGeneralError('');
           if (bulk) {
             if (!bulkFile && !bulkText.trim()) {
               toast.error('Please upload a file or paste SLO lines.');
@@ -1492,12 +1873,50 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
               toast.error('Please select a chapter for text-based upload.');
               return;
             }
+            const errors = {
+              grade: '',
+              subject: '',
+              chapter: '',
+              difficulty_frequency: '',
+              name: '',
+              estimated_time: '',
+              google_drive_link: '',
+            };
+            if (!sloForm.grade) errors.grade = 'Grade is required.';
+            if (!sloForm.subject) errors.subject = 'Subject is required.';
+            if (!sloForm.chapter) errors.chapter = 'Chapter is required.';
+            if (!sloForm.difficulty_frequency) errors.difficulty_frequency = 'Priority is required.';
+            if (!sloForm.google_drive_link.trim()) errors.google_drive_link = 'Google Drive link is required.';
+            else if (!sloForm.google_drive_link.startsWith('http://') && !sloForm.google_drive_link.startsWith('https://')) {
+              errors.google_drive_link = 'Please enter a valid URL starting with http:// or https://';
+            }
+            setSloFormErrors(errors);
+            if (errors.grade || errors.subject || errors.chapter || errors.difficulty_frequency || errors.google_drive_link) return;
             bulkUploadMutation.mutate();
           } else {
-            if (!sloForm.chapter || !sloForm.name.trim()) {
-              toast.error('Chapter and SLO name are required.');
-              return;
+            const errors = {
+              grade: '',
+              subject: '',
+              chapter: '',
+              difficulty_frequency: '',
+              name: '',
+              estimated_time: '',
+              google_drive_link: '',
+            };
+            if (!sloForm.grade) errors.grade = 'Grade is required.';
+            if (!sloForm.subject) errors.subject = 'Subject is required.';
+            if (!sloForm.chapter) errors.chapter = 'Chapter is required.';
+            if (!sloForm.difficulty_frequency) errors.difficulty_frequency = 'Priority is required.';
+            if (!sloForm.name.trim()) errors.name = 'SLO is required.';
+            if (!sloForm.estimated_time.trim()) errors.estimated_time = 'Estimated time is required.';
+            else if (Number(sloForm.estimated_time) <= 0) errors.estimated_time = 'Please add some time.';
+
+            if (!sloForm.google_drive_link.trim()) errors.google_drive_link = 'Google Drive link is required.';
+            else if (!sloForm.google_drive_link.startsWith('http://') && !sloForm.google_drive_link.startsWith('https://')) {
+              errors.google_drive_link = 'Please enter a valid URL starting with http:// or https://';
             }
+            setSloFormErrors(errors);
+            if (errors.grade || errors.subject || errors.chapter || errors.difficulty_frequency || errors.name || errors.estimated_time || errors.google_drive_link) return;
             createSloMutation.mutate();
           }
         }}
@@ -1523,61 +1942,115 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           }
         >
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <FieldLabel label="Grade">
-              <select 
-                value={sloForm.grade} 
-                onChange={(e) => setSloForm((prev) => ({ ...prev, grade: e.target.value, subject: '', chapter: '' }))} 
-                disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
-                className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
-              >
-                <option value="">Select Grade</option>
-                {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
-              </select>
-            </FieldLabel>
-            <FieldLabel label="Subject">
-              <select 
-                value={sloForm.subject} 
-                onChange={(e) => setSloForm((prev) => ({ ...prev, subject: e.target.value, chapter: '' }))} 
-                disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
-                className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
-              >
-                <option value="">Select Subject</option>
-                {selectedSloSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
-              </select>
-            </FieldLabel>
-            <FieldLabel label="Chapter">
-              <select 
-                value={sloForm.chapter} 
-                onChange={(e) => setSloForm((prev) => ({ ...prev, chapter: e.target.value }))} 
-                disabled={!!searchParams.get('chapter')}
-                className={`mt-2 ${selectClass} ${searchParams.get('chapter') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
-              >
-                <option value="">Select Chapter</option>
-                {activeChapters.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.name}</option>)}
-              </select>
-            </FieldLabel>
-            <FieldLabel label="Priority">
-              <select value={sloForm.difficulty_frequency} onChange={(e) => setSloForm((prev) => ({ ...prev, difficulty_frequency: e.target.value }))} className={`mt-2 ${selectClass}`}>
-                <option value="LOW">LOW</option>
-                <option value="MEDIUM">MEDIUM</option>
-                <option value="HIGH">HIGH</option>
-              </select>
-            </FieldLabel>
-            <FieldLabel label="Estimated Time (in minutes)">
-              <div className="relative mt-2">
-                <Clock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="number" min="0" value={sloForm.estimated_time} onChange={(e) => setSloForm((prev) => ({ ...prev, estimated_time: e.target.value }))} placeholder="e.g. 45" className={`${fieldClass} mt-0 pl-11`} />
-              </div>
-            </FieldLabel>
-            <FieldLabel label="Google Drive Link (optional)">
-              <input
-                type="url"
-                value={sloForm.google_drive_link}
-                onChange={(e) => setSloForm((prev) => ({ ...prev, google_drive_link: e.target.value }))}
-                placeholder="https://drive.google.com/..."
-                className={fieldClass}
-              />
-            </FieldLabel>
+            <div>
+              <FieldLabel label="Grade" required>
+                <select 
+                  value={sloForm.grade} 
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, grade: e.target.value, subject: '', chapter: '' }));
+                    if (e.target.value) setSloFormErrors((prev) => ({ ...prev, grade: '', subject: '', chapter: '' }));
+                    setSloFormGeneralError('');
+                  }} 
+                  disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
+                  className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${sloFormErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Grade</option>
+                  {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                </select>
+              </FieldLabel>
+              {sloFormErrors.grade && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.grade}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Subject" required>
+                <select 
+                  value={sloForm.subject} 
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, subject: e.target.value, chapter: '' }));
+                    if (e.target.value) setSloFormErrors((prev) => ({ ...prev, subject: '', chapter: '' }));
+                    setSloFormGeneralError('');
+                  }} 
+                  disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
+                  className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${sloFormErrors.subject ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Subject</option>
+                  {selectedSloSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+                </select>
+              </FieldLabel>
+              {sloFormErrors.subject && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.subject}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Chapter" required>
+                <select 
+                  value={sloForm.chapter} 
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, chapter: e.target.value }));
+                    if (e.target.value) setSloFormErrors((prev) => ({ ...prev, chapter: '' }));
+                    setSloFormGeneralError('');
+                  }} 
+                  disabled={!!searchParams.get('chapter')}
+                  className={`mt-2 ${selectClass} ${searchParams.get('chapter') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${sloFormErrors.chapter ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Chapter</option>
+                  {activeChapters.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.name}</option>)}
+                </select>
+              </FieldLabel>
+              {sloFormErrors.chapter && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.chapter}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Priority" required>
+                <select 
+                  value={sloForm.difficulty_frequency} 
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, difficulty_frequency: e.target.value }));
+                    if (e.target.value) setSloFormErrors((prev) => ({ ...prev, difficulty_frequency: '' }));
+                    setSloFormGeneralError('');
+                  }} 
+                  className={`mt-2 ${selectClass} ${sloFormErrors.difficulty_frequency ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Priority</option>
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HIGH">HIGH</option>
+                </select>
+              </FieldLabel>
+              {sloFormErrors.difficulty_frequency && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.difficulty_frequency}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Estimated Time (in minutes)" required>
+                <div className="relative mt-2">
+                  <Clock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input 
+                    type="number" 
+                    min="0" 
+                    value={sloForm.estimated_time} 
+                    onChange={(e) => {
+                      setSloForm((prev) => ({ ...prev, estimated_time: e.target.value }));
+                      if (e.target.value.trim() && Number(e.target.value) > 0) setSloFormErrors((prev) => ({ ...prev, estimated_time: '' }));
+                      setSloFormGeneralError('');
+                    }} 
+                    placeholder="e.g. 45" 
+                    className={`${fieldClass} mt-0 pl-11 ${sloFormErrors.estimated_time ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                  />
+                </div>
+              </FieldLabel>
+              {sloFormErrors.estimated_time && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.estimated_time}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Google Drive Link" required>
+                <input
+                  type="url"
+                  value={sloForm.google_drive_link}
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, google_drive_link: e.target.value }));
+                    if (e.target.value.trim()) setSloFormErrors((prev) => ({ ...prev, google_drive_link: '' }));
+                    setSloFormGeneralError('');
+                  }}
+                  placeholder="https://drive.google.com/..."
+                  className={`${fieldClass} ${sloFormErrors.google_drive_link ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                />
+              </FieldLabel>
+              {sloFormErrors.google_drive_link && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.google_drive_link}</p>}
+            </div>
             {bulk && (
               <FieldLabel label="Upload File (.csv, .txt, .xlsx)">
                 <label className="mt-2 flex min-h-[50px] cursor-pointer items-center justify-center rounded-xl border border-dashed border-blue-200 bg-blue-50/50 px-4 py-3 text-sm font-semibold text-blue-600 transition hover:border-blue-300 hover:bg-blue-50">
@@ -1586,13 +2059,32 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 </label>
               </FieldLabel>
             )}
-            <FieldLabel label={bulk ? 'SLO Lines (Preview / Manual Entry)' : 'SLO'} className="lg:col-span-2">
-              {bulk ? (
-                <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder="Student can solve simple linear equations." className={`${fieldClass} min-h-56 resize-y`} />
-              ) : (
-                <textarea value={sloForm.name} onChange={(e) => setSloForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Student can solve simple linear equations." className={`${fieldClass} min-h-36 resize-y`} />
-              )}
-            </FieldLabel>
+            <div className="lg:col-span-2">
+              <FieldLabel label={bulk ? 'SLO Lines (Preview / Manual Entry)' : 'SLO'} required={!bulk}>
+                {bulk ? (
+                  <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder="Student can solve simple linear equations." className={`${fieldClass} min-h-56 resize-y`} />
+                ) : (
+                  <textarea 
+                    value={sloForm.name} 
+                    onChange={(e) => {
+                      setSloForm((prev) => ({ ...prev, name: e.target.value }));
+                      if (e.target.value.trim()) setSloFormErrors((prev) => ({ ...prev, name: '' }));
+                      setSloFormGeneralError('');
+                    }} 
+                    placeholder="Student can solve simple linear equations." 
+                    className={`${fieldClass} min-h-36 resize-y ${sloFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                  />
+                )}
+              </FieldLabel>
+              {!bulk && sloFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.name}</p>}
+            </div>
+
+            {sloFormGeneralError && (
+              <div className="lg:col-span-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                <span>{sloFormGeneralError}</span>
+              </div>
+            )}
           </div>
         </FormCard>
       </form>

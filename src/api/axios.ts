@@ -113,7 +113,7 @@ axiosInstance.interceptors.response.use(
     // Handle specific status codes
     switch (status) {
       case 400:
-        if (!isLoginRequest) {
+        if (!isLoginRequest && !(error.config as any)?.hideToast) {
           toast.error(backendMsg || 'Bad request. Please check your input.', {
             duration: 4000,
             id: 'api-400',
