@@ -16,6 +16,7 @@ export interface CreatePaperCheckerPayload {
   password?: string;
   email: string;
   phone?: string;
+  profile_image?: string;
 }
 
 export interface AssignPayload {

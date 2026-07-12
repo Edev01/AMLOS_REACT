@@ -61,6 +61,7 @@ export interface User {
   role: Role;
   first_name?: string;
   last_name?: string;
+  phone?: string;
   school_id?: string;
   school_name?: string;
   campus_id?: string;      // Multi-tenant: current campus tenant
@@ -200,6 +201,7 @@ export interface Student {
   full_name?: string;
   first_name?: string;
   last_name?: string;
+  gender?: string;
   name?: string;
   email?: string;
   dob?: string;
@@ -233,6 +235,7 @@ export interface Student {
 export interface IStudentData {
   firstName: string;
   lastName: string;
+  gender: string;
   email: string;
   dateOfBirth: string;
   grade: string;
@@ -255,6 +258,7 @@ export interface CreateStudentPayload {
   password: string;
   first_name: string;
   last_name: string;
+  gender: string;
   roll_number: string;
   grade: string;
   section: string;
