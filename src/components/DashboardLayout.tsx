@@ -39,6 +39,7 @@ import SchoolAdminSidebar from './SchoolAdminSidebar';
 import Modal from './Modal';
 import { api } from '../api/services/api';
 import { assessmentService } from '../api/services/assessmentService';
+import CMSBackgroundPreloader from './CMSBackgroundPreloader';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -307,6 +308,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
 
   return (
     <div className={`min-h-screen font-sans relative transition-colors duration-300 ${isDark ? 'bg-[#0a0f1e]' : 'bg-[#F1F3F4]'}`}>
+      {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && <CMSBackgroundPreloader />}
       {/* Global Top-Bar Progress Loader for Background Fetching removed per user request */}
 
       {/* Mobile overlay */}

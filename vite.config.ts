@@ -15,4 +15,15 @@ export default defineConfig({
       'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization',
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+        }
+      }
+    }
+  }
 })
