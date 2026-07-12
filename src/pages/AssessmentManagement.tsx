@@ -87,8 +87,8 @@ const COGNITIVE_LEVELS = ['Knowledge', 'Understanding', 'Application'];
 const QUESTION_CATEGORIES = ['Conceptual', 'Past Paper', 'Book Exercise', 'Additional Question'];
 
 const DEFAULT_COGNITIVE_LEVEL_DETAILS: Record<string, CognitiveLevelDetail> = {
-  Knowledge: { mcq_count: 3, short_count: 2, long_count: 1 },
-  Understanding: { mcq_count: 2, short_count: 1, long_count: 0 },
+  Knowledge: { mcq_count: 0, short_count: 0, long_count: 0 },
+  Understanding: { mcq_count: 0, short_count: 0, long_count: 0 },
 };
 
 const emptyForm: AssessmentFormState = {
@@ -1623,7 +1623,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                             // When adding a level, initialise its details if missing
                             const newDetails = { ...form.cognitive_level_details };
                             if (!newDetails[level]) {
-                              newDetails[level] = { mcq_count: 2, short_count: 1, long_count: 0 };
+                              newDetails[level] = { mcq_count: 0, short_count: 0, long_count: 0 };
                             }
                             setForm(prev => ({ ...prev, cognitive_levels: newLevels, cognitive_level_details: newDetails }));
                           }}

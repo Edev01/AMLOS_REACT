@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, Loader2, Users, ClipboardList, UserCheck, BookOpen, Star, Mail, Phone, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Plus, X, Loader2, Users, ClipboardList, UserCheck, BookOpen, Star, Mail, Phone, Eye, EyeOff, AlertCircle, Pencil, Trash2, AlertTriangle, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import { CardSkeleton } from '../components/Skeleton';
 import { paperCheckerService } from '../api/services/paperCheckerService';
 import { getSubjects } from '../api/services/curriculumService';
+import { userService } from '../api/services/userService';
 
 // ── Tabs ──────────────────────────────────────────────────────────
 type Tab = 'checkers' | 'submissions';
@@ -30,7 +32,7 @@ const extractError = (e: any): string => {
 
 // ── Create Modal ──────────────────────────────────────────────────
 const CreateCheckerModal: React.FC<{ onClose: () => void; onCreated: () => void }> = ({ onClose, onCreated }) => {
-  const [form, setForm] = useState({ username: '', first_name: '', last_name: '', password: '', email: '', phone: '' });
+  const [form, setForm] = useState({ first_name: '', last_name: '', password: '', email: '', phone: '' });
   const [showPass, setShowPass] = useState(false);
   const [apiError, setApiError] = useState('');
 
@@ -73,13 +75,6 @@ const CreateCheckerModal: React.FC<{ onClose: () => void; onCreated: () => void 
                 className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition" placeholder="Last name" />
             </div>
           </div>
-          {/* Username */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Username <span className="text-red-400">*</span></label>
-            <input type="text" value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))}
-              required
-              className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition" placeholder="e.g. checker1@amlos.com" />
-          </div>
           {/* Email */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Email</label>
@@ -113,6 +108,186 @@ const CreateCheckerModal: React.FC<{ onClose: () => void; onCreated: () => void 
             </button>
           </div>
         </form>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// ── Edit Modal ────────────────────────────────────────────────────
+const EditCheckerModal: React.FC<{ checker: any; onClose: () => void; onUpdated: () => void }> = ({ checker, onClose, onUpdated }) => {
+  const [form, setForm] = useState({ 
+    first_name: checker.first_name || checker.user?.first_name || '', 
+    last_name: checker.last_name || checker.user?.last_name || '', 
+    password: '', // Password optional on update
+    email: checker.email || checker.user?.email || '', 
+    phone: checker.phone || '' 
+  });
+  const [showPass, setShowPass] = useState(false);
+  const [apiError, setApiError] = useState('');
+  
+  // Image state
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(checker.profile_image || null);
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be less than 5MB.');
+        return;
+      }
+      setIsUploadingImage(true);
+      try {
+        const res = await userService.uploadImage(file);
+        const url = res?.data?.url || res?.url || res?.image_url || res?.file_url || res?.path || res?.profile_image;
+        if (url) {
+          setProfileImageUrl(url);
+          toast.success('Image uploaded successfully!');
+        } else {
+          toast.error('Upload succeeded but no URL returned.');
+        }
+      } catch {
+        toast.error('Failed to upload image.');
+      } finally {
+        setIsUploadingImage(false);
+      }
+    }
+  };
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const payload: any = { ...form };
+      if (!payload.password) delete payload.password; // Don't send empty password
+      if (profileImageUrl !== checker.profile_image) {
+        payload.profile_image = profileImageUrl;
+      }
+      return paperCheckerService.updateChecker(checker.id, payload);
+    },
+    onSuccess: () => { toast.success('Paper checker updated!'); onUpdated(); onClose(); },
+    onError: (e: any) => {
+      const msg = extractError(e);
+      setApiError(msg);
+      toast.error(msg);
+    },
+  });
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto" onClick={onClose}>
+      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-8" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-t-2xl">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2"><UserCheck size={18} /> Edit Paper Checker</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 text-white transition"><X size={18} /></button>
+        </div>
+        <form onSubmit={e => { e.preventDefault(); setApiError(''); mutation.mutate(); }} className="p-6 space-y-4">
+          {apiError && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
+              <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-red-700 font-medium">{apiError}</p>
+            </div>
+          )}
+
+          {/* Profile Picture Upload */}
+          <div className="flex flex-col items-center justify-center mb-2">
+            <div className="relative group">
+              {profileImageUrl ? (
+                <div className="relative">
+                  <img src={profileImageUrl} alt="Profile" className="h-20 w-20 rounded-full object-cover border-2 border-blue-200 shadow-sm" />
+                  <button type="button" onClick={() => setProfileImageUrl(null)} className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors">
+                    <X size={12} />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-full border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all duration-200">
+                  {isUploadingImage ? <Loader2 size={24} className="animate-spin" /> : <Camera size={24} />}
+                  <input type="file" accept="image/*" onChange={handleImageSelect} disabled={isUploadingImage} className="hidden" />
+                </label>
+              )}
+            </div>
+            <p className="text-[10px] text-gray-400 mt-2">Optional Profile Photo</p>
+          </div>
+
+          {/* First Name + Last Name */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">First Name</label>
+              <input type="text" value={form.first_name} onChange={e => setForm(p => ({ ...p, first_name: e.target.value }))}
+                className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition" placeholder="First name" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Last Name</label>
+              <input type="text" value={form.last_name} onChange={e => setForm(p => ({ ...p, last_name: e.target.value }))}
+                className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition" placeholder="Last name" />
+            </div>
+          </div>
+          {/* Email */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Email</label>
+            <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+              className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition" placeholder="Email" />
+          </div>
+          {/* Password with eye toggle */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Password (Leave blank to keep current)</label>
+            <div className="relative">
+              <input type={showPass ? 'text' : 'password'} value={form.password}
+                onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 pr-11 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition"
+                placeholder="New Password" autoComplete="new-password" data-lpignore="true" />
+              <button type="button" onClick={() => setShowPass(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
+                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+          {/* Phone */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Phone</label>
+            <input type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+              className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition" placeholder="Phone" />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 transition">
+              {mutation.isPending && <Loader2 size={14} className="animate-spin" />} Update
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// ── Delete Modal ──────────────────────────────────────────────────
+const DeleteCheckerModal: React.FC<{ checker: any; onClose: () => void; onDeleted: () => void }> = ({ checker, onClose, onDeleted }) => {
+  const mutation = useMutation({
+    mutationFn: () => paperCheckerService.deleteChecker(checker.id),
+    onSuccess: () => { toast.success('Paper checker deleted!'); onDeleted(); onClose(); },
+    onError: (e: any) => {
+      const msg = extractError(e);
+      toast.error(msg);
+    },
+  });
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 text-center" onClick={e => e.stopPropagation()}>
+        <div className="mx-auto w-14 h-14 bg-red-100 text-red-600 flex items-center justify-center rounded-full mb-4">
+          <AlertTriangle size={24} />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Delete Paper Checker?</h2>
+        <p className="text-gray-500 text-sm mb-6">
+          Are you sure you want to delete this paper checker (<span className="font-bold text-gray-800">{[checker.first_name, checker.last_name].filter(Boolean).join(' ') || checker.email || `ID #${checker.id}`}</span>)? This action cannot be undone.
+        </p>
+        <div className="flex gap-3">
+          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+          <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending} className="flex-1 py-2.5 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2 transition">
+            {mutation.isPending && <Loader2 size={14} className="animate-spin" />} Delete Checker
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );
@@ -247,10 +422,13 @@ const GradeModal: React.FC<{ submission: any; onClose: () => void; onGraded: () 
 // ── Main Page ──────────────────────────────────────────────────────
 const PaperCheckerManagement: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('checkers');
   const [showCreate, setShowCreate] = useState(false);
   const [assignTarget, setAssignTarget] = useState<any>(null);
   const [gradeTarget, setGradeTarget] = useState<any>(null);
+  const [editTarget, setEditTarget] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
   const checkersQuery = useQuery({
     queryKey: ['paper-checkers'],
@@ -319,7 +497,8 @@ const PaperCheckerManagement: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
               {checkers.map((checker: any) => (
                 <motion.div key={checker.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm hover:shadow-md transition p-5">
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-200 transition p-5 cursor-pointer flex flex-col h-full"
+                  onClick={() => navigate(`/admin/paper-checkers/${checker.id}`)}>
                   <div className="flex items-start justify-between mb-4 gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       {checker.profile_image ? (
@@ -341,6 +520,10 @@ const PaperCheckerManagement: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
+                      <div className="flex items-center gap-1 mb-1">
+                        <button onClick={(e) => { e.stopPropagation(); setEditTarget(checker); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Edit Checker"><Pencil size={14} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(checker); }} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete Checker"><Trash2 size={14} /></button>
+                      </div>
                       <span className="text-[10px] font-bold uppercase bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 px-2.5 py-1 rounded-full">Checker</span>
                       <span className="text-[10px] text-gray-400">ID #{checker.id}</span>
                     </div>
@@ -355,10 +538,12 @@ const PaperCheckerManagement: React.FC = () => {
                       </p>
                     </div>
                   )}
-                  <button onClick={() => setAssignTarget(checker)}
-                    className="w-full mt-2 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition flex items-center justify-center gap-1.5">
-                    <Users size={13} /> Assign Subject & Students
-                  </button>
+                  <div className="mt-auto pt-4">
+                    <button onClick={(e) => { e.stopPropagation(); setAssignTarget(checker); }}
+                      className="w-full py-2 rounded-xl bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition flex items-center justify-center gap-1.5">
+                      <Users size={13} /> Assign Subject & Students
+                    </button>
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -434,6 +619,12 @@ const PaperCheckerManagement: React.FC = () => {
       </AnimatePresence>
       <AnimatePresence>
         {assignTarget && <AssignModal checker={assignTarget} onClose={() => setAssignTarget(null)} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {editTarget && <EditCheckerModal checker={editTarget} onClose={() => setEditTarget(null)} onUpdated={() => checkersQuery.refetch()} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {deleteTarget && <DeleteCheckerModal checker={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={() => checkersQuery.refetch()} />}
       </AnimatePresence>
       <AnimatePresence>
         {gradeTarget && <GradeModal submission={gradeTarget} onClose={() => setGradeTarget(null)} onGraded={() => queryClient.invalidateQueries({ queryKey: ['checker-submissions'] })} />}

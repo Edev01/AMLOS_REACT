@@ -59,6 +59,8 @@ export interface User {
   email: string;
   username?: string;
   role: Role;
+  first_name?: string;
+  last_name?: string;
   school_id?: string;
   school_name?: string;
   campus_id?: string;      // Multi-tenant: current campus tenant

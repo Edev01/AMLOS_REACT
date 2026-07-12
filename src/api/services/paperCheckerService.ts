@@ -11,12 +11,11 @@ export interface PaperChecker {
 }
 
 export interface CreatePaperCheckerPayload {
-  username: string;
   first_name?: string;
   last_name?: string;
-  password: string;
+  password?: string;
   email: string;
-  phone: string;
+  phone?: string;
 }
 
 export interface AssignPayload {
@@ -41,6 +40,16 @@ export const paperCheckerService = {
     return response.data?.data ?? response.data;
   },
 
+  updateChecker: async (checkerId: number | string, payload: Partial<CreatePaperCheckerPayload>): Promise<any> => {
+    const response = await api.patch(`/api/auth/paper-checkers/${checkerId}/update`, payload);
+    return response.data;
+  },
+
+  deleteChecker: async (checkerId: number | string): Promise<any> => {
+    const response = await api.delete(`/api/auth/paper-checkers/${checkerId}/delete`);
+    return response.data;
+  },
+
   assignToChecker: async (
     checkerId: number | string,
     payload: AssignPayload
@@ -58,6 +67,11 @@ export const paperCheckerService = {
     const envelope = data?.data ?? data;
     const results = envelope?.results ?? (Array.isArray(envelope) ? envelope : []);
     return results;
+  },
+
+  getCheckerDashboard: async (): Promise<any> => {
+    const response = await api.get('/api/auth/paper-checkers/dashboard');
+    return response.data;
   },
 
   gradeSubmission: async (
