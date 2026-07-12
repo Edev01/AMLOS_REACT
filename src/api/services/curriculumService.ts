@@ -27,7 +27,10 @@ export const getGrades = async () => {
 
 /** POST /api/curriculum/grades/create */
 export const createGrade = async (payload: { name: string; description?: string }) => {
-  const response = await axiosInstance.post('/api/curriculum/grades/create', payload);
+  const response = await axiosInstance.post('/api/curriculum/grades/create', payload, {
+    // @ts-ignore
+    hideToast: true
+  });
   return response.data;
 };
 
@@ -54,7 +57,10 @@ export const getSubjects = async () => {
 
 /** POST /api/curriculum/subjects/create */
 export const createSubject = async (payload: { name: string; description?: string; grade: string }) => {
-  const response = await axiosInstance.post('/api/curriculum/subjects/create', payload);
+  const response = await axiosInstance.post('/api/curriculum/subjects/create', payload, {
+    // @ts-ignore
+    hideToast: true
+  });
   return response.data;
 };
 
@@ -81,7 +87,10 @@ export const getChaptersBySubject = async (subjectId: number | string) => {
 
 /** POST /api/curriculum/chapters/create */
 export const createChapter = async (payload: { subject: number; name: string }) => {
-  const response = await axiosInstance.post('/api/curriculum/chapters/create', payload);
+  const response = await axiosInstance.post('/api/curriculum/chapters/create', payload, {
+    // @ts-ignore
+    hideToast: true
+  });
   return response.data;
 };
 
@@ -107,7 +116,10 @@ export const createSlo = async (payload: {
   difficulty_frequency?: string;
   estimated_time?: number;
 }) => {
-  const response = await axiosInstance.post('/api/curriculum/slos/create', payload);
+  const response = await axiosInstance.post('/api/curriculum/slos/create', payload, {
+    // @ts-ignore
+    hideToast: true
+  });
   return response.data;
 };
 
