@@ -710,6 +710,14 @@ const StudentManagement: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
                       <div className="flex items-center gap-2">
+                        <User size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Gender</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">{displayStudent?.gender || 'N/A'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
                         <Mail size={16} className="text-slate-400" />
                         <span className="text-xs font-medium text-slate-500">Email Address</span>
                       </div>

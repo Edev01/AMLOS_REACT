@@ -48,7 +48,7 @@ const steps = [
 ];
 
 const stepFieldNames: (keyof FormValues)[][] = [
-  ['firstName', 'lastName', 'email', 'dateOfBirth'],
+  ['firstName', 'lastName', 'gender', 'email', 'dateOfBirth'],
   ['grade', 'section', 'state', 'rollNumber'],
   ['guardianName', 'guardianPhone', 'guardianEmail'],
   ['username', 'password'],
@@ -59,6 +59,7 @@ const stepSchemas = [
   Yup.object({
     firstName: Yup.string().trim().required('First name is required'),
     lastName: Yup.string().trim().required('Last name is required'),
+    gender: Yup.string().trim().required('Gender is required'),
     email: Yup.string().trim().email('Enter a valid email').required('Email is required'),
     dateOfBirth: Yup.string().required('Date of birth is required'),
   }),
@@ -83,6 +84,7 @@ const stepSchemas = [
 const initialValues: FormValues = {
   firstName: '',
   lastName: '',
+  gender: '',
   email: '',
   dateOfBirth: '',
   grade: '',
@@ -111,6 +113,11 @@ const stepFields: FieldConfig[][] = [
   [
     { name: 'firstName', label: 'First Name', placeholder: 'Muhammad', icon: <User size={16} />, required: true },
     { name: 'lastName', label: 'Last Name', placeholder: 'Ali Khan', icon: <User size={16} />, required: true },
+    { name: 'gender', label: 'Gender', placeholder: 'Select gender', icon: <User size={16} />, required: true, options: [
+      { value: 'Male', label: 'Male' },
+      { value: 'Female', label: 'Female' },
+      { value: 'Other', label: 'Other' }
+    ] },
     { name: 'email', label: 'Email Address', placeholder: 'student@school.edu', icon: <Mail size={16} />, required: true, type: 'email' },
     { name: 'dateOfBirth', label: 'Date of Birth', placeholder: '', icon: <Calendar size={16} />, required: true, type: 'date' },
   ],
@@ -199,6 +206,7 @@ const AddStudent: React.FC = () => {
           password: values.password,
           first_name: values.firstName,
           last_name: values.lastName,
+          gender: values.gender,
           roll_number: values.rollNumber,
           grade: values.grade.replace(/\D/g, ''),
           section: values.section,
