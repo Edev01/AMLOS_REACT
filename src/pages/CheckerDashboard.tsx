@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { paperCheckerService } from '../api/services/paperCheckerService';
 import { Loader2, LogOut, CheckCircle, Clock, BookOpen, Star, AlertCircle, X, ChevronDown, Lock, UserCheck, Camera, User } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { userService } from '../api/services/userService';
 
 export const CheckerDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -137,8 +138,6 @@ export const CheckerDashboard: React.FC = () => {
         }
         setIsUploadingImage(true);
         try {
-          // Dynamic import of userService for Checker Dashboard
-          const { userService } = await import('../api/services/userService');
           const res = await userService.uploadImage(file);
           const url = res?.data?.url || res?.url || res?.image_url || res?.file_url || res?.path || res?.profile_image;
           if (url) {
@@ -337,7 +336,15 @@ export const CheckerDashboard: React.FC = () => {
                       {assignment.subject?.name || assignment.subject_name || assignment.subject || 'Assigned Subject'}
                       {assignment.subject?.grade && <span className="text-sm font-normal text-slate-500 ml-1">(Grade {assignment.subject.grade})</span>}
                     </h3>
-                    <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">{assignment.portion || 'Full'} Portion</span>
+                    <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
+                      {assignment.portion
+                        ? (assignment.portion.toLowerCase() === 'full' ? 'Full'
+                           : assignment.portion.toLowerCase() === 'half' ? 'Half'
+                           : assignment.portion.toLowerCase() === 'quarter' ? 'Quarter'
+                           : assignment.portion.charAt(0).toUpperCase() + assignment.portion.slice(1).toLowerCase())
+                        : 'Full'}{' '}
+                      Portion
+                    </span>
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm text-slate-600 flex items-start gap-2">

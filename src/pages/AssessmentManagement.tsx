@@ -1009,8 +1009,15 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
   const metadataClasses = useMemo(() => extractNamedList(metadata, ['classes', 'grades']), [metadata]);
 
   const subjects = useMemo(() => {
-    return mergeById([...(subjectsQuery.data ?? []), ...metadataSubjects]) as Subject[];
-  }, [subjectsQuery.data, metadataSubjects]);
+    const rawSubjects = mergeById([...(subjectsQuery.data ?? []), ...metadataSubjects]) as Subject[];
+    const activeGradeNames = new Set(
+      (gradesQuery.data ?? []).map((g: any) => normalizeGrade(g?.name ?? g?.grade ?? g?.title ?? String(g)))
+    );
+    return rawSubjects.filter((s) => {
+      const g = normalizeGrade(getSubjectGrade(s));
+      return g && activeGradeNames.has(g);
+    });
+  }, [subjectsQuery.data, metadataSubjects, gradesQuery.data]);
 
   const classOptions = useMemo(() => {
     const fromCmsGrades = (gradesQuery.data ?? [])

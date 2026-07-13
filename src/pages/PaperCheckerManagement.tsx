@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import { CardSkeleton } from '../components/Skeleton';
 import { paperCheckerService } from '../api/services/paperCheckerService';
-import { getSubjects } from '../api/services/curriculumService';
+import { getSubjects, getGrades } from '../api/services/curriculumService';
 import { userService } from '../api/services/userService';
 
 // ── Tabs ──────────────────────────────────────────────────────────
@@ -296,9 +296,15 @@ const DeleteCheckerModal: React.FC<{ checker: any; onClose: () => void; onDelete
 // ── Assign Modal ───────────────────────────────────────────────────
 const AssignModal: React.FC<{ checker: any; onClose: () => void }> = ({ checker, onClose }) => {
   const [subjectId, setSubjectId] = useState('');
-  const [portion, setPortion] = useState('full');
+  const [portion, setPortion] = useState('FULL');
   const [studentIds, setStudentIds] = useState('');
-  const { data: subjects = [] } = useQuery({ queryKey: ['subjects-list'], queryFn: getSubjects });
+  const { data: rawSubjects = [] } = useQuery({ queryKey: ['subjects-list'], queryFn: getSubjects });
+  const { data: grades = [] } = useQuery({ queryKey: ['grades-list'], queryFn: getGrades });
+
+  const subjects = useMemo(() => {
+    const activeGradeNames = new Set(grades.map((g: any) => g.name.toLowerCase()));
+    return rawSubjects.filter((s: any) => s.grade && activeGradeNames.has(s.grade.toLowerCase()));
+  }, [rawSubjects, grades]);
 
   const mutation = useMutation({
     mutationFn: () => paperCheckerService.assignToChecker(checker.id, {
@@ -338,9 +344,9 @@ const AssignModal: React.FC<{ checker: any; onClose: () => void }> = ({ checker,
             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Portion</label>
             <select value={portion} onChange={e => setPortion(e.target.value)}
               className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none transition">
-              <option value="full">Full</option>
-              <option value="half">Half</option>
-              <option value="quarter">Quarter</option>
+              <option value="FULL">Full</option>
+              <option value="HALF">Half</option>
+              <option value="QUARTER">Quarter</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">

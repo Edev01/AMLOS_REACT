@@ -11,6 +11,7 @@ const Signup: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
@@ -180,14 +181,21 @@ const Signup: React.FC = () => {
               <div className="auth-input-group">
                 <input
                   id="signup-confirm-password"
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   placeholder=" "
                   required
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
                   className="auth-input pr-12"
                 />
-                <label htmlFor="signup-confirm" className="auth-user-label bg-white">Confirm Password</label>
+                <label htmlFor="signup-confirm-password" className="auth-user-label bg-white">Confirm Password</label>
+                <button type="button" onClick={() => setShowConfirmPassword(p => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  {showConfirmPassword ? (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l18 18"/><path d="M10.5 10.5a3 3 0 0 0 4 4"/></svg>
+                  ) : (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  )}
+                </button>
               </div>
 
               <button type="submit" disabled={isLoading}
