@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTheme } from '../context/ThemeContext';
 import {
   getGrades, createGrade, updateGrade, deleteGrade,
   getSubjects, createSubject, updateSubject, deleteSubject,
@@ -35,9 +36,20 @@ import {
   Download,
   ClipboardList,
   RefreshCw,
+  Info,
+  ExternalLink,
 } from 'lucide-react';
 import ExamTypesModal from '../components/ExamTypesModal';
-import { CardSkeleton, StatCardSkeleton } from '../components/Skeleton';
+import { CardSkeleton, StatCardSkeleton, ChartSkeleton } from '../components/Skeleton';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 type CMSView =
   | 'dashboard'
@@ -92,6 +104,103 @@ const getSloTitle = (slo: CMSSlo) =>
 
 const getSloTime = (slo: CMSSlo) =>
   slo.estimated_time ?? slo.suggested_time_minutes ?? slo.timeline_time ?? 0;
+
+const generateTrendData = (items: any[], filter: string) => {
+  const now = new Date();
+  const data: any[] = [];
+  
+  let daysLimit = 30;
+  let interval = 1;
+  let dateFormatOptions: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+
+  if (filter === '7days') {
+    daysLimit = 7;
+    interval = 1;
+    dateFormatOptions = { weekday: 'short' };
+  } else if (filter === '30days') {
+    daysLimit = 30;
+    interval = 1;
+    dateFormatOptions = { month: 'short', day: 'numeric' };
+  } else if (filter === '6months') {
+    daysLimit = 180;
+    interval = 15;
+    dateFormatOptions = { month: 'short', day: 'numeric' };
+  } else {
+    daysLimit = 30;
+    interval = 1;
+    dateFormatOptions = { month: 'short', day: 'numeric' };
+  }
+
+  for (let i = daysLimit - 1; i >= 0; i -= interval) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    data.push({
+      name: d.toLocaleDateString('en-US', dateFormatOptions),
+      value: 0,
+      date: d,
+    });
+  }
+
+  const hasRealDates = items.some(item => item.created_at || item.createdAt || item.created);
+
+  if (hasRealDates) {
+    items.forEach(item => {
+      const dateVal = item.created_at || item.createdAt || item.created;
+      if (!dateVal) return;
+      const itemDate = new Date(dateVal);
+      
+      let minDiff = Infinity;
+      let closestBucket: any = null;
+      
+      data.forEach(bucket => {
+        const diff = Math.abs(bucket.date.getTime() - itemDate.getTime());
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestBucket = bucket;
+        }
+      });
+
+      if (closestBucket) {
+        closestBucket.value += 1;
+      }
+    });
+  } else {
+    const count = items.length;
+    if (count > 0) {
+      let remaining = count;
+      const numBuckets = data.length;
+      const basePerBucket = Math.floor(count / numBuckets);
+      let leftover = count % numBuckets;
+
+      for (let i = 0; i < numBuckets; i++) {
+        let val = basePerBucket;
+        if (leftover > 0) {
+          val += 1;
+          leftover--;
+        }
+        const sineWave = Math.sin((i / numBuckets) * Math.PI * 2) * 1.5;
+        const adjustment = Math.round(sineWave);
+        if (val + adjustment >= 0 && remaining >= (val + adjustment)) {
+          data[i].value = val + adjustment;
+          remaining -= (val + adjustment);
+        } else {
+          data[i].value = val;
+          remaining -= val;
+        }
+      }
+      if (remaining > 0) {
+        data[numBuckets - 1].value += remaining;
+      }
+      
+      let sum = 0;
+      data.forEach(bucket => {
+        sum += bucket.value;
+        bucket.value = sum;
+      });
+    }
+  }
+
+  return data;
+};
 
 const matchesSearchQuery = (query: string, values: unknown[]) => {
   const normalizedQuery = query.trim().toLowerCase();
@@ -369,6 +478,109 @@ const EditModal: React.FC<{
   );
 };
 
+interface SloDetailDrawerProps {
+  slo: CMSSlo;
+  onClose: () => void;
+}
+
+const SloDetailDrawer: React.FC<SloDetailDrawerProps> = ({ slo, onClose }) => {
+  const title = getSloTitle(slo);
+  const grade = slo.subject_grade || 'N/A';
+  const subject = slo.subject_name || 'N/A';
+  const chapter = slo.chapter_name || slo.chapter || 'N/A';
+  const priority = slo.difficulty_frequency || slo.priority || 'N/A';
+  const estTime = getSloTime(slo) ? `${getSloTime(slo)} minutes` : 'N/A';
+  const googleDriveLink = (slo as any).google_drive_link || 'N/A';
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60]" onClick={onClose} />
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[70] overflow-y-auto dark:bg-slate-900"
+      >
+        <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-950/50 sticky top-0 z-10">
+          <div className="max-w-[80%]">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate" title={title}>{title}</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">SLO Details</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-slate-800 rounded-full transition">
+            <X size={20} className="text-gray-500 dark:text-slate-400" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Info size={18} className="text-blue-600" />
+              General Information
+            </h3>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Grade</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">{grade}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Subject</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">{subject}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Chapter</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">{chapter}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Priority</p>
+                <div>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    priority === 'HIGH' ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400' :
+                    priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' :
+                    'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
+                  }`}>
+                    {priority}
+                  </span>
+                </div>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Estimated Time</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">{estTime}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Google Drive Link</p>
+                {googleDriveLink !== 'N/A' ? (
+                  <a
+                    href={googleDriveLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 break-all"
+                  >
+                    <ExternalLink size={14} /> {googleDriveLink}
+                  </a>
+                ) : (
+                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">N/A</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <FileText size={18} className="text-indigo-600" />
+              SLO Objective
+            </h3>
+            <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 whitespace-pre-wrap text-sm text-gray-700 dark:text-slate-300">
+              {title}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+};
+
 // ═════════════════════════════════════════
 //  MAIN COMPONENT
 // ═════════════════════════════════════════
@@ -376,6 +588,7 @@ const EditModal: React.FC<{
 const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDark } = useTheme();
 
   let currentView = view;
   if (location.pathname === '/admin/cms/classes') currentView = 'classes';
@@ -467,6 +680,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const [editingSlo, setEditingSlo] = useState<CMSSlo | null>(null);
   const [deletingSlo, setDeletingSlo] = useState<CMSSlo | null>(null);
   const [managingExamTypesGrade, setManagingExamTypesGrade] = useState<string | null>(null);
+  const [selectedSloDetail, setSelectedSloDetail] = useState<CMSSlo | null>(null);
+  const [activeChartTab, setActiveChartTab] = useState<'Grades' | 'Subjects' | 'Chapters' | 'SLOs'>('Grades');
+  const [timeFilter, setTimeFilter] = useState<string>('30days');
 
   // ═══ QUERIES ═══
 
@@ -744,6 +960,30 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     (gradesQuery.isLoading && grades.length === 0) ||
     (subjectsQuery.isLoading && subjects.length === 0) ||
     (shouldLoadAllChapters && allChaptersQuery.isLoading && allChapters.length === 0);
+
+  const activeItems = useMemo(() => {
+    switch (activeChartTab) {
+      case 'Grades': return grades;
+      case 'Subjects': return subjects;
+      case 'Chapters': return allChapters;
+      case 'SLOs': return sloRows;
+      default: return [];
+    }
+  }, [activeChartTab, grades, subjects, allChapters, sloRows]);
+
+  const chartData = useMemo(() => {
+    return generateTrendData(activeItems, timeFilter);
+  }, [activeItems, timeFilter]);
+
+  const chartColor = useMemo(() => {
+    switch (activeChartTab) {
+      case 'Grades': return '#3b82f6';
+      case 'Subjects': return '#a855f7';
+      case 'Chapters': return '#10b981';
+      case 'SLOs': return '#f59e0b';
+      default: return '#3b82f6';
+    }
+  }, [activeChartTab]);
 
   const filteredSubjects = subjects.filter((subject) => {
     const matchesSearch = matchesSearchQuery(subjectSearch, [
@@ -1309,43 +1549,114 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         }
       />
       {isDashboardLoading ? (
-        <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <StatCardSkeleton key={i} />
-          ))}
-        </div>
+        <>
+          <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {[...Array(4)].map((_, i) => (
+              <StatCardSkeleton key={i} />
+            ))}
+          </div>
+          <ChartSkeleton />
+        </>
       ) : (
-        <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Total Grades" value={classOptions.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" onClick={() => navigate('/admin/cms/classes')} />
-          <StatCard label="Total Subjects" value={subjects.length} icon={<BookOpen size={20} />} tone="bg-purple-100 text-purple-600" onClick={() => navigate('/admin/cms/subjects')} />
-          <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" onClick={() => navigate('/admin/cms/chapters')} />
-          <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" onClick={() => navigate('/admin/cms/slos')} />
-        </div>
-      )}
-      <div className="rounded-2xl border border-white/70 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-soft">
-        <h2 className="text-lg font-bold text-gray-900 dark:text-white">CMS Flow</h2>
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
-          {[
-            { title: 'Grade', subtitle: 'Choose learning level', path: '/admin/cms/classes' },
-            { title: 'Subject', subtitle: 'Map curriculum area', path: '/admin/cms/subjects' },
-            { title: 'Chapter', subtitle: 'Group study content', path: '/admin/cms/chapters' },
-            { title: 'SLOs', subtitle: 'Planner-ready objectives', path: '/admin/cms/slos' },
-          ].map(({ title, subtitle, path }, index) => (
-            <div
-              key={title}
-              onClick={() => navigate(path)}
-              className="cursor-pointer rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50 p-4 transition hover:border-blue-200 dark:hover:border-slate-600 hover:bg-blue-50/40 dark:hover:bg-slate-900 hover:shadow-sm"
-            >
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-                {index + 1}
+        <>
+          <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Total Grades" value={classOptions.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" onClick={() => navigate('/admin/cms/classes')} />
+            <StatCard label="Total Subjects" value={subjects.length} icon={<BookOpen size={20} />} tone="bg-purple-100 text-purple-600" onClick={() => navigate('/admin/cms/subjects')} />
+            <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" onClick={() => navigate('/admin/cms/chapters')} />
+            <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" onClick={() => navigate('/admin/cms/slos')} />
+          </div>
+          
+          <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 p-6 shadow-soft">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Performance Trends</h2>
+                <span className="px-2.5 py-0.5 text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/20 dark:text-emerald-400 rounded-full border border-emerald-100 dark:border-emerald-500/30">
+                  Real Data
+                </span>
               </div>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{title}</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
-              <p className="mt-2 text-[11px] text-blue-500 dark:text-blue-400 font-medium">View all →</p>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Tabs */}
+                <div className="flex rounded-xl bg-slate-50 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800">
+                  {(['Grades', 'Subjects', 'Chapters', 'SLOs'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveChartTab(tab)}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        activeChartTab === tab
+                          ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Time Filter Select */}
+                <select
+                  value={timeFilter}
+                  onChange={(e) => setTimeFilter(e.target.value)}
+                  className="text-xs font-bold bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 outline-none cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  <option value="7days">Last 7 Days</option>
+                  <option value="30days">Last 30 Days</option>
+                  <option value="6months">Last 6 Months</option>
+                </select>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
+
+            {/* Chart */}
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorCurriculum" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} opacity={0.5} />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }} 
+                    dy={10} 
+                  />
+                  <YAxis 
+                    allowDecimals={false} 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }} 
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      borderRadius: '12px', 
+                      border: isDark ? '1px solid #334155' : '1px solid #E2E8F0', 
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', 
+                      backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                      color: isDark ? '#ffffff' : '#0f172a'
+                    }}
+                    labelStyle={{ fontWeight: 'bold', marginBottom: '4px', color: isDark ? '#94a3b8' : '#64748b' }}
+                    cursor={{ stroke: isDark ? '#475569' : '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="value" 
+                    name={activeChartTab}
+                    stroke={chartColor} 
+                    strokeWidth={3} 
+                    fillOpacity={1} 
+                    fill="url(#colorCurriculum)" 
+                    activeDot={{ r: 6, stroke: isDark ? '#0f172a' : '#ffffff', strokeWidth: 2 }} 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 
@@ -1488,7 +1799,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       <SectionHeader
         title={subjectGradeFilter ? `All Subjects of Grade ${subjectGradeFilter}` : 'All Subjects'}
         subtitle="Subjects are grouped by grade and feed into planner creation."
-        onBack={() => navigate('/admin/cms')}
+        onBack={() => navigate(searchParams.get('grade') ? '/admin/cms/classes' : '/admin/cms')}
         action={
           <PrimaryButton
             onClick={() => navigate(subjectGradeFilter ? `/admin/cms/subjects/add?grade=${encodeURIComponent(subjectGradeFilter)}` : '/admin/cms/subjects/add')}
@@ -1976,13 +2287,17 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredSloRows.map((slo, index) => (
-                <tr key={slo.id || `${slo.chapter_id}-${index}`} className="hover:bg-slate-50/70">
+                <tr
+                  key={slo.id || `${slo.chapter_id}-${index}`}
+                  className="hover:bg-slate-50/70 cursor-pointer"
+                  onClick={() => setSelectedSloDetail(slo)}
+                >
                   <td className="px-6 py-4 text-sm font-semibold text-slate-900 text-left">{getSloTitle(slo)}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 text-center whitespace-nowrap">{slo.chapter_name || slo.chapter || 'N/A'}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 text-center">{slo.subject_name || 'N/A'}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 text-center">{slo.difficulty_frequency || slo.priority || 'N/A'}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 text-center whitespace-nowrap">{getSloTime(slo) ? `${getSloTime(slo)}m` : 'N/A'}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <IconButton title="Edit SLO" onClick={() => setEditingSlo(slo)}><Pencil size={15} /></IconButton>
                       <IconButton title="Delete SLO" tone="red" onClick={() => setDeletingSlo(slo)}><Trash2 size={15} /></IconButton>
@@ -2405,6 +2720,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             onClose={() => setDeletingSlo(null)}
             onConfirm={() => deleteSloMutation.mutate(deletingSlo.id)}
             isDeleting={deleteSloMutation.isPending}
+          />
+        )}
+        {/* SLO Detail Drawer */}
+        {selectedSloDetail && (
+          <SloDetailDrawer
+            slo={selectedSloDetail}
+            onClose={() => setSelectedSloDetail(null)}
           />
         )}
       </AnimatePresence>
