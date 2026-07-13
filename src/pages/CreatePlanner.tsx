@@ -94,14 +94,14 @@ const CreatePlanner: React.FC = () => {
   });
 
   const currentExamTypes = React.useMemo(() => {
-    if (!allExamTypesResponse) return EXAM_TYPES;
+    if (!allExamTypesResponse || !form.grade) return [];
     
     // API returns { success: true, data: [...] }
     const list = Array.isArray(allExamTypesResponse) 
       ? allExamTypesResponse 
       : (allExamTypesResponse.data || []);
       
-    if (!Array.isArray(list)) return EXAM_TYPES;
+    if (!Array.isArray(list)) return [];
     
     // Filter by selected grade
     const filtered = list
@@ -111,7 +111,7 @@ const CreatePlanner: React.FC = () => {
         label: et.name
       }));
 
-    return filtered.length > 0 ? filtered : EXAM_TYPES;
+    return filtered;
   }, [allExamTypesResponse, form.grade]);
 
   // Fetch grades from CMS database
@@ -142,10 +142,9 @@ const CreatePlanner: React.FC = () => {
     };
 
     cmsGrades.forEach((grade) => addGrade(grade.value, grade.label));
-    allSubjects.forEach((subject) => addGrade(subject.grade || ''));
 
     return Array.from(merged.values());
-  }, [cmsGrades, allSubjects]);
+  }, [cmsGrades]);
 
   const selectedGradeLabel = React.useMemo(
     () => gradeOptions.find((grade) => grade.value === form.grade)?.label || form.grade || '',
@@ -435,6 +434,11 @@ const CreatePlanner: React.FC = () => {
       }
     }
     
+    if (k === 'grade') {
+      setForm(p => ({ ...p, grade: v, exam_type: '' }));
+      return;
+    }
+    
     setForm(p => ({ ...p, [k]: v }));
   };
 
@@ -712,11 +716,11 @@ const CreatePlanner: React.FC = () => {
                 <select
                   value={form.exam_type}
                   onChange={e => setFormField('exam_type', e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-gray-200 bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-white px-4 py-2.5 pr-10 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="" disabled className="dark:bg-slate-800 dark:text-gray-400">Select Exam Type</option>
+                  <option value="">Select Exam Type</option>
                   {(currentExamTypes || []).map(et => (
-                    <option key={et.value} value={et.value} className="dark:bg-slate-800 dark:text-white">{et.label}</option>
+                    <option key={et.value} value={et.value}>{et.label}</option>
                   ))}
                 </select>
               </div>
