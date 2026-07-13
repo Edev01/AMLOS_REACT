@@ -336,7 +336,15 @@ export const CheckerDashboard: React.FC = () => {
                       {assignment.subject?.name || assignment.subject_name || assignment.subject || 'Assigned Subject'}
                       {assignment.subject?.grade && <span className="text-sm font-normal text-slate-500 ml-1">(Grade {assignment.subject.grade})</span>}
                     </h3>
-                    <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">{assignment.portion || 'Full'} Portion</span>
+                    <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
+                      {assignment.portion
+                        ? (assignment.portion.toLowerCase() === 'full' ? 'Full'
+                           : assignment.portion.toLowerCase() === 'half' ? 'Half'
+                           : assignment.portion.toLowerCase() === 'quarter' ? 'Quarter'
+                           : assignment.portion.charAt(0).toUpperCase() + assignment.portion.slice(1).toLowerCase())
+                        : 'Full'}{' '}
+                      Portion
+                    </span>
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm text-slate-600 flex items-start gap-2">

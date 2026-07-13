@@ -12,7 +12,7 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
-  timeout: 15000, // 15 second timeout (Render cold-starts can be slow)
+  timeout: 60000, // 60 second timeout (Render cold-starts can be slow and take up to 50 seconds)
 });
 
 // ─── Login-window guard ───

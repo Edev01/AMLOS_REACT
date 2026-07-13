@@ -474,7 +474,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const gradesQuery = useQuery<Grade[]>({
     queryKey: ['cms', 'grades'],
     queryFn: getGrades,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     initialData: () => {
       try {
         const cached = sessionStorage.getItem('cms_grades');
@@ -487,7 +488,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const grades: Grade[] = gradesQuery.data ?? [];
 
   useEffect(() => {
-    if (gradesQuery.data && gradesQuery.data.length > 0) {
+    if (gradesQuery.data) {
       sessionStorage.setItem('cms_grades', JSON.stringify(gradesQuery.data));
     }
   }, [gradesQuery.data]);
@@ -496,7 +497,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const subjectsQuery = useQuery<Subject[]>({
     queryKey: ['cms', 'subjects'],
     queryFn: getSubjects,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     initialData: () => {
       try {
         const cached = sessionStorage.getItem('cms_subjects');
@@ -506,31 +508,30 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       }
     }
   });
-  const subjects: Subject[] = subjectsQuery.data ?? [];
+  
+  const subjects: Subject[] = useMemo(() => {
+    const rawSubjects = subjectsQuery.data ?? [];
+    const activeGradeNames = new Set(grades.map((g) => g.name.toLowerCase()));
+    return rawSubjects.filter((s) => s.grade && activeGradeNames.has(s.grade.toLowerCase()));
+  }, [subjectsQuery.data, grades]);
 
   useEffect(() => {
-    if (subjectsQuery.data && subjectsQuery.data.length > 0) {
+    if (subjectsQuery.data) {
       sessionStorage.setItem('cms_subjects', JSON.stringify(subjectsQuery.data));
     }
   }, [subjectsQuery.data]);
+
+  // Refetch data when navigating between views
+  useEffect(() => {
+    gradesQuery.refetch();
+    subjectsQuery.refetch();
+  }, [currentView]);
 
   // Class options derived from grades
   const classOptions = useMemo(() => {
     const merged = new Map<string, Grade>();
     grades.forEach((grade) => {
       merged.set(grade.name.toLowerCase(), grade);
-    });
-    // Also include grades that appear in subjects but not in grades API
-    subjects.forEach((subject) => {
-      if (!subject.grade) return;
-      const key = subject.grade.toLowerCase();
-      if (!merged.has(key)) {
-        merged.set(key, {
-          id: `subject-${subject.grade}`,
-          name: subject.grade,
-          description: 'From curriculum subjects',
-        });
-      }
     });
     // Ensure the grade from URL is present so the dropdown doesn't default to the first option
     const urlGrade = searchParams.get('grade');
@@ -543,7 +544,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     }
     
     return Array.from(merged.values());
-  }, [grades, subjects, searchParams]);
+  }, [grades, searchParams]);
 
   const filteredClasses = useMemo(() => {
     return classOptions.filter((g) =>
@@ -557,7 +558,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     queryKey: ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')],
     queryFn: () => fetchAllChapters(subjects),
     enabled: shouldLoadAllChapters && subjects.length > 0,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     initialData: () => {
       try {
         const cached = sessionStorage.getItem('cms_all_chapters');
@@ -570,7 +572,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const allChapters: CMSChapter[] = allChaptersQuery.data ?? [];
 
   useEffect(() => {
-    if (allChaptersQuery.data && allChaptersQuery.data.length > 0) {
+    if (allChaptersQuery.data) {
       sessionStorage.setItem('cms_all_chapters', JSON.stringify(allChaptersQuery.data));
     }
   }, [allChaptersQuery.data]);
@@ -588,7 +590,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     queryKey: ['cms', 'chapters', activeChapterSubjectId],
     queryFn: () => fetchChaptersBySubjectEnriched(Number(activeChapterSubjectId), subjects),
     enabled: Boolean(activeChapterSubjectId),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
   const activeChapters = activeChaptersQuery.data ?? [];
 
@@ -754,6 +757,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   // ═══ MUTATIONS ═══
 
+  // ── Cache Clearer ──
+  const clearCMSCache = () => {
+    sessionStorage.removeItem('cms_grades');
+    sessionStorage.removeItem('cms_subjects');
+    sessionStorage.removeItem('cms_all_chapters');
+  };
+
   // ── Grades ──
   const createGradeMutation = useMutation({
     mutationFn: async () => {
@@ -763,6 +773,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       });
     },
     onSuccess: (_, __, _ctx) => {
+      clearCMSCache();
       toast.success('Grade created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       const gradeName = className.trim();
@@ -804,6 +815,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       await updateGrade(id, { name: data.name, description: data.description });
     },
     onSuccess: () => {
+      clearCMSCache();
       toast.success('Grade updated successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       setEditingGrade(null);
@@ -815,12 +827,34 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     mutationFn: async (id: number | string) => {
       await deleteGrade(id);
     },
-    onSuccess: () => {
-      toast.success('Grade deleted successfully.');
-      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    onMutate: async (id: number | string) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['cms', 'grades'] });
+      // Snapshot the previous value
+      const previousGrades = queryClient.getQueryData<Grade[]>(['cms', 'grades']);
+      // Optimistically update
+      if (previousGrades) {
+        const nextGrades = previousGrades.filter((g) => g.id !== id);
+        queryClient.setQueryData(['cms', 'grades'], nextGrades);
+        sessionStorage.setItem('cms_grades', JSON.stringify(nextGrades));
+      }
       setDeletingGrade(null);
+      return { previousGrades };
     },
-    onError: () => toast.error('Failed to delete grade.'),
+    onError: (err, id, context) => {
+      if (context?.previousGrades) {
+        queryClient.setQueryData(['cms', 'grades'], context.previousGrades);
+        sessionStorage.setItem('cms_grades', JSON.stringify(context.previousGrades));
+      }
+      toast.error('Failed to delete grade.');
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      toast.success('Grade deleted successfully.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    },
   });
 
   // ── Subjects ──
@@ -833,6 +867,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       });
     },
     onSuccess: () => {
+      clearCMSCache();
       const createdGrade = subjectForm.grade.trim();
       toast.success('Subject created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
@@ -872,6 +907,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       await updateSubject(id, { name: data.name, description: data.description, grade: data.grade });
     },
     onSuccess: () => {
+      clearCMSCache();
       toast.success('Subject updated successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       setEditingSubject(null);
@@ -882,12 +918,31 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     mutationFn: async (id: number | string) => {
       await deleteSubject(id);
     },
-    onSuccess: () => {
-      toast.success('Subject deleted successfully.');
-      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    onMutate: async (id: number | string) => {
+      await queryClient.cancelQueries({ queryKey: ['cms', 'subjects'] });
+      const previousSubjects = queryClient.getQueryData<Subject[]>(['cms', 'subjects']);
+      if (previousSubjects) {
+        const nextSubjects = previousSubjects.filter((s) => s.id !== id);
+        queryClient.setQueryData(['cms', 'subjects'], nextSubjects);
+        sessionStorage.setItem('cms_subjects', JSON.stringify(nextSubjects));
+      }
       setDeletingSubject(null);
+      return { previousSubjects };
     },
-    onError: () => toast.error('Failed to delete subject.'),
+    onError: (err, id, context) => {
+      if (context?.previousSubjects) {
+        queryClient.setQueryData(['cms', 'subjects'], context.previousSubjects);
+        sessionStorage.setItem('cms_subjects', JSON.stringify(context.previousSubjects));
+      }
+      toast.error('Failed to delete subject.');
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      toast.success('Subject deleted successfully.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    },
   });
 
   // ── Chapters ──
@@ -897,6 +952,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       name: chapterForm.name.trim(),
     }),
     onSuccess: (data: any) => {
+      clearCMSCache();
       toast.success('Chapter created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       
@@ -955,6 +1011,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       await updateChapter(id, { name: data.name });
     },
     onSuccess: () => {
+      clearCMSCache();
       toast.success('Chapter updated successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       setEditingChapter(null);
@@ -966,12 +1023,48 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     mutationFn: async (id: number | string) => {
       await deleteChapter(id);
     },
-    onSuccess: () => {
-      toast.success('Chapter deleted successfully.');
-      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    onMutate: async (id: number | string) => {
+      // Cancel queries
+      await queryClient.cancelQueries({ queryKey: ['cms', 'chapters'] });
+
+      // 1. Snapshot and update activeChapters
+      const activeQueryKey = ['cms', 'chapters', activeChapterSubjectId];
+      const previousActiveChapters = queryClient.getQueryData<CMSChapter[]>(activeQueryKey);
+      if (previousActiveChapters) {
+        const nextActive = previousActiveChapters.filter((c) => c.id !== id);
+        queryClient.setQueryData(activeQueryKey, nextActive);
+      }
+
+      // 2. Snapshot and update allChapters
+      const allQueryKey = ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')];
+      const previousAllChapters = queryClient.getQueryData<CMSChapter[]>(allQueryKey);
+      if (previousAllChapters) {
+        const nextAll = previousAllChapters.filter((c) => c.id !== id);
+        queryClient.setQueryData(allQueryKey, nextAll);
+        sessionStorage.setItem('cms_all_chapters', JSON.stringify(nextAll));
+      }
+
       setDeletingChapter(null);
+      return { previousActiveChapters, previousAllChapters };
     },
-    onError: () => toast.error('Failed to delete chapter.'),
+    onError: (err, id, context) => {
+      if (context?.previousActiveChapters) {
+        queryClient.setQueryData(['cms', 'chapters', activeChapterSubjectId], context.previousActiveChapters);
+      }
+      if (context?.previousAllChapters) {
+        const allQueryKey = ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')];
+        queryClient.setQueryData(allQueryKey, context.previousAllChapters);
+        sessionStorage.setItem('cms_all_chapters', JSON.stringify(context.previousAllChapters));
+      }
+      toast.error('Failed to delete chapter.');
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      toast.success('Chapter deleted successfully.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    },
   });
 
   // ── SLOs ──
@@ -986,6 +1079,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       } as any);
     },
     onSuccess: () => {
+      clearCMSCache();
       toast.success('SLO created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       const currentSubject = sloForm.subject;
@@ -1056,6 +1150,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       });
     },
     onSuccess: () => {
+      clearCMSCache();
       toast.success('SLO updated successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       setEditingSlo(null);
@@ -1067,12 +1162,59 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     mutationFn: async (id: number | string) => {
       await deleteSlo(id);
     },
-    onSuccess: () => {
-      toast.success('SLO deleted successfully.');
-      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    onMutate: async (id: number | string) => {
+      // Cancel queries
+      await queryClient.cancelQueries({ queryKey: ['cms', 'chapters'] });
+
+      const filterSlos = (ch: any) => {
+        const copy = { ...ch };
+        if (Array.isArray(copy.slos)) {
+          copy.slos = copy.slos.filter((s: any) => s.id !== id);
+        }
+        if (Array.isArray(copy.slo_list)) {
+          copy.slo_list = copy.slo_list.filter((s: any) => s.id !== id);
+        }
+        return copy;
+      };
+
+      // 1. Snapshot and update activeChapters
+      const activeQueryKey = ['cms', 'chapters', activeChapterSubjectId];
+      const previousActiveChapters = queryClient.getQueryData<CMSChapter[]>(activeQueryKey);
+      if (previousActiveChapters) {
+        const nextActive = previousActiveChapters.map(filterSlos);
+        queryClient.setQueryData(activeQueryKey, nextActive);
+      }
+
+      // 2. Snapshot and update allChapters
+      const allQueryKey = ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')];
+      const previousAllChapters = queryClient.getQueryData<CMSChapter[]>(allQueryKey);
+      if (previousAllChapters) {
+        const nextAll = previousAllChapters.map(filterSlos);
+        queryClient.setQueryData(allQueryKey, nextAll);
+        sessionStorage.setItem('cms_all_chapters', JSON.stringify(nextAll));
+      }
+
       setDeletingSlo(null);
+      return { previousActiveChapters, previousAllChapters };
     },
-    onError: () => toast.error('Failed to delete SLO.'),
+    onError: (err, id, context) => {
+      if (context?.previousActiveChapters) {
+        queryClient.setQueryData(['cms', 'chapters', activeChapterSubjectId], context.previousActiveChapters);
+      }
+      if (context?.previousAllChapters) {
+        const allQueryKey = ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')];
+        queryClient.setQueryData(allQueryKey, context.previousAllChapters);
+        sessionStorage.setItem('cms_all_chapters', JSON.stringify(context.previousAllChapters));
+      }
+      toast.error('Failed to delete SLO.');
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      toast.success('SLO deleted successfully.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    },
   });
 
   // Bulk upload — uses the real /api/curriculum/bulk-upload with form-data
@@ -1102,6 +1244,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       }
     },
     onSuccess: (count) => {
+      clearCMSCache();
       toast.success(bulkFile ? 'SLOs uploaded successfully from file.' : `${count} SLOs uploaded successfully.`);
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       const currentSubject = sloForm.subject;
@@ -1125,6 +1268,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       await assessmentService.bulkUploadAssessment(formData);
     },
     onSuccess: () => {
+      clearCMSCache();
       toast.success('Assessment data uploaded successfully.');
     },
     onError: (err: any) => {
@@ -1287,7 +1431,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           footer={
             <>
               <SecondaryButton onClick={() => navigate('/admin/cms/classes')}><X size={16} /> Cancel</SecondaryButton>
-              <PrimaryButton type="submit" disabled={createGradeMutation.isPending}>
+              <PrimaryButton type="submit" disabled={createGradeMutation.isPending || createGradeMutation.isSuccess}>
                 {createGradeMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Grade
               </PrimaryButton>
             </>
@@ -1460,7 +1604,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           footer={
             <>
               <SecondaryButton onClick={() => navigate('/admin/cms/subjects')}><X size={16} /> Cancel</SecondaryButton>
-              <PrimaryButton type="submit" disabled={createSubjectMutation.isPending}>
+              <PrimaryButton type="submit" disabled={createSubjectMutation.isPending || createSubjectMutation.isSuccess}>
                 {createSubjectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Subject
               </PrimaryButton>
             </>
@@ -1647,7 +1791,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           footer={
             <>
               <SecondaryButton onClick={() => navigate('/admin/cms/chapters')}><X size={16} /> Cancel</SecondaryButton>
-              <PrimaryButton type="submit" disabled={createChapterMutation.isPending}>
+              <PrimaryButton type="submit" disabled={createChapterMutation.isPending || createChapterMutation.isSuccess}>
                 {createChapterMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Chapter
               </PrimaryButton>
             </>
@@ -1788,8 +1932,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
         >
           <option value="">Select Grade</option>
-          {Array.from(new Set(subjects.map((s) => s.grade).filter(Boolean))).sort().map((grade) => (
-            <option key={grade} value={grade}>{grade}</option>
+          {classOptions.map((item) => (
+            <option key={item.id} value={item.name}>{item.name}</option>
           ))}
         </select>
         <select value={sloFilterSubjectId} onChange={(e) => { setSloFilterSubjectId(e.target.value); setSloFilterChapterId(''); setHasSearchedSlos(false); }} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100">
@@ -1933,7 +2077,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <SecondaryButton onClick={() => navigate('/admin/cms/slos')}><X size={16} /> Cancel</SecondaryButton>
-                <PrimaryButton type="submit" disabled={createSloMutation.isPending || bulkUploadMutation.isPending}>
+                <PrimaryButton type="submit" disabled={createSloMutation.isPending || createSloMutation.isSuccess || bulkUploadMutation.isPending || bulkUploadMutation.isSuccess}>
                   {(createSloMutation.isPending || bulkUploadMutation.isPending) ? <Loader2 size={16} className="animate-spin" /> : bulk ? <Upload size={16} /> : <Save size={16} />}
                   {bulk ? 'Upload SLOs' : 'Save SLO'}
                 </PrimaryButton>

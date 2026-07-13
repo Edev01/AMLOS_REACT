@@ -337,7 +337,7 @@ const SchoolManagement: React.FC = () => {
     data: queryData,
     isLoading,
     isFetching,
-  } = useQuery({
+  } = useQuery<any>({
     queryKey: ['schools', isSchoolRole, trimmedSearch, page],
     queryFn: async () => {
       let isForbidden = false;
@@ -409,7 +409,24 @@ const SchoolManagement: React.FC = () => {
         totalPages: 1,
       };
     },
+    initialData: () => {
+      if (!isSchoolRole && trimmedSearch === '' && page === 1) {
+        try {
+          const cached = sessionStorage.getItem('schools_list_page_1');
+          return cached ? JSON.parse(cached) : undefined;
+        } catch {
+          return undefined;
+        }
+      }
+      return undefined;
+    },
   });
+
+  useEffect(() => {
+    if (!isSchoolRole && trimmedSearch === '' && page === 1 && queryData && queryData.schools && queryData.schools.length > 0) {
+      sessionStorage.setItem('schools_list_page_1', JSON.stringify(queryData));
+    }
+  }, [queryData, isSchoolRole, trimmedSearch, page]);
 
   // ─── Per-school student counts via /api/auth/schools/{id}/students ───
   const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
@@ -546,7 +563,7 @@ const SchoolManagement: React.FC = () => {
       ) : !isForbidden && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {visibleSchools.map((s, i) => (
+            {visibleSchools.map((s: any, i: number) => (
               <div key={s.id} onClick={() => navigate(`/admin/schools/${s.id}`, { state: { school: s } })} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
                 <div className="flex items-start gap-3 mb-3">
                   <div className={`flex h-11 w-11 shrink-0 overflow-hidden items-center justify-center rounded-xl text-xl ${!s.profile_image ? bgs[i % bgs.length] : 'bg-gray-100'}`}>
