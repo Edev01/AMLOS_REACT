@@ -34,9 +34,9 @@ export const createGrade = async (payload: { name: string; description?: string 
   return response.data;
 };
 
-/** POST /api/curriculum/grades/{id}/update */
+/** PATCH /api/curriculum/grades/{id}/update */
 export const updateGrade = async (id: number | string, payload: { name?: string; description?: string }) => {
-  const response = await axiosInstance.post(`/api/curriculum/grades/${id}/update`, payload);
+  const response = await axiosInstance.patch(`/api/curriculum/grades/${id}/update`, payload);
   return response.data;
 };
 
@@ -64,9 +64,9 @@ export const createSubject = async (payload: { name: string; description?: strin
   return response.data;
 };
 
-/** POST /api/curriculum/subjects/{id}/update */
+/** PATCH /api/curriculum/subjects/{id}/update */
 export const updateSubject = async (id: number | string, payload: { name?: string; description?: string; grade?: string }) => {
-  const response = await axiosInstance.post(`/api/curriculum/subjects/${id}/update`, payload);
+  const response = await axiosInstance.patch(`/api/curriculum/subjects/${id}/update`, payload);
   return response.data;
 };
 
@@ -94,9 +94,9 @@ export const createChapter = async (payload: { subject: number; name: string }) 
   return response.data;
 };
 
-/** POST /api/curriculum/chapters/{id}/update */
+/** PATCH /api/curriculum/chapters/{id}/update */
 export const updateChapter = async (id: number | string, payload: { name?: string; subject?: number }) => {
-  const response = await axiosInstance.post(`/api/curriculum/chapters/${id}/update`, payload);
+  const response = await axiosInstance.patch(`/api/curriculum/chapters/${id}/update`, payload);
   return response.data;
 };
 
