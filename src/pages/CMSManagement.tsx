@@ -1196,7 +1196,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       toast.success('Chapter created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       
-      const newChapterId = data?.id;
+      const newChapterId = data?.id || data?.data?.id || (data as any)?.chapter?.id || (data as any)?.chapter_id;
       if (newChapterId) {
         navigate(`/admin/cms/slos/add?subject=${chapterForm.subject}&chapter=${newChapterId}`);
         setChapterForm({ grade: '', subject: '', name: '' });
@@ -2576,13 +2576,45 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     'upload-slo': 'all-slos',
   };
 
-  let currentStep = 0;
-  if (currentView === 'add-class') currentStep = 1;
-  else if (currentView === 'subjects' || currentView === 'add-subject') currentStep = 2;
-  else if (currentView === 'chapters' || currentView === 'add-chapter') currentStep = 3;
-  else if (currentView === 'slos' || currentView === 'add-slo' || currentView === 'upload-slo') currentStep = 4;
+  const getStepStatus = (stepNum: number, view: CMSView): 'completed' | 'current' | 'pending' => {
+    if (view === 'add-class') {
+      if (stepNum === 1) return 'current';
+      return 'pending';
+    }
+    if (view === 'classes') {
+      if (stepNum === 1) return 'completed';
+      return 'pending';
+    }
+    if (view === 'add-subject') {
+      if (stepNum === 1) return 'completed';
+      if (stepNum === 2) return 'current';
+      return 'pending';
+    }
+    if (view === 'subjects') {
+      if (stepNum <= 2) return 'completed';
+      return 'pending';
+    }
+    if (view === 'add-chapter') {
+      if (stepNum <= 2) return 'completed';
+      if (stepNum === 3) return 'current';
+      return 'pending';
+    }
+    if (view === 'chapters') {
+      if (stepNum <= 3) return 'completed';
+      return 'pending';
+    }
+    if (view === 'add-slo' || view === 'upload-slo') {
+      if (stepNum <= 3) return 'completed';
+      if (stepNum === 4) return 'current';
+      return 'pending';
+    }
+    if (view === 'slos') {
+      return 'completed';
+    }
+    return 'pending';
+  };
 
-  const isInFlow = currentStep > 0;
+  const isInFlow = currentView !== 'dashboard';
 
   const flowSteps = [
     { n: 1, title: 'Grade', sub: 'Setup curriculum grade' },
@@ -2593,36 +2625,31 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   return (
     <DashboardLayout activePage={activePageMap[currentView]}>
-      {isInFlow ? (
+      {isInFlow && (
         <div className="flex items-center justify-between mb-10 max-w-3xl mx-auto">
-          {flowSteps.map((s, i) => (
-            <React.Fragment key={s.n}>
-              <div className="flex items-center gap-3">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
-                    currentStep >= s.n ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
-                  }`}>
-                  {currentStep > s.n ? <Check size={16} /> : s.n}
+          {flowSteps.map((s, i) => {
+            const status = getStepStatus(s.n, currentView);
+            const isCompleted = status === 'completed';
+            const isCurrent = status === 'current';
+            return (
+              <React.Fragment key={s.n}>
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                      isCompleted || isCurrent ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                    {isCompleted ? <Check size={16} /> : s.n}
+                  </div>
+                  <div className="hidden sm:block">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{s.title}</p>
+                    <p className="text-[10px] text-gray-400">{s.sub}</p>
+                  </div>
                 </div>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{s.title}</p>
-                  <p className="text-[10px] text-gray-400">{s.sub}</p>
-                </div>
-              </div>
-              {i < flowSteps.length - 1 && (
-                <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${currentStep > s.n ? 'bg-blue-600' : 'bg-gray-200'}`} />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      ) : (
-        <div className="mb-5 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-400">
-          <span>Grade</span>
-          <ArrowRight size={13} />
-          <span>Subject</span>
-          <ArrowRight size={13} />
-          <span>Chapter</span>
-          <ArrowRight size={13} />
-          <span>SLOs</span>
+                {i < flowSteps.length - 1 && (
+                  <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${isCompleted ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
       )}
       {renderContent()}
