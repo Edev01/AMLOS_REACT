@@ -686,6 +686,16 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   // ═══ QUERIES ═══
 
+  // ── Clear stale cache on hard refresh ──
+  // sessionStorage cache is great for in-app SPA navigation but causes
+  // stale data to flash on hard refresh. Clear it once on mount so
+  // queries always start fresh on page load.
+  useEffect(() => {
+    sessionStorage.removeItem('cms_grades');
+    sessionStorage.removeItem('cms_subjects');
+    sessionStorage.removeItem('cms_all_chapters');
+  }, []); // empty deps = runs only once on mount
+
   // Grades
   const gradesQuery = useQuery<Grade[]>({
     queryKey: ['cms', 'grades'],
@@ -785,7 +795,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       }
     }
   });
-  const allChapters: CMSChapter[] = allChaptersQuery.data ?? [];
+  const allChapters: CMSChapter[] = subjects.length > 0 ? (allChaptersQuery.data ?? []) : [];
 
   useEffect(() => {
     if (allChaptersQuery.data) {
@@ -1065,32 +1075,82 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const deleteGradeMutation = useMutation({
     mutationFn: async (id: number | string) => {
+      // Find the grade name before deleting
+      const gradeName = grades.find((g) => g.id === id)?.name ?? '';
+
+      if (gradeName) {
+        try {
+          // Fetch fresh list of subjects directly from backend
+          const allSubjects = await getSubjects();
+          const linkedSubjects = allSubjects.filter(
+            (s) => s.grade && s.grade.toLowerCase() === gradeName.toLowerCase()
+          );
+
+          // Cascade delete subjects and their chapters
+          for (const sub of linkedSubjects) {
+            try {
+              const chapters = await getChaptersBySubject(sub.id);
+              for (const chap of chapters) {
+                await deleteChapter(chap.id);
+              }
+            } catch (chapErr) {
+              console.error("Failed to delete chapters for subject", sub.id, chapErr);
+            }
+            await deleteSubject(sub.id);
+          }
+        } catch (e) {
+          console.error("Failed to cascade delete grade children", e);
+        }
+      }
+
+      // Delete the grade itself
       await deleteGrade(id);
     },
     onMutate: async (id: number | string) => {
+      const gradeName = grades.find((g) => g.id === id)?.name ?? '';
+
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['cms', 'grades'] });
-      // Snapshot the previous value
+      await queryClient.cancelQueries({ queryKey: ['cms', 'subjects'] });
+
+      // Snapshot previous values
       const previousGrades = queryClient.getQueryData<Grade[]>(['cms', 'grades']);
-      // Optimistically update
+      const previousSubjects = queryClient.getQueryData<Subject[]>(['cms', 'subjects']);
+
+      // Optimistically remove the grade
       if (previousGrades) {
         const nextGrades = previousGrades.filter((g) => g.id !== id);
         queryClient.setQueryData(['cms', 'grades'], nextGrades);
         sessionStorage.setItem('cms_grades', JSON.stringify(nextGrades));
       }
-      setDeletingGrade(null);
-      return { previousGrades };
+
+      // Optimistically remove all subjects linked to this grade
+      if (previousSubjects && gradeName) {
+        const nextSubjects = previousSubjects.filter(
+          (s) => !s.grade || s.grade.toLowerCase() !== gradeName.toLowerCase()
+        );
+        queryClient.setQueryData(['cms', 'subjects'], nextSubjects);
+        sessionStorage.setItem('cms_subjects', JSON.stringify(nextSubjects));
+      }
+
+      return { previousGrades, previousSubjects };
     },
     onError: (err, id, context) => {
+      setDeletingGrade(null);
       if (context?.previousGrades) {
         queryClient.setQueryData(['cms', 'grades'], context.previousGrades);
         sessionStorage.setItem('cms_grades', JSON.stringify(context.previousGrades));
       }
+      if (context?.previousSubjects) {
+        queryClient.setQueryData(['cms', 'subjects'], context.previousSubjects);
+        sessionStorage.setItem('cms_subjects', JSON.stringify(context.previousSubjects));
+      }
       toast.error('Failed to delete grade.');
     },
     onSuccess: () => {
+      setDeletingGrade(null);
       clearCMSCache();
-      toast.success('Grade deleted successfully.');
+      toast.success('Grade and all linked subjects/chapters/SLOs deleted.');
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['cms'] });
@@ -1156,6 +1216,14 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   });
   const deleteSubjectMutation = useMutation({
     mutationFn: async (id: number | string) => {
+      try {
+        const chapters = await getChaptersBySubject(id);
+        for (const chap of chapters) {
+          await deleteChapter(chap.id);
+        }
+      } catch (e) {
+        console.error("Failed to cascade delete chapters for subject", id, e);
+      }
       await deleteSubject(id);
     },
     onMutate: async (id: number | string) => {
@@ -1166,10 +1234,10 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         queryClient.setQueryData(['cms', 'subjects'], nextSubjects);
         sessionStorage.setItem('cms_subjects', JSON.stringify(nextSubjects));
       }
-      setDeletingSubject(null);
       return { previousSubjects };
     },
     onError: (err, id, context) => {
+      setDeletingSubject(null);
       if (context?.previousSubjects) {
         queryClient.setQueryData(['cms', 'subjects'], context.previousSubjects);
         sessionStorage.setItem('cms_subjects', JSON.stringify(context.previousSubjects));
@@ -1177,8 +1245,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       toast.error('Failed to delete subject.');
     },
     onSuccess: () => {
+      setDeletingSubject(null);
       clearCMSCache();
-      toast.success('Subject deleted successfully.');
+      toast.success('Subject and all linked chapters/SLOs deleted.');
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['cms'] });
@@ -1284,10 +1353,10 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         sessionStorage.setItem('cms_all_chapters', JSON.stringify(nextAll));
       }
 
-      setDeletingChapter(null);
       return { previousActiveChapters, previousAllChapters };
     },
     onError: (err, id, context) => {
+      setDeletingChapter(null);
       if (context?.previousActiveChapters) {
         queryClient.setQueryData(['cms', 'chapters', activeChapterSubjectId], context.previousActiveChapters);
       }
@@ -1299,6 +1368,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       toast.error('Failed to delete chapter.');
     },
     onSuccess: () => {
+      setDeletingChapter(null);
       clearCMSCache();
       toast.success('Chapter deleted successfully.');
     },
@@ -1434,10 +1504,10 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         sessionStorage.setItem('cms_all_chapters', JSON.stringify(nextAll));
       }
 
-      setDeletingSlo(null);
       return { previousActiveChapters, previousAllChapters };
     },
     onError: (err, id, context) => {
+      setDeletingSlo(null);
       if (context?.previousActiveChapters) {
         queryClient.setQueryData(['cms', 'chapters', activeChapterSubjectId], context.previousActiveChapters);
       }
@@ -1449,6 +1519,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       toast.error('Failed to delete SLO.');
     },
     onSuccess: () => {
+      setDeletingSlo(null);
       clearCMSCache();
       toast.success('SLO deleted successfully.');
     },
@@ -1501,18 +1572,18 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   });
 
   const bulkUploadAssessmentMutation = useMutation({
-    mutationFn: async ({ file, chapterId }: { file: File, chapterId: string | number }) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('chapter_id', String(chapterId));
-      await assessmentService.bulkUploadAssessment(formData);
+    mutationFn: async ({ file, chapterId, subjectId, grade }: { file: File; chapterId: string | number; subjectId?: string | number; grade?: string }) => {
+      await bulkUploadSlos(grade || '', file, { chapter_id: chapterId, subject_id: subjectId });
     },
     onSuccess: () => {
       clearCMSCache();
-      toast.success('Assessment data uploaded successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      toast.success('SLOs uploaded successfully for this chapter.');
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || 'Failed to upload assessment data.');
+      const data = err?.response?.data;
+      const msg = data?.message || data?.detail || data?.error || 'Failed to upload SLO file.';
+      toast.error(msg);
     },
   });
 
@@ -1525,6 +1596,39 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     reader.onload = () => setBulkText(String(reader.result || ''));
     reader.readAsText(file);
   };
+
+  // Reset mutation states when navigating to/from pages to prevent permanently disabled buttons
+  useEffect(() => {
+    createGradeMutation.reset();
+    createSubjectMutation.reset();
+    createChapterMutation.reset();
+    createSloMutation.reset();
+  }, [currentView]);
+
+  // Reset mutations when form fields change so the user can save again after success or error
+  useEffect(() => {
+    if (createGradeMutation.isSuccess || createGradeMutation.isError) {
+      createGradeMutation.reset();
+    }
+  }, [className, classDescription]);
+
+  useEffect(() => {
+    if (createSubjectMutation.isSuccess || createSubjectMutation.isError) {
+      createSubjectMutation.reset();
+    }
+  }, [subjectForm.name, subjectForm.description, subjectForm.grade]);
+
+  useEffect(() => {
+    if (createChapterMutation.isSuccess || createChapterMutation.isError) {
+      createChapterMutation.reset();
+    }
+  }, [chapterForm.name, chapterForm.subject, chapterForm.grade]);
+
+  useEffect(() => {
+    if (createSloMutation.isSuccess || createSloMutation.isError) {
+      createSloMutation.reset();
+    }
+  }, [sloForm.name, sloForm.grade, sloForm.subject, sloForm.chapter]);
 
   // ═══ RENDER FUNCTIONS ═══
 
@@ -2052,7 +2156,12 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                   <input type="file" className="hidden" accept=".csv,.xlsx,.xls,.json" onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      bulkUploadAssessmentMutation.mutate({ file, chapterId: chapter.id });
+                      bulkUploadAssessmentMutation.mutate({
+                        file,
+                        chapterId: chapter.id,
+                        subjectId: getChapterSubjectId(chapter),
+                        grade: chapter.subject_grade || selectedSubject?.grade || '',
+                      });
                     }
                     e.target.value = '';
                   }} />

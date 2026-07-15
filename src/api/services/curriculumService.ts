@@ -138,11 +138,17 @@ export const deleteSlo = async (id: number | string) => {
   await axiosInstance.delete(`/api/curriculum/slos/${id}/delete`);
 };
 
-/** POST /api/curriculum/bulk-upload (form-data: grade + uploaded_file) */
-export const bulkUploadSlos = async (grade: string, file: File) => {
+/** POST /api/curriculum/bulk-upload (form-data: grade + uploaded_file + optional chapter_id/subject_id) */
+export const bulkUploadSlos = async (
+  grade: string,
+  file: File,
+  opts?: { chapter_id?: number | string; subject_id?: number | string }
+) => {
   const formData = new FormData();
   formData.append('grade', grade);
   formData.append('uploaded_file', file);
+  if (opts?.chapter_id != null) formData.append('chapter_id', String(opts.chapter_id));
+  if (opts?.subject_id != null) formData.append('subject_id', String(opts.subject_id));
   const response = await axiosInstance.post('/api/curriculum/bulk-upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 60000, // 60s for large uploads
