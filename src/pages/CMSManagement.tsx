@@ -686,15 +686,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   // ═══ QUERIES ═══
 
-  // ── Clear stale cache on hard refresh ──
-  // sessionStorage cache is great for in-app SPA navigation but causes
-  // stale data to flash on hard refresh. Clear it once on mount so
-  // queries always start fresh on page load.
-  useEffect(() => {
-    sessionStorage.removeItem('cms_grades');
-    sessionStorage.removeItem('cms_subjects');
-    sessionStorage.removeItem('cms_all_chapters');
-  }, []); // empty deps = runs only once on mount
+
 
   // Grades
   const gradesQuery = useQuery<Grade[]>({
@@ -702,22 +694,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     queryFn: getGrades,
     staleTime: 0,
     refetchOnWindowFocus: true,
-    initialData: () => {
-      try {
-        const cached = sessionStorage.getItem('cms_grades');
-        return cached ? (JSON.parse(cached) as Grade[]) : undefined;
-      } catch {
-        return undefined;
-      }
-    }
   });
   const grades: Grade[] = gradesQuery.data ?? [];
-
-  useEffect(() => {
-    if (gradesQuery.data) {
-      sessionStorage.setItem('cms_grades', JSON.stringify(gradesQuery.data));
-    }
-  }, [gradesQuery.data]);
 
   // Subjects
   const subjectsQuery = useQuery<Subject[]>({
@@ -725,14 +703,6 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     queryFn: getSubjects,
     staleTime: 0,
     refetchOnWindowFocus: true,
-    initialData: () => {
-      try {
-        const cached = sessionStorage.getItem('cms_subjects');
-        return cached ? (JSON.parse(cached) as Subject[]) : undefined;
-      } catch {
-        return undefined;
-      }
-    }
   });
   
   const subjects: Subject[] = useMemo(() => {
@@ -740,12 +710,6 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     const activeGradeNames = new Set(grades.map((g) => g.name.toLowerCase()));
     return rawSubjects.filter((s) => s.grade && activeGradeNames.has(s.grade.toLowerCase()));
   }, [subjectsQuery.data, grades]);
-
-  useEffect(() => {
-    if (subjectsQuery.data) {
-      sessionStorage.setItem('cms_subjects', JSON.stringify(subjectsQuery.data));
-    }
-  }, [subjectsQuery.data]);
 
   // Refetch data when navigating between views
   useEffect(() => {
@@ -786,22 +750,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     enabled: shouldLoadAllChapters && subjects.length > 0,
     staleTime: 0,
     refetchOnWindowFocus: true,
-    initialData: () => {
-      try {
-        const cached = sessionStorage.getItem('cms_all_chapters');
-        return cached ? (JSON.parse(cached) as CMSChapter[]) : undefined;
-      } catch {
-        return undefined;
-      }
-    }
   });
   const allChapters: CMSChapter[] = subjects.length > 0 ? (allChaptersQuery.data ?? []) : [];
-
-  useEffect(() => {
-    if (allChaptersQuery.data) {
-      sessionStorage.setItem('cms_all_chapters', JSON.stringify(allChaptersQuery.data));
-    }
-  }, [allChaptersQuery.data]);
 
   const activeChapterSubjectId =
     currentView === 'chapters'

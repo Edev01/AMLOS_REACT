@@ -162,8 +162,8 @@ export const CheckerDashboard: React.FC = () => {
         if (profileImageUrl !== (user?.profile_image || (user as any)?.profile?.profile_image)) {
           payload.profile_image = profileImageUrl;
         }
-        // Use user.checker_id or user.id assuming backend matches it.
-        const checkerId = (user as any)?.checker_id || user?.id;
+        // Use user.profile.id or user.profile_id if available, fallback to checker_id or user.id
+        const checkerId = (user as any)?.profile?.id || (user as any)?.profile_id || (user as any)?.checker_id || user?.id;
         return paperCheckerService.updateChecker(checkerId, payload);
       },
       onSuccess: (data: any) => { 
