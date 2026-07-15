@@ -21,6 +21,7 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   canAccessTenant: (tenantId: string) => boolean;
   triggerSecurityBreach: (reason: string) => void;
+  updateUser: (updatedFields: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -339,6 +340,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                        user?.access_level === 'SUPER' ||
                        user?.profile?.access_level === 'SUPER';
 
+  const updateUser = useCallback((updatedFields: Partial<User>) => {
+    setUser((prevUser) => {
+      if (!prevUser) return null;
+      const newUser = { ...prevUser, ...updatedFields };
+      if (prevUser.profile) {
+        newUser.profile = {
+          ...prevUser.profile,
+          ...updatedFields,
+          ...(updatedFields.profile || {})
+        };
+      }
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
+      return newUser;
+    });
+  }, []);
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -352,6 +369,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isSuperAdmin,
       canAccessTenant,
       triggerSecurityBreach,
+      updateUser,
     }}>
       {children}
     </AuthContext.Provider>

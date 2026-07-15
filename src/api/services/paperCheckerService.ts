@@ -85,4 +85,21 @@ export const paperCheckerService = {
     );
     return response.data;
   },
+
+  deleteAssignment: async (checkerId: number | string, assignmentId: number | string): Promise<any> => {
+    const response = await api.delete(`/api/auth/paper-checkers/${checkerId}/assignments/${assignmentId}/delete`);
+    return response.data;
+  },
+
+  updateAssignment: async (
+    checkerId: number | string,
+    assignmentId: number | string,
+    payload: { portion: string; student_ids: number[] }
+  ): Promise<any> => {
+    const response = await api.patch(
+      `/api/auth/paper-checkers/${checkerId}/assignments/${assignmentId}/update`,
+      payload
+    );
+    return response.data;
+  },
 };
