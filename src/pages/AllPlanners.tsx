@@ -506,7 +506,7 @@ const AllPlanners: React.FC = () => {
       </div>
 
       {/* Search and Action Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-start gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
@@ -517,6 +517,12 @@ const AllPlanners: React.FC = () => {
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20 transition-all"
           />
         </div>
+        <button
+          onClick={() => navigate(`${getBasePath()}/create`)}
+          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-lg shadow-blue-200 dark:shadow-none transition-all w-full sm:w-auto shrink-0"
+        >
+          <Plus size={16} /> Add Planner
+        </button>
       </div>
       {loading ? (
         <TableSkeleton rows={6} />

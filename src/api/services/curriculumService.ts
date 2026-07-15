@@ -34,9 +34,9 @@ export const createGrade = async (payload: { name: string; description?: string 
   return response.data;
 };
 
-/** POST /api/curriculum/grades/{id}/update */
+/** PATCH /api/curriculum/grades/{id}/update */
 export const updateGrade = async (id: number | string, payload: { name?: string; description?: string }) => {
-  const response = await axiosInstance.post(`/api/curriculum/grades/${id}/update`, payload);
+  const response = await axiosInstance.patch(`/api/curriculum/grades/${id}/update`, payload);
   return response.data;
 };
 
@@ -64,9 +64,9 @@ export const createSubject = async (payload: { name: string; description?: strin
   return response.data;
 };
 
-/** POST /api/curriculum/subjects/{id}/update */
+/** PATCH /api/curriculum/subjects/{id}/update */
 export const updateSubject = async (id: number | string, payload: { name?: string; description?: string; grade?: string }) => {
-  const response = await axiosInstance.post(`/api/curriculum/subjects/${id}/update`, payload);
+  const response = await axiosInstance.patch(`/api/curriculum/subjects/${id}/update`, payload);
   return response.data;
 };
 
@@ -94,9 +94,9 @@ export const createChapter = async (payload: { subject: number; name: string }) 
   return response.data;
 };
 
-/** POST /api/curriculum/chapters/{id}/update */
+/** PATCH /api/curriculum/chapters/{id}/update */
 export const updateChapter = async (id: number | string, payload: { name?: string; subject?: number }) => {
-  const response = await axiosInstance.post(`/api/curriculum/chapters/${id}/update`, payload);
+  const response = await axiosInstance.patch(`/api/curriculum/chapters/${id}/update`, payload);
   return response.data;
 };
 
@@ -138,11 +138,17 @@ export const deleteSlo = async (id: number | string) => {
   await axiosInstance.delete(`/api/curriculum/slos/${id}/delete`);
 };
 
-/** POST /api/curriculum/bulk-upload (form-data: grade + uploaded_file) */
-export const bulkUploadSlos = async (grade: string, file: File) => {
+/** POST /api/curriculum/bulk-upload (form-data: grade + uploaded_file + optional chapter_id/subject_id) */
+export const bulkUploadSlos = async (
+  grade: string,
+  file: File,
+  opts?: { chapter_id?: number | string; subject_id?: number | string }
+) => {
   const formData = new FormData();
   formData.append('grade', grade);
   formData.append('uploaded_file', file);
+  if (opts?.chapter_id != null) formData.append('chapter_id', String(opts.chapter_id));
+  if (opts?.subject_id != null) formData.append('subject_id', String(opts.subject_id));
   const response = await axiosInstance.post('/api/curriculum/bulk-upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 60000, // 60s for large uploads
