@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { userService } from '../api/services/userService';
 
 export const CheckerDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const queryClient = useQueryClient();
   const [gradeTarget, setGradeTarget] = useState<any>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -121,6 +121,7 @@ export const CheckerDashboard: React.FC = () => {
     const [form, setForm] = useState({ 
       first_name: user?.first_name || (user as any)?.profile?.first_name || '', 
       last_name: user?.last_name || (user as any)?.profile?.last_name || '', 
+      email: user?.email || (user as any)?.profile?.email || '',
       password: '', // Password optional on update
       phone: user?.phone || (user as any)?.profile?.phone || '' 
     });
@@ -161,12 +162,22 @@ export const CheckerDashboard: React.FC = () => {
         if (profileImageUrl !== (user?.profile_image || (user as any)?.profile?.profile_image)) {
           payload.profile_image = profileImageUrl;
         }
-        // Use user.checker_id or user.id assuming backend matches it.
-        const checkerId = (user as any)?.checker_id || user?.id;
+        // Use user.profile.id or user.profile_id if available, fallback to checker_id or user.id
+        const checkerId = (user as any)?.profile?.id || (user as any)?.profile_id || (user as any)?.checker_id || user?.id;
         return paperCheckerService.updateChecker(checkerId, payload);
       },
-      onSuccess: () => { 
-        toast.success('Profile updated successfully! Please re-login to see all changes.'); 
+      onSuccess: (data: any) => { 
+        toast.success('Profile updated successfully!'); 
+        const updatedUser = data?.data ?? data;
+        if (updatedUser) {
+          updateUser({
+            first_name: updatedUser.first_name,
+            last_name: updatedUser.last_name,
+            email: updatedUser.email,
+            phone: updatedUser.phone,
+            profile_image: updatedUser.profile_image
+          });
+        }
         onClose(); 
       },
       onError: (e: any) => {
@@ -214,6 +225,11 @@ export const CheckerDashboard: React.FC = () => {
                 <input type="text" value={form.last_name} onChange={e => setForm(p => ({ ...p, last_name: e.target.value }))}
                   className="w-full mt-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-blue-400 outline-none" placeholder="Last name" />
               </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Email</label>
+              <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                className="w-full mt-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-blue-400 outline-none" placeholder="Email" />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Phone</label>

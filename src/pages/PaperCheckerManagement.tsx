@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -295,8 +295,9 @@ const DeleteCheckerModal: React.FC<{ checker: any; onClose: () => void; onDelete
 
 // ── Assign Modal ───────────────────────────────────────────────────
 const AssignModal: React.FC<{ checker: any; onClose: () => void }> = ({ checker, onClose }) => {
+  const queryClient = useQueryClient();
   const [subjectId, setSubjectId] = useState('');
-  const [portion, setPortion] = useState('FULL');
+  const [portion, setPortion] = useState('full');
   const [studentIds, setStudentIds] = useState('');
   const { data: rawSubjects = [] } = useQuery({ queryKey: ['subjects-list'], queryFn: getSubjects });
   const { data: grades = [] } = useQuery({ queryKey: ['grades-list'], queryFn: getGrades });
@@ -312,7 +313,11 @@ const AssignModal: React.FC<{ checker: any; onClose: () => void }> = ({ checker,
       portion,
       student_ids: studentIds ? studentIds.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n)) : [],
     }),
-    onSuccess: () => { toast.success('Assigned successfully!'); onClose(); },
+    onSuccess: () => {
+      toast.success('Assigned successfully!');
+      queryClient.invalidateQueries({ queryKey: ['paper-checkers'] });
+      onClose();
+    },
     onError: (e: any) => {
       const msg = extractError(e);
       toast.error(msg);
@@ -344,9 +349,9 @@ const AssignModal: React.FC<{ checker: any; onClose: () => void }> = ({ checker,
             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Portion</label>
             <select value={portion} onChange={e => setPortion(e.target.value)}
               className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none transition">
-              <option value="FULL">Full</option>
-              <option value="HALF">Half</option>
-              <option value="QUARTER">Quarter</option>
+              <option value="full">Full</option>
+              <option value="half">Half</option>
+              <option value="quarter">Quarter</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
@@ -439,7 +444,21 @@ const PaperCheckerManagement: React.FC = () => {
   const checkersQuery = useQuery({
     queryKey: ['paper-checkers'],
     queryFn: paperCheckerService.listCheckers,
+    initialData: () => {
+      try {
+        const cached = sessionStorage.getItem('paper_checkers');
+        return cached ? JSON.parse(cached) : undefined;
+      } catch {
+        return undefined;
+      }
+    }
   });
+
+  useEffect(() => {
+    if (checkersQuery.data && checkersQuery.data.length > 0) {
+      sessionStorage.setItem('paper_checkers', JSON.stringify(checkersQuery.data));
+    }
+  }, [checkersQuery.data]);
 
   const submissionsQuery = useQuery({
     queryKey: ['checker-submissions'],
@@ -536,13 +555,6 @@ const PaperCheckerManagement: React.FC = () => {
                   </div>
                   {checker.phone && (
                     <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-3"><Phone size={12} />{checker.phone}</p>
-                  )}
-                  {(checker.assigned_subject || checker.subject) && (
-                    <div className="mb-3 px-3 py-2 rounded-lg bg-violet-50 border border-violet-100">
-                      <p className="text-xs text-violet-700 font-semibold flex items-center gap-1.5">
-                        <BookOpen size={12} /> Subject: {(checker.assigned_subject?.name || checker.subject?.name || checker.assigned_subject || checker.subject)}
-                      </p>
-                    </div>
                   )}
                   <div className="mt-auto pt-4">
                     <button onClick={(e) => { e.stopPropagation(); setAssignTarget(checker); }}
