@@ -95,6 +95,43 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
     end_date: raw.end_date || (planner.endDate !== 'N/A' ? planner.endDate : '') || '',
     study_time_daily: raw.study_time_daily || planner.studyTimeDaily || '',
   });
+
+  const subjectNames = useMemo(() => {
+    const names = new Set<string>();
+    if (Array.isArray(planner.subjects)) {
+      planner.subjects.forEach((s: any) => {
+        const val = typeof s === 'string' ? s : s?.name;
+        if (val && val !== 'N/A') names.add(val);
+      });
+    }
+    if (names.size === 0 && Array.isArray(raw.scheduled_slos)) {
+      raw.scheduled_slos.forEach((s: any) => {
+        const val = s.subject_name || s.subject?.name;
+        if (val) names.add(val);
+      });
+    }
+    return Array.from(names);
+  }, [planner.subjects, raw.scheduled_slos]);
+
+  const [customPattern, setCustomPattern] = useState<Record<string, string[]>>(() => {
+    if (raw.custom_pattern && typeof raw.custom_pattern === 'object') {
+      const copy: Record<string, string[]> = {};
+      Object.entries(raw.custom_pattern).forEach(([day, subjects]) => {
+        if (Array.isArray(subjects)) {
+          copy[day] = subjects.map(String);
+        }
+      });
+      return copy;
+    }
+    return {
+      "Monday": [...subjectNames],
+      "Tuesday": [...subjectNames],
+      "Wednesday": [...subjectNames],
+      "Thursday": [...subjectNames],
+      "Friday": [...subjectNames],
+    };
+  });
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm(prev => {
@@ -104,6 +141,7 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
       return { ...prev, [name]: value };
     });
   };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const planId = planner.id || (planner as any)._id || (planner as any).plan_id;
@@ -111,6 +149,15 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
       console.error("Error: planId is missing before sending request!");
       return;
     }
+
+    if (form.mode === 'CUSTOM') {
+      const hasAnySubjects = Object.values(customPattern).some(list => list && list.length > 0);
+      if (!hasAnySubjects) {
+        toast.error('Please assign at least one subject to a day in the weekly schedule.');
+        return;
+      }
+    }
+
     // Backend expects the exact same keys as POST endpoint.
     // GET returns "scheduled_slos" (objects) but PATCH expects "slo_ids" (numbers).
     const raw = (planner as any).rawObject || {};
@@ -138,9 +185,20 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
       slo_ids: sloIds,
     };
 
+    if (form.mode === 'CUSTOM') {
+      const cleanPattern: Record<string, string[]> = {};
+      Object.entries(customPattern).forEach(([day, subjects]) => {
+        if (subjects && subjects.length > 0) {
+          cleanPattern[day] = subjects;
+        }
+      });
+      cleanPayload.custom_pattern = cleanPattern;
+    }
+
     console.log("Sending Payload:", cleanPayload);
     onSave(planId, cleanPayload);
   };
+
   const fields = [
     { name: 'title', label: 'Title', type: 'text' },
     { name: 'plan_type', label: 'Plan Type', type: 'text' },
@@ -150,6 +208,7 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
     { name: 'end_date', label: 'End Date', type: 'date' },
     { name: 'study_time_daily', label: 'Daily Study Time (min)', type: 'number' },
   ];
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
       <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -183,6 +242,54 @@ const EditPlannerModal: React.FC<EditPlannerModalProps> = ({ planner, onClose, o
               </div>
             ))}
           </div>
+
+          {form.mode === 'CUSTOM' && (
+            <div className="mt-6 border-t border-gray-100 pt-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">Weekly Schedule Pattern</h3>
+              <p className="text-xs text-gray-500 mb-3">Select the subjects to study on each day of the week:</p>
+              <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                  const selected = customPattern[day] || [];
+                  return (
+                    <div key={day} className="flex flex-col gap-1.5 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <span className="text-xs font-bold text-gray-700">{day}</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {subjectNames.map((subject) => {
+                          const isAssigned = selected.includes(subject);
+                          return (
+                            <button
+                              key={subject}
+                              type="button"
+                              onClick={() => {
+                                setCustomPattern(prev => {
+                                  const dayList = prev[day] || [];
+                                  const nextList = dayList.includes(subject)
+                                    ? dayList.filter(s => s !== subject)
+                                    : [...dayList, subject];
+                                  return { ...prev, [day]: nextList };
+                                });
+                              }}
+                              className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${
+                                isAssigned
+                                  ? 'bg-blue-50 border-blue-300 text-blue-700 font-bold'
+                                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              {subject}
+                            </button>
+                          );
+                        })}
+                        {subjectNames.length === 0 && (
+                          <span className="text-xs text-gray-400 italic">No subjects available</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-end gap-3 pt-4 mt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
             <button type="submit" disabled={isSaving} className="px-5 py-2 rounded-xl bg-blue-600 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2">
