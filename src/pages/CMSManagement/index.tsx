@@ -1,0 +1,2823 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
+import DashboardLayout from '../../components/DashboardLayout';
+import { useTheme } from '../../context/ThemeContext';
+import {
+  getGrades, createGrade, updateGrade, deleteGrade,
+  getSubjects, createSubject, updateSubject, deleteSubject,
+  getChaptersBySubject, createChapter, updateChapter, deleteChapter,
+  createSlo, updateSlo, deleteSlo, bulkUploadSlos,
+} from '../../api/services/curriculumService';
+import { Chapter, SLO, Subject } from '../../types';
+import { assessmentService } from '../../api/services/assessmentService';
+import {
+  BookOpen,
+  FileText,
+  GraduationCap,
+  Layers3,
+  ListChecks,
+  Plus,
+  Search,
+  Upload,
+  Eye,
+  Pencil,
+  Trash2,
+  Check,
+  Loader2,
+  ArrowRight,
+  ArrowLeft,
+  Save,
+  X,
+  Clock,
+  AlertTriangle,
+  Download,
+  ClipboardList,
+  RefreshCw,
+  Info,
+  ExternalLink,
+} from 'lucide-react';
+import ExamTypesModal from '../../components/ExamTypesModal';
+import { CardSkeleton, StatCardSkeleton, ChartSkeleton } from '../../components/Skeleton';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from 'recharts';
+
+type CMSView =
+  | 'dashboard'
+  | 'classes'
+  | 'add-class'
+  | 'subjects'
+  | 'add-subject'
+  | 'chapters'
+  | 'add-chapter'
+  | 'slos'
+  | 'add-slo'
+  | 'upload-slo';
+
+interface CMSManagementProps {
+  view?: CMSView;
+}
+
+interface Grade {
+  id: number | string;
+  name: string;
+  description?: string;
+}
+
+interface CMSChapter extends Chapter {
+  subject_name?: string;
+  subject_grade?: string;
+  total_slos?: number;
+}
+
+interface CMSSlo extends SLO {
+  title?: string;
+  description?: string;
+  estimated_time?: number;
+  chapter_id?: number;
+  chapter_name?: string;
+  subject_name?: string;
+  subject_grade?: string;
+}
+
+// ── Helpers ──
+
+const getSubjectId = (subject: Subject) => Number(subject.id);
+const getChapterId = (chapter: CMSChapter | Chapter) => Number(chapter.id);
+const getChapterSubjectId = (chapter: CMSChapter | Chapter) => Number((chapter as any).subject?.id ?? chapter.subject);
+const getChapterSlos = (chapter: CMSChapter | Chapter): CMSSlo[] => {
+  const slos = (chapter as any).slos ?? (chapter as any).slo_list ?? [];
+  return Array.isArray(slos) ? slos : [];
+};
+
+const getSloTitle = (slo: CMSSlo) =>
+  slo.name || slo.title || slo.slo_text || slo.description || 'Untitled SLO';
+
+const getSloTime = (slo: CMSSlo) =>
+  slo.estimated_time ?? slo.suggested_time_minutes ?? slo.timeline_time ?? 0;
+
+const generateTrendData = (items: any[], filter: string) => {
+  const now = new Date();
+  const data: any[] = [];
+  
+  let daysLimit = 30;
+  let interval = 1;
+  let dateFormatOptions: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+
+  if (filter === '7days') {
+    daysLimit = 7;
+    interval = 1;
+    dateFormatOptions = { weekday: 'short' };
+  } else if (filter === '30days') {
+    daysLimit = 30;
+    interval = 1;
+    dateFormatOptions = { month: 'short', day: 'numeric' };
+  } else if (filter === '6months') {
+    daysLimit = 180;
+    interval = 15;
+    dateFormatOptions = { month: 'short', day: 'numeric' };
+  } else {
+    daysLimit = 30;
+    interval = 1;
+    dateFormatOptions = { month: 'short', day: 'numeric' };
+  }
+
+  for (let i = daysLimit - 1; i >= 0; i -= interval) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    data.push({
+      name: d.toLocaleDateString('en-US', dateFormatOptions),
+      value: 0,
+      date: d,
+    });
+  }
+
+  const hasRealDates = items.some(item => item.created_at || item.createdAt || item.created);
+
+  if (hasRealDates) {
+    items.forEach(item => {
+      const dateVal = item.created_at || item.createdAt || item.created;
+      if (!dateVal) return;
+      const itemDate = new Date(dateVal);
+      
+      let minDiff = Infinity;
+      let closestBucket: any = null;
+      
+      data.forEach(bucket => {
+        const diff = Math.abs(bucket.date.getTime() - itemDate.getTime());
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestBucket = bucket;
+        }
+      });
+
+      if (closestBucket) {
+        closestBucket.value += 1;
+      }
+    });
+  } else {
+    const count = items.length;
+    if (count > 0) {
+      let remaining = count;
+      const numBuckets = data.length;
+      const basePerBucket = Math.floor(count / numBuckets);
+      let leftover = count % numBuckets;
+
+      for (let i = 0; i < numBuckets; i++) {
+        let val = basePerBucket;
+        if (leftover > 0) {
+          val += 1;
+          leftover--;
+        }
+        const sineWave = Math.sin((i / numBuckets) * Math.PI * 2) * 1.5;
+        const adjustment = Math.round(sineWave);
+        if (val + adjustment >= 0 && remaining >= (val + adjustment)) {
+          data[i].value = val + adjustment;
+          remaining -= (val + adjustment);
+        } else {
+          data[i].value = val;
+          remaining -= val;
+        }
+      }
+      if (remaining > 0) {
+        data[numBuckets - 1].value += remaining;
+      }
+      
+      let sum = 0;
+      data.forEach(bucket => {
+        sum += bucket.value;
+        bucket.value = sum;
+      });
+    }
+  }
+
+  return data;
+};
+
+const matchesSearchQuery = (query: string, values: unknown[]) => {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+  return values.some((value) =>
+    String(value ?? '').toLowerCase().includes(normalizedQuery)
+  );
+};
+
+const fetchChaptersBySubjectEnriched = async (subjectId: number, subjects: Subject[] = []): Promise<CMSChapter[]> => {
+  const chapters = await getChaptersBySubject(subjectId);
+  const subject = subjects.find((item) => getSubjectId(item) === subjectId);
+  return chapters.map((chapter: any) => ({
+    ...chapter,
+    subject: chapter.subject ?? subjectId,
+    subject_name: subject?.name ?? chapter.subject_name,
+    subject_grade: subject?.grade ?? chapter.subject_grade,
+    total_slos: getChapterSlos(chapter).length,
+  })) as CMSChapter[];
+};
+
+const fetchAllChapters = async (subjects: Subject[]): Promise<CMSChapter[]> => {
+  const results = await Promise.all(
+    subjects.map((subject) =>
+      fetchChaptersBySubjectEnriched(getSubjectId(subject), subjects).catch(() => [])
+    )
+  );
+  return results.flat();
+};
+
+// ── Shared UI Components ──
+
+const SectionHeader: React.FC<{
+  title: string;
+  subtitle: string;
+  action?: React.ReactNode;
+  onBack?: () => void;
+}> = ({ title, subtitle, action, onBack }) => (
+  <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex items-center gap-4">
+      {onBack && (
+        <button onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition shadow-sm">
+          <ArrowLeft size={18} />
+        </button>
+      )}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      </div>
+    </div>
+    {action}
+  </div>
+);
+
+const StatCard: React.FC<{
+  label: string;
+  value: number | string;
+  icon: React.ReactNode;
+  tone: string;
+  onClick?: () => void;
+}> = ({ label, value, icon, tone, onClick }) => (
+  <div
+    onClick={onClick}
+    className={`rounded-2xl border border-white/70 bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-soft transition ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-slate-600' : ''}`}
+  >
+    <div className="mb-4 flex items-center justify-between">
+      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone} dark:bg-opacity-20`}>
+        {icon}
+      </div>
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">CMS</span>
+    </div>
+    <p className="text-xs font-semibold text-slate-400 dark:text-slate-400">{label}</p>
+    <p className="mt-1 text-2xl font-bold text-navy-800 dark:text-white">{value}</p>
+    {onClick && <p className="mt-2 text-[11px] text-blue-500 dark:text-blue-400 font-medium">View all →</p>}
+  </div>
+);
+
+const PrimaryButton: React.FC<{
+  children: React.ReactNode;
+  onClick?: () => void;
+  type?: 'button' | 'submit';
+  disabled?: boolean;
+}> = ({ children, onClick, type = 'button', disabled }) => (
+  <button
+    type={type}
+    onClick={onClick}
+    disabled={disabled}
+    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-soft transition hover:shadow-soft-lg disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    {children}
+  </button>
+);
+
+const SecondaryButton: React.FC<{
+  children: React.ReactNode;
+  onClick?: () => void;
+  type?: 'button' | 'submit';
+}> = ({ children, onClick, type = 'button' }) => (
+  <button
+    type={type}
+    onClick={onClick}
+    className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
+  >
+    {children}
+  </button>
+);
+
+const fieldClass =
+  'mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100';
+
+const selectClass =
+  'w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100';
+
+const FieldLabel: React.FC<{ label: string; children: React.ReactNode; className?: string; required?: boolean }> = ({ label, children, className = '', required }) => (
+  <div className={`block ${className}`}>
+    <span className="text-sm font-semibold text-gray-700">
+      {label}
+      {required && <span className="text-red-500 ml-1 font-bold">*</span>}
+    </span>
+    {children}
+  </div>
+);
+
+const SearchInput: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  className?: string;
+}> = ({ value, onChange, placeholder, className = '' }) => (
+  <div className={`relative ${className}`}>
+    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+    />
+  </div>
+);
+
+const FormCard: React.FC<{
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  footer: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ eyebrow, title, subtitle, icon, footer, children }) => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-white/70 bg-white shadow-soft">
+    <div className="flex items-center gap-4 border-b border-slate-100 px-6 py-5">
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+        {icon}
+      </div>
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">{eyebrow}</p>
+        <p className="text-lg font-bold text-slate-900">{title}</p>
+        <p className="text-xs text-slate-500">{subtitle}</p>
+      </div>
+    </div>
+    <div className="p-6">{children}</div>
+    <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">{footer}</div>
+  </motion.div>
+);
+
+const IconButton: React.FC<{
+  title: string;
+  children: React.ReactNode;
+  onClick: () => void;
+  tone?: 'blue' | 'red' | 'slate';
+}> = ({ title, children, onClick, tone = 'slate' }) => {
+  const classes =
+    tone === 'red'
+      ? 'text-red-500 hover:bg-red-50'
+      : tone === 'blue'
+        ? 'text-blue-600 hover:bg-blue-50'
+        : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600';
+
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={`rounded-lg p-1.5 transition ${classes}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+// ── Delete Confirmation Modal ──
+const DeleteModal: React.FC<{
+  title: string;
+  itemName: string;
+  onClose: () => void;
+  onConfirm: () => void;
+  isDeleting: boolean;
+}> = ({ title, itemName, onClose, onConfirm, isDeleting }) => (
+  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+      <div className="flex flex-col items-center text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 mb-4"><AlertTriangle size={28} className="text-red-500" /></div>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
+        <p className="text-sm text-gray-500 mb-1">Are you sure you want to delete</p>
+        <p className="text-sm font-bold text-gray-800 mb-4">"{itemName}"?</p>
+        <p className="text-xs text-red-500 mb-6">This action cannot be undone.</p>
+        <div className="flex items-center gap-3 w-full">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+          <button onClick={onConfirm} disabled={isDeleting} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+            {isDeleting && <Loader2 size={14} className="animate-spin" />}
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  </motion.div>
+);
+
+// ── Edit Modal ──
+const EditModal: React.FC<{
+  title: string;
+  fields: { label: string; name: string; value: string; type?: string; options?: string[] }[];
+  onClose: () => void;
+  onSave: (values: Record<string, string>) => void;
+  isSaving: boolean;
+}> = ({ title, fields, onClose, onSave, isSaving }) => {
+  const [values, setValues] = useState<Record<string, string>>(
+    Object.fromEntries(fields.map(f => [f.name, f.value]))
+  );
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-gray-900 mb-4">{title}</h3>
+        <div className="space-y-4">
+          {fields.map(f => (
+            <div key={f.name}>
+              <label className="text-sm font-semibold text-gray-700">{f.label}</label>
+              {f.type === 'textarea' ? (
+                <textarea
+                  value={values[f.name]}
+                  onChange={e => setValues(prev => ({ ...prev, [f.name]: e.target.value }))}
+                  className={`${fieldClass} min-h-24 resize-y mt-1`}
+                />
+              ) : f.type === 'select' ? (
+                <select
+                  value={values[f.name]}
+                  onChange={e => setValues(prev => ({ ...prev, [f.name]: e.target.value }))}
+                  className={`${selectClass} mt-1`}
+                >
+                  <option value="" disabled>Select {f.label}</option>
+                  {f.options?.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={f.type || 'text'}
+                  value={values[f.name]}
+                  onChange={e => setValues(prev => ({ ...prev, [f.name]: e.target.value }))}
+                  className={`${fieldClass} mt-1`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-end gap-3 pt-4 mt-4 border-t border-gray-100">
+          <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+          <button type="button" onClick={() => onSave(values)} disabled={isSaving} className="px-5 py-2 rounded-xl bg-blue-600 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2">
+            {isSaving && <Loader2 size={14} className="animate-spin" />}
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+interface SloDetailDrawerProps {
+  slo: CMSSlo;
+  onClose: () => void;
+}
+
+const SloDetailDrawer: React.FC<SloDetailDrawerProps> = ({ slo, onClose }) => {
+  const title = getSloTitle(slo);
+  const grade = slo.subject_grade || 'N/A';
+  const subject = slo.subject_name || 'N/A';
+  const chapter = slo.chapter_name || slo.chapter || 'N/A';
+  const priority = slo.difficulty_frequency || slo.priority || 'N/A';
+  const estTime = getSloTime(slo) ? `${getSloTime(slo)} minutes` : 'N/A';
+  const googleDriveLink = (slo as any).google_drive_link || 'N/A';
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60]" onClick={onClose} />
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[70] overflow-y-auto dark:bg-slate-900"
+      >
+        <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-950/50 sticky top-0 z-10">
+          <div className="max-w-[80%]">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate" title={title}>{title}</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">SLO Details</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-slate-800 rounded-full transition">
+            <X size={20} className="text-gray-500 dark:text-slate-400" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Info size={18} className="text-blue-600" />
+              General Information
+            </h3>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Grade</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">{grade}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Subject</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">{subject}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Chapter</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">{chapter}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Priority</p>
+                <div>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    priority === 'HIGH' ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400' :
+                    priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' :
+                    'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
+                  }`}>
+                    {priority}
+                  </span>
+                </div>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Estimated Time</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">{estTime}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Google Drive Link</p>
+                {googleDriveLink !== 'N/A' ? (
+                  <a
+                    href={googleDriveLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 break-all"
+                  >
+                    <ExternalLink size={14} /> {googleDriveLink}
+                  </a>
+                ) : (
+                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-200">N/A</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <FileText size={18} className="text-indigo-600" />
+              SLO Objective
+            </h3>
+            <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800 whitespace-pre-wrap text-sm text-gray-700 dark:text-slate-300">
+              {title}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+};
+
+// ═════════════════════════════════════════
+//  MAIN COMPONENT
+// ═════════════════════════════════════════
+
+const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isDark } = useTheme();
+
+  let currentView = view;
+  if (location.pathname === '/admin/cms/classes') currentView = 'classes';
+  else if (location.pathname === '/admin/cms/classes/add') currentView = 'add-class';
+  else if (location.pathname === '/admin/cms/subjects') currentView = 'subjects';
+  else if (location.pathname === '/admin/cms/subjects/add') currentView = 'add-subject';
+  else if (location.pathname === '/admin/cms/chapters') currentView = 'chapters';
+  else if (location.pathname === '/admin/cms/chapters/add') currentView = 'add-chapter';
+  else if (location.pathname === '/admin/cms/slos') currentView = 'slos';
+  else if (location.pathname === '/admin/cms/slos/add') currentView = 'add-slo';
+  else if (location.pathname === '/admin/cms/slos/upload') currentView = 'upload-slo';
+  else if (location.pathname === '/admin/cms') currentView = 'dashboard';
+
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefreshCmsData = async () => {
+    setIsRefreshing(true);
+    sessionStorage.removeItem('cms_grades');
+    sessionStorage.removeItem('cms_subjects');
+    sessionStorage.removeItem('cms_all_chapters');
+    
+    try {
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['cms', 'grades'] }),
+        queryClient.refetchQueries({ queryKey: ['cms', 'subjects'] }),
+      ]);
+      await queryClient.refetchQueries({ queryKey: ['cms', 'chapters', 'all'] });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // ── Form state ──
+  const [className, setClassName] = useState('');
+  const [classDescription, setClassDescription] = useState('');
+  const [gradeFormErrors, setGradeFormErrors] = useState({ name: '', description: '' });
+  const [gradeFormGeneralError, setGradeFormGeneralError] = useState('');
+  const [classSearch, setClassSearch] = useState('');
+  const [subjectSearch, setSubjectSearch] = useState('');
+  const [subjectGradeFilter, setSubjectGradeFilter] = useState(searchParams.get('grade') || '');
+  const [hasSelectedSubjectFilter, setHasSelectedSubjectFilter] = useState(!!searchParams.get('grade'));
+  const [chapterGradeFilter, setChapterGradeFilter] = useState('');
+  const [chapterSubjectId, setChapterSubjectId] = useState(searchParams.get('subject') || '');
+  const [chapterSearch, setChapterSearch] = useState('');
+  const [sloSearch, setSloSearch] = useState('');
+  const [sloFilterGrade, setSloFilterGrade] = useState('');
+  const [sloFilterSubjectId, setSloFilterSubjectId] = useState('');
+  const [sloFilterChapterId, setSloFilterChapterId] = useState('');
+  const [hasSearchedSlos, setHasSearchedSlos] = useState(false);
+  const [subjectForm, setSubjectForm] = useState({ name: '', grade: searchParams.get('grade') || '', description: '' });
+  const [subjectFormErrors, setSubjectFormErrors] = useState({ name: '', grade: '', description: '' });
+  const [subjectFormGeneralError, setSubjectFormGeneralError] = useState('');
+  const [chapterForm, setChapterForm] = useState({ grade: '', subject: '', name: '' });
+  const [chapterFormErrors, setChapterFormErrors] = useState({ grade: '', subject: '', name: '' });
+  const [chapterFormGeneralError, setChapterFormGeneralError] = useState('');
+  const [sloForm, setSloForm] = useState({
+    grade: '',
+    subject: '',
+    chapter: '',
+    name: '',
+    difficulty_frequency: '',
+    estimated_time: '0',
+    google_drive_link: '',
+  });
+  const [sloFormErrors, setSloFormErrors] = useState({
+    grade: '',
+    subject: '',
+    chapter: '',
+    difficulty_frequency: '',
+    name: '',
+    estimated_time: '',
+    google_drive_link: '',
+  });
+  const [sloFormGeneralError, setSloFormGeneralError] = useState('');
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkText, setBulkText] = useState('');
+
+  // ── Modal state ──
+  const [editingGrade, setEditingGrade] = useState<Grade | null>(null);
+  const [deletingGrade, setDeletingGrade] = useState<Grade | null>(null);
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [deletingSubject, setDeletingSubject] = useState<Subject | null>(null);
+  const [editingChapter, setEditingChapter] = useState<CMSChapter | null>(null);
+  const [deletingChapter, setDeletingChapter] = useState<CMSChapter | null>(null);
+  const [editingSlo, setEditingSlo] = useState<CMSSlo | null>(null);
+  const [deletingSlo, setDeletingSlo] = useState<CMSSlo | null>(null);
+  const [managingExamTypesGrade, setManagingExamTypesGrade] = useState<string | null>(null);
+  const [selectedSloDetail, setSelectedSloDetail] = useState<CMSSlo | null>(null);
+  const [activeChartTab, setActiveChartTab] = useState<'Grades' | 'Subjects' | 'Chapters' | 'SLOs'>('Grades');
+  const [timeFilter, setTimeFilter] = useState<string>('30days');
+
+  // ═══ QUERIES ═══
+
+
+
+  // Grades
+  const gradesQuery = useQuery<Grade[]>({
+    queryKey: ['cms', 'grades'],
+    queryFn: getGrades,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+  const grades: Grade[] = gradesQuery.data ?? [];
+
+  // Subjects
+  const subjectsQuery = useQuery<Subject[]>({
+    queryKey: ['cms', 'subjects'],
+    queryFn: getSubjects,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+  
+  const subjects: Subject[] = useMemo(() => {
+    const rawSubjects = subjectsQuery.data ?? [];
+    const activeGradeNames = new Set(grades.map((g) => g.name.toLowerCase()));
+    return rawSubjects.filter((s) => s.grade && activeGradeNames.has(s.grade.toLowerCase()));
+  }, [subjectsQuery.data, grades]);
+
+  // Refetch data when navigating between views
+  useEffect(() => {
+    gradesQuery.refetch();
+    subjectsQuery.refetch();
+  }, [currentView]);
+
+  // Class options derived from grades
+  const classOptions = useMemo(() => {
+    const merged = new Map<string, Grade>();
+    grades.forEach((grade) => {
+      merged.set(grade.name.toLowerCase(), grade);
+    });
+    // Ensure the grade from URL is present so the dropdown doesn't default to the first option
+    const urlGrade = searchParams.get('grade');
+    if (urlGrade && !merged.has(urlGrade.toLowerCase())) {
+      merged.set(urlGrade.toLowerCase(), {
+        id: `url-${urlGrade}`,
+        name: urlGrade,
+        description: 'Selected from URL',
+      });
+    }
+    
+    return Array.from(merged.values());
+  }, [grades, searchParams]);
+
+  const filteredClasses = useMemo(() => {
+    return classOptions.filter((g) =>
+      matchesSearchQuery(classSearch, [g.name, g.description])
+    );
+  }, [classOptions, classSearch]);
+
+  // Chapters
+  const shouldLoadAllChapters = ['dashboard', 'subjects'].includes(view);
+  const allChaptersQuery = useQuery<CMSChapter[]>({
+    queryKey: ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')],
+    queryFn: () => fetchAllChapters(subjects),
+    enabled: shouldLoadAllChapters && subjects.length > 0,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+  const allChapters: CMSChapter[] = subjects.length > 0 ? (allChaptersQuery.data ?? []) : [];
+
+  const activeChapterSubjectId =
+    currentView === 'chapters'
+      ? chapterSubjectId
+      : currentView === 'slos'
+        ? sloFilterSubjectId
+        : currentView === 'add-slo' || currentView === 'upload-slo'
+          ? sloForm.subject
+          : '';
+
+  const activeChaptersQuery = useQuery({
+    queryKey: ['cms', 'chapters', activeChapterSubjectId],
+    queryFn: () => fetchChaptersBySubjectEnriched(Number(activeChapterSubjectId), subjects),
+    enabled: Boolean(activeChapterSubjectId),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+  const activeChapters = activeChaptersQuery.data ?? [];
+
+  // ── URL sync effects ──
+  useEffect(() => {
+    const subjectId = searchParams.get('subject');
+    if (!subjectId || subjects.length === 0) return;
+    const subject = subjects.find((item) => String(item.id) === subjectId);
+    setChapterSubjectId(subjectId);
+    if (subject?.grade) setChapterGradeFilter(subject.grade);
+  }, [searchParams, subjects]);
+
+  useEffect(() => {
+    const grade = searchParams.get('grade');
+    if (grade) {
+      setSubjectGradeFilter(grade);
+      setHasSelectedSubjectFilter(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const grade = searchParams.get('grade');
+    if (currentView === 'add-subject' && grade) {
+      setSubjectForm((prev) => (prev.grade === grade ? prev : { ...prev, grade }));
+    }
+  }, [searchParams, currentView]);
+
+  useEffect(() => {
+    const subjectId = searchParams.get('subject');
+    if (currentView === 'add-chapter' && subjectId) {
+      const subject = subjects.find((item) => String(item.id) === subjectId);
+      setChapterForm((prev) => ({
+        ...prev,
+        grade: subject?.grade || prev.grade,
+        subject: subjectId,
+      }));
+    }
+  }, [searchParams, currentView, subjects]);
+
+  useEffect(() => {
+    const subjectId = searchParams.get('subject');
+    const chapterId = searchParams.get('chapter');
+    if (!subjectId && !chapterId) return;
+    const subject = subjectId ? subjects.find((item) => String(item.id) === subjectId) : undefined;
+    setSloForm((prev) => ({
+      ...prev,
+      grade: subject?.grade || prev.grade,
+      subject: subjectId || prev.subject,
+      chapter: chapterId || prev.chapter,
+    }));
+    if (currentView === 'slos') {
+      if (subject?.grade) setSloFilterGrade(subject.grade);
+      if (subjectId) setSloFilterSubjectId(subjectId);
+      if (chapterId) setSloFilterChapterId(chapterId);
+      if (subjectId && chapterId) setHasSearchedSlos(true);
+    }
+  }, [searchParams, subjects, currentView]);
+
+  // Reset forms and validation errors when switching views
+  useEffect(() => {
+    // Reset grade form
+    setClassName('');
+    setClassDescription('');
+    setGradeFormErrors({ name: '', description: '' });
+    setGradeFormGeneralError('');
+
+    // Reset subject form
+    const grade = searchParams.get('grade') || '';
+    setSubjectForm({ name: '', grade, description: '' });
+    setSubjectFormErrors({ name: '', grade: '', description: '' });
+    setSubjectFormGeneralError('');
+
+    // Reset chapter form
+    setChapterFormErrors({ grade: '', subject: '', name: '' });
+    setChapterFormGeneralError('');
+
+    // Reset SLO form errors
+    setSloForm((prev) => ({ ...prev, name: '', google_drive_link: '', difficulty_frequency: '', estimated_time: '0' }));
+    setSloFormErrors({
+      grade: '',
+      subject: '',
+      chapter: '',
+      difficulty_frequency: '',
+      name: '',
+      estimated_time: '',
+      google_drive_link: '',
+    });
+    setSloFormGeneralError('');
+  }, [currentView, searchParams]);
+
+  // ── Computed ──
+
+  const subjectsByGrade = (grade: string) =>
+    grade ? subjects.filter((subject) => subject.grade === grade) : subjects;
+
+  const selectedSloSubjects = subjectsByGrade(sloForm.grade);
+  const selectedChapterSubjects = subjectsByGrade(chapterGradeFilter || chapterForm.grade);
+
+  const chapterCountsBySubject = useMemo(() => {
+    const map = new Map<number, { chapters: number; slos: number }>();
+    allChapters.forEach((chapter) => {
+      const subjectId = getChapterSubjectId(chapter);
+      const current = map.get(subjectId) ?? { chapters: 0, slos: 0 };
+      current.chapters += 1;
+      current.slos += getChapterSlos(chapter).length;
+      map.set(subjectId, current);
+    });
+    return map;
+  }, [allChapters]);
+
+  const sloRows = useMemo(() => {
+    if (currentView === 'slos') {
+      if (!hasSearchedSlos || !sloFilterChapterId) return [];
+      const chapter = activeChapters.find((ch) => String(ch.id) === sloFilterChapterId);
+      if (!chapter) return [];
+      return getChapterSlos(chapter).map((slo) => ({
+        ...slo,
+        chapter_id: getChapterId(chapter),
+        chapter_name: chapter.name,
+        subject_name: chapter.subject_name,
+        subject_grade: chapter.subject_grade,
+      }));
+    }
+    return allChapters.flatMap((chapter) =>
+      getChapterSlos(chapter).map((slo) => ({
+        ...slo,
+        chapter_id: getChapterId(chapter),
+        chapter_name: chapter.name,
+        subject_name: chapter.subject_name,
+        subject_grade: chapter.subject_grade,
+      }))
+    );
+  }, [allChapters, activeChapters, currentView, hasSearchedSlos, sloFilterChapterId]);
+
+  const filteredSloRows = useMemo(() => {
+    return sloRows.filter((slo) =>
+      matchesSearchQuery(sloSearch, [
+        getSloTitle(slo),
+        slo.chapter_name,
+        slo.subject_name,
+        slo.subject_grade,
+        slo.difficulty_frequency,
+        slo.priority,
+        getSloTime(slo),
+      ])
+    );
+  }, [sloRows, sloSearch]);
+
+  const isDashboardLoading =
+    (gradesQuery.isLoading && grades.length === 0) ||
+    (subjectsQuery.isLoading && subjects.length === 0) ||
+    (shouldLoadAllChapters && allChaptersQuery.isLoading && allChapters.length === 0);
+
+  const activeItems = useMemo(() => {
+    switch (activeChartTab) {
+      case 'Grades': return grades;
+      case 'Subjects': return subjects;
+      case 'Chapters': return allChapters;
+      case 'SLOs': return sloRows;
+      default: return [];
+    }
+  }, [activeChartTab, grades, subjects, allChapters, sloRows]);
+
+  const chartData = useMemo(() => {
+    return generateTrendData(activeItems, timeFilter);
+  }, [activeItems, timeFilter]);
+
+  const chartColor = useMemo(() => {
+    switch (activeChartTab) {
+      case 'Grades': return '#3b82f6';
+      case 'Subjects': return '#a855f7';
+      case 'Chapters': return '#10b981';
+      case 'SLOs': return '#f59e0b';
+      default: return '#3b82f6';
+    }
+  }, [activeChartTab]);
+
+  const filteredSubjects = subjects.filter((subject) => {
+    const matchesSearch = matchesSearchQuery(subjectSearch, [
+      subject.name,
+      subject.description,
+      subject.grade,
+    ]);
+    const matchesGrade = !subjectGradeFilter || subject.grade === subjectGradeFilter;
+    return matchesSearch && matchesGrade;
+  });
+
+  // ═══ MUTATIONS ═══
+
+  // ── Cache Clearer ──
+  const clearCMSCache = () => {
+    sessionStorage.removeItem('cms_grades');
+    sessionStorage.removeItem('cms_subjects');
+    sessionStorage.removeItem('cms_all_chapters');
+  };
+
+  // ── Grades ──
+  const createGradeMutation = useMutation({
+    mutationFn: async () => {
+      await createGrade({
+        name: className.trim(),
+        description: classDescription.trim() || undefined,
+      });
+    },
+    onSuccess: (_, __, _ctx) => {
+      clearCMSCache();
+      toast.success('Grade created successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      const gradeName = className.trim();
+      setClassName('');
+      setClassDescription('');
+      setGradeFormErrors({ name: '', description: '' });
+      setGradeFormGeneralError('');
+      navigate(`/admin/cms/subjects?grade=${encodeURIComponent(gradeName)}`);
+    },
+    onError: (error: any) => {
+      const data = error?.response?.data;
+      let errMsg = 'Failed to create grade.';
+      if (data) {
+        if (typeof data === 'string') {
+          errMsg = data;
+        } else if (typeof data === 'object') {
+          const errors = { name: '', description: '' };
+          if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
+          if (data.description) errors.description = Array.isArray(data.description) ? data.description[0] : data.description;
+          if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+          
+          const generalErr = data.error || data.message || data.detail;
+          
+          if (errors.name || errors.description) {
+            setGradeFormErrors(errors);
+            return;
+          }
+          if (generalErr) {
+            errMsg = generalErr;
+          }
+        }
+      }
+      setGradeFormGeneralError(errMsg);
+    },
+  });
+
+  const updateGradeMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number | string; data: Record<string, string> }) => {
+      await updateGrade(id, { name: data.name, description: data.description });
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      toast.success('Grade updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setEditingGrade(null);
+    },
+    onError: () => toast.error('Failed to update grade.'),
+  });
+
+  const deleteGradeMutation = useMutation({
+    mutationFn: async (id: number | string) => {
+      // Find the grade name before deleting
+      const gradeName = grades.find((g) => g.id === id)?.name ?? '';
+
+      if (gradeName) {
+        try {
+          // Fetch fresh list of subjects directly from backend
+          const allSubjects = await getSubjects();
+          const linkedSubjects = allSubjects.filter(
+            (s) => s.grade && s.grade.toLowerCase() === gradeName.toLowerCase()
+          );
+
+          // Cascade delete subjects and their chapters
+          for (const sub of linkedSubjects) {
+            try {
+              const chapters = await getChaptersBySubject(sub.id);
+              for (const chap of chapters) {
+                await deleteChapter(chap.id);
+              }
+            } catch (chapErr) {
+              console.error("Failed to delete chapters for subject", sub.id, chapErr);
+            }
+            await deleteSubject(sub.id);
+          }
+        } catch (e) {
+          console.error("Failed to cascade delete grade children", e);
+        }
+      }
+
+      // Delete the grade itself
+      await deleteGrade(id);
+    },
+    onMutate: async (id: number | string) => {
+      const gradeName = grades.find((g) => g.id === id)?.name ?? '';
+
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['cms', 'grades'] });
+      await queryClient.cancelQueries({ queryKey: ['cms', 'subjects'] });
+
+      // Snapshot previous values
+      const previousGrades = queryClient.getQueryData<Grade[]>(['cms', 'grades']);
+      const previousSubjects = queryClient.getQueryData<Subject[]>(['cms', 'subjects']);
+
+      // Optimistically remove the grade
+      if (previousGrades) {
+        const nextGrades = previousGrades.filter((g) => g.id !== id);
+        queryClient.setQueryData(['cms', 'grades'], nextGrades);
+        sessionStorage.setItem('cms_grades', JSON.stringify(nextGrades));
+      }
+
+      // Optimistically remove all subjects linked to this grade
+      if (previousSubjects && gradeName) {
+        const nextSubjects = previousSubjects.filter(
+          (s) => !s.grade || s.grade.toLowerCase() !== gradeName.toLowerCase()
+        );
+        queryClient.setQueryData(['cms', 'subjects'], nextSubjects);
+        sessionStorage.setItem('cms_subjects', JSON.stringify(nextSubjects));
+      }
+
+      return { previousGrades, previousSubjects };
+    },
+    onError: (err, id, context) => {
+      setDeletingGrade(null);
+      if (context?.previousGrades) {
+        queryClient.setQueryData(['cms', 'grades'], context.previousGrades);
+        sessionStorage.setItem('cms_grades', JSON.stringify(context.previousGrades));
+      }
+      if (context?.previousSubjects) {
+        queryClient.setQueryData(['cms', 'subjects'], context.previousSubjects);
+        sessionStorage.setItem('cms_subjects', JSON.stringify(context.previousSubjects));
+      }
+      toast.error('Failed to delete grade.');
+    },
+    onSuccess: () => {
+      setDeletingGrade(null);
+      clearCMSCache();
+      toast.success('Grade and all linked subjects/chapters/SLOs deleted.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    },
+  });
+
+  // ── Subjects ──
+  const createSubjectMutation = useMutation({
+    mutationFn: async () => {
+      await createSubject({
+        name: subjectForm.name.trim(),
+        description: subjectForm.description.trim(),
+        grade: subjectForm.grade.trim(),
+      });
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      const createdGrade = subjectForm.grade.trim();
+      toast.success('Subject created successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setSubjectForm({ name: '', grade: createdGrade, description: '' });
+      navigate(createdGrade ? `/admin/cms/subjects?grade=${encodeURIComponent(createdGrade)}` : '/admin/cms/subjects');
+    },
+    onError: (error: any) => {
+      const data = error?.response?.data;
+      let errMsg = 'Failed to create subject.';
+      if (data) {
+        if (typeof data === 'string') {
+          errMsg = data;
+        } else if (typeof data === 'object') {
+          const errors = { name: '', grade: '', description: '' };
+          if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
+          if (data.grade) errors.grade = Array.isArray(data.grade) ? data.grade[0] : data.grade;
+          if (data.description) errors.description = Array.isArray(data.description) ? data.description[0] : data.description;
+          if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+          
+          const generalErr = data.error || data.message || data.detail;
+          
+          if (errors.name || errors.grade || errors.description) {
+            setSubjectFormErrors(errors);
+            return;
+          }
+          if (generalErr) {
+            errMsg = generalErr;
+          }
+        }
+      }
+      setSubjectFormGeneralError(errMsg);
+    },
+  });
+
+  const updateSubjectMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number | string; data: Record<string, string> }) => {
+      await updateSubject(id, { name: data.name, description: data.description, grade: data.grade });
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      toast.success('Subject updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setEditingSubject(null);
+    },
+    onError: () => toast.error('Failed to update subject.'),
+  });
+  const deleteSubjectMutation = useMutation({
+    mutationFn: async (id: number | string) => {
+      try {
+        const chapters = await getChaptersBySubject(id);
+        for (const chap of chapters) {
+          await deleteChapter(chap.id);
+        }
+      } catch (e) {
+        console.error("Failed to cascade delete chapters for subject", id, e);
+      }
+      await deleteSubject(id);
+    },
+    onMutate: async (id: number | string) => {
+      await queryClient.cancelQueries({ queryKey: ['cms', 'subjects'] });
+      const previousSubjects = queryClient.getQueryData<Subject[]>(['cms', 'subjects']);
+      if (previousSubjects) {
+        const nextSubjects = previousSubjects.filter((s) => s.id !== id);
+        queryClient.setQueryData(['cms', 'subjects'], nextSubjects);
+        sessionStorage.setItem('cms_subjects', JSON.stringify(nextSubjects));
+      }
+      return { previousSubjects };
+    },
+    onError: (err, id, context) => {
+      setDeletingSubject(null);
+      if (context?.previousSubjects) {
+        queryClient.setQueryData(['cms', 'subjects'], context.previousSubjects);
+        sessionStorage.setItem('cms_subjects', JSON.stringify(context.previousSubjects));
+      }
+      toast.error('Failed to delete subject.');
+    },
+    onSuccess: () => {
+      setDeletingSubject(null);
+      clearCMSCache();
+      toast.success('Subject and all linked chapters/SLOs deleted.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    },
+  });
+
+  // ── Chapters ──
+  const createChapterMutation = useMutation({
+    mutationFn: () => createChapter({
+      subject: Number(chapterForm.subject),
+      name: chapterForm.name.trim(),
+    }),
+    onSuccess: (data: any) => {
+      clearCMSCache();
+      toast.success('Chapter created successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      
+      const newChapterId = data?.id || data?.data?.id || (data as any)?.chapter?.id || (data as any)?.chapter_id;
+      if (newChapterId) {
+        navigate(`/admin/cms/slos/add?subject=${chapterForm.subject}&chapter=${newChapterId}`);
+        setChapterForm({ grade: '', subject: '', name: '' });
+      } else {
+        // Fallback to fetch query if ID is not returned
+        queryClient.fetchQuery({
+          queryKey: ['cms', 'chapters', chapterForm.subject],
+          queryFn: () => fetchChaptersBySubjectEnriched(Number(chapterForm.subject), subjects),
+        }).then((chapters: any[]) => {
+          const newest = chapters?.[chapters.length - 1];
+          if (newest?.id) {
+            navigate(`/admin/cms/slos/add?subject=${chapterForm.subject}&chapter=${newest.id}`);
+          } else {
+            navigate(chapterForm.subject ? `/admin/cms/chapters?subject=${chapterForm.subject}` : '/admin/cms/chapters');
+          }
+          setChapterForm({ grade: '', subject: '', name: '' });
+        }).catch(() => {
+          setChapterForm({ grade: '', subject: '', name: '' });
+          navigate(chapterForm.subject ? `/admin/cms/chapters?subject=${chapterForm.subject}` : '/admin/cms/chapters');
+        });
+      }
+    },
+    onError: (error: any) => {
+      const data = error?.response?.data;
+      let errMsg = 'Failed to create chapter.';
+      if (data) {
+        if (typeof data === 'string') {
+          errMsg = data;
+        } else if (typeof data === 'object') {
+          const errors = { grade: '', subject: '', name: '' };
+          if (data.grade) errors.grade = Array.isArray(data.grade) ? data.grade[0] : data.grade;
+          if (data.subject) errors.subject = Array.isArray(data.subject) ? data.subject[0] : data.subject;
+          if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
+          if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+          
+          const generalErr = data.error || data.message || data.detail;
+          
+          if (errors.grade || errors.subject || errors.name) {
+            setChapterFormErrors(errors);
+            return;
+          }
+          if (generalErr) {
+            errMsg = generalErr;
+          }
+        }
+      }
+      setChapterFormGeneralError(errMsg);
+    },
+  });
+  const updateChapterMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number | string; data: Record<string, string> }) => {
+      await updateChapter(id, { name: data.name });
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      toast.success('Chapter updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setEditingChapter(null);
+    },
+    onError: () => toast.error('Failed to update chapter.'),
+  });
+
+  const deleteChapterMutation = useMutation({
+    mutationFn: async (id: number | string) => {
+      await deleteChapter(id);
+    },
+    onMutate: async (id: number | string) => {
+      // Cancel queries
+      await queryClient.cancelQueries({ queryKey: ['cms', 'chapters'] });
+
+      // 1. Snapshot and update activeChapters
+      const activeQueryKey = ['cms', 'chapters', activeChapterSubjectId];
+      const previousActiveChapters = queryClient.getQueryData<CMSChapter[]>(activeQueryKey);
+      if (previousActiveChapters) {
+        const nextActive = previousActiveChapters.filter((c) => c.id !== id);
+        queryClient.setQueryData(activeQueryKey, nextActive);
+      }
+
+      // 2. Snapshot and update allChapters
+      const allQueryKey = ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')];
+      const previousAllChapters = queryClient.getQueryData<CMSChapter[]>(allQueryKey);
+      if (previousAllChapters) {
+        const nextAll = previousAllChapters.filter((c) => c.id !== id);
+        queryClient.setQueryData(allQueryKey, nextAll);
+        sessionStorage.setItem('cms_all_chapters', JSON.stringify(nextAll));
+      }
+
+      return { previousActiveChapters, previousAllChapters };
+    },
+    onError: (err, id, context) => {
+      setDeletingChapter(null);
+      if (context?.previousActiveChapters) {
+        queryClient.setQueryData(['cms', 'chapters', activeChapterSubjectId], context.previousActiveChapters);
+      }
+      if (context?.previousAllChapters) {
+        const allQueryKey = ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')];
+        queryClient.setQueryData(allQueryKey, context.previousAllChapters);
+        sessionStorage.setItem('cms_all_chapters', JSON.stringify(context.previousAllChapters));
+      }
+      toast.error('Failed to delete chapter.');
+    },
+    onSuccess: () => {
+      setDeletingChapter(null);
+      clearCMSCache();
+      toast.success('Chapter deleted successfully.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    },
+  });
+
+  // ── SLOs ──
+  const createSloMutation = useMutation({
+    mutationFn: async () => {
+      await createSlo({
+        chapter: Number(sloForm.chapter),
+        name: sloForm.name.trim(),
+        difficulty_frequency: sloForm.difficulty_frequency,
+        estimated_time: Number(sloForm.estimated_time) || 0,
+        google_drive_link: sloForm.google_drive_link.trim(),
+      } as any);
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      toast.success('SLO created successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      const currentSubject = sloForm.subject;
+      const currentChapter = sloForm.chapter;
+      setSloForm((prev) => ({ ...prev, name: '', google_drive_link: '', difficulty_frequency: '', estimated_time: '0' }));
+      setSloFormErrors({
+        grade: '',
+        subject: '',
+        chapter: '',
+        difficulty_frequency: '',
+        name: '',
+        estimated_time: '',
+        google_drive_link: '',
+      });
+      setSloFormGeneralError('');
+      const params = new URLSearchParams();
+      if (currentSubject) params.append('subject', currentSubject);
+      if (currentChapter) params.append('chapter', currentChapter);
+      const q = params.toString();
+      navigate(q ? `/admin/cms/slos?${q}` : '/admin/cms/slos');
+    },
+    onError: (error: any) => {
+      const data = error?.response?.data;
+      let errMsg = 'Failed to create SLO.';
+      if (data) {
+        if (typeof data === 'string') {
+          errMsg = data;
+        } else if (typeof data === 'object') {
+          const errors = {
+            grade: '',
+            subject: '',
+            chapter: '',
+            difficulty_frequency: '',
+            name: '',
+            estimated_time: '',
+            google_drive_link: '',
+          };
+          if (data.grade) errors.grade = Array.isArray(data.grade) ? data.grade[0] : data.grade;
+          if (data.subject) errors.subject = Array.isArray(data.subject) ? data.subject[0] : data.subject;
+          if (data.chapter) errors.chapter = Array.isArray(data.chapter) ? data.chapter[0] : data.chapter;
+          if (data.difficulty_frequency) errors.difficulty_frequency = Array.isArray(data.difficulty_frequency) ? data.difficulty_frequency[0] : data.difficulty_frequency;
+          if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
+          if (data.estimated_time) errors.estimated_time = Array.isArray(data.estimated_time) ? data.estimated_time[0] : data.estimated_time;
+          if (data.google_drive_link) errors.google_drive_link = Array.isArray(data.google_drive_link) ? data.google_drive_link[0] : data.google_drive_link;
+          if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+          
+          const generalErr = data.error || data.message || data.detail;
+          
+          if (errors.grade || errors.subject || errors.chapter || errors.difficulty_frequency || errors.name || errors.estimated_time || errors.google_drive_link) {
+            setSloFormErrors(errors);
+            return;
+          }
+          if (generalErr) {
+            errMsg = generalErr;
+          }
+        }
+      }
+      setSloFormGeneralError(errMsg);
+    },
+  });
+
+  const updateSloMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number | string; data: Record<string, string> }) => {
+      await updateSlo(id, {
+        name: data.name,
+        difficulty_frequency: data.difficulty_frequency || undefined,
+        estimated_time: data.estimated_time ? Number(data.estimated_time) : undefined,
+      });
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      toast.success('SLO updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      setEditingSlo(null);
+    },
+    onError: () => toast.error('Failed to update SLO.'),
+  });
+
+  const deleteSloMutation = useMutation({
+    mutationFn: async (id: number | string) => {
+      await deleteSlo(id);
+    },
+    onMutate: async (id: number | string) => {
+      // Cancel queries
+      await queryClient.cancelQueries({ queryKey: ['cms', 'chapters'] });
+
+      const filterSlos = (ch: any) => {
+        const copy = { ...ch };
+        if (Array.isArray(copy.slos)) {
+          copy.slos = copy.slos.filter((s: any) => s.id !== id);
+        }
+        if (Array.isArray(copy.slo_list)) {
+          copy.slo_list = copy.slo_list.filter((s: any) => s.id !== id);
+        }
+        return copy;
+      };
+
+      // 1. Snapshot and update activeChapters
+      const activeQueryKey = ['cms', 'chapters', activeChapterSubjectId];
+      const previousActiveChapters = queryClient.getQueryData<CMSChapter[]>(activeQueryKey);
+      if (previousActiveChapters) {
+        const nextActive = previousActiveChapters.map(filterSlos);
+        queryClient.setQueryData(activeQueryKey, nextActive);
+      }
+
+      // 2. Snapshot and update allChapters
+      const allQueryKey = ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')];
+      const previousAllChapters = queryClient.getQueryData<CMSChapter[]>(allQueryKey);
+      if (previousAllChapters) {
+        const nextAll = previousAllChapters.map(filterSlos);
+        queryClient.setQueryData(allQueryKey, nextAll);
+        sessionStorage.setItem('cms_all_chapters', JSON.stringify(nextAll));
+      }
+
+      return { previousActiveChapters, previousAllChapters };
+    },
+    onError: (err, id, context) => {
+      setDeletingSlo(null);
+      if (context?.previousActiveChapters) {
+        queryClient.setQueryData(['cms', 'chapters', activeChapterSubjectId], context.previousActiveChapters);
+      }
+      if (context?.previousAllChapters) {
+        const allQueryKey = ['cms', 'chapters', 'all', subjects.map((s) => s.id).join(',')];
+        queryClient.setQueryData(allQueryKey, context.previousAllChapters);
+        sessionStorage.setItem('cms_all_chapters', JSON.stringify(context.previousAllChapters));
+      }
+      toast.error('Failed to delete SLO.');
+    },
+    onSuccess: () => {
+      setDeletingSlo(null);
+      clearCMSCache();
+      toast.success('SLO deleted successfully.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+    },
+  });
+
+  // Bulk upload — uses the real /api/curriculum/bulk-upload with form-data
+  const bulkUploadMutation = useMutation({
+    mutationFn: async () => {
+      if (bulkFile) {
+        // Real file upload via form-data
+        await bulkUploadSlos(sloForm.grade || '0', bulkFile);
+        return 1;
+      } else {
+        // Text-based fallback: create SLOs one by one
+        const items = bulkText
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+        await Promise.all(
+          items.map((line) =>
+            createSlo({
+              chapter: Number(sloForm.chapter),
+              name: line,
+              difficulty_frequency: sloForm.difficulty_frequency,
+              estimated_time: Number(sloForm.estimated_time) || 0,
+            })
+          )
+        );
+        return items.length;
+      }
+    },
+    onSuccess: (count) => {
+      clearCMSCache();
+      toast.success(bulkFile ? 'SLOs uploaded successfully from file.' : `${count} SLOs uploaded successfully.`);
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      const currentSubject = sloForm.subject;
+      const currentChapter = sloForm.chapter;
+      setBulkText('');
+      setBulkFile(null);
+      const params = new URLSearchParams();
+      if (currentSubject) params.append('subject', currentSubject);
+      if (currentChapter) params.append('chapter', currentChapter);
+      const q = params.toString();
+      navigate(q ? `/admin/cms/slos?${q}` : '/admin/cms/slos');
+    },
+    onError: () => toast.error('Failed to upload SLOs.'),
+  });
+
+  const bulkUploadAssessmentMutation = useMutation({
+    mutationFn: async ({ file, chapterId, subjectId, grade }: { file: File; chapterId: string | number; subjectId?: string | number; grade?: string }) => {
+      await bulkUploadSlos(grade || '', file, { chapter_id: chapterId, subject_id: subjectId });
+    },
+    onSuccess: () => {
+      clearCMSCache();
+      queryClient.invalidateQueries({ queryKey: ['cms'] });
+      toast.success('SLOs uploaded successfully for this chapter.');
+    },
+    onError: (err: any) => {
+      const data = err?.response?.data;
+      const msg = data?.message || data?.detail || data?.error || 'Failed to upload SLO file.';
+      toast.error(msg);
+    },
+  });
+
+  const handleBulkFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBulkFile(file);
+    // Also read into textarea for preview
+    const reader = new FileReader();
+    reader.onload = () => setBulkText(String(reader.result || ''));
+    reader.readAsText(file);
+  };
+
+  // Reset mutation states when navigating to/from pages to prevent permanently disabled buttons
+  useEffect(() => {
+    createGradeMutation.reset();
+    createSubjectMutation.reset();
+    createChapterMutation.reset();
+    createSloMutation.reset();
+  }, [currentView]);
+
+  // Reset mutations when form fields change so the user can save again after success or error
+  useEffect(() => {
+    if (createGradeMutation.isSuccess || createGradeMutation.isError) {
+      createGradeMutation.reset();
+    }
+  }, [className, classDescription]);
+
+  useEffect(() => {
+    if (createSubjectMutation.isSuccess || createSubjectMutation.isError) {
+      createSubjectMutation.reset();
+    }
+  }, [subjectForm.name, subjectForm.description, subjectForm.grade]);
+
+  useEffect(() => {
+    if (createChapterMutation.isSuccess || createChapterMutation.isError) {
+      createChapterMutation.reset();
+    }
+  }, [chapterForm.name, chapterForm.subject, chapterForm.grade]);
+
+  useEffect(() => {
+    if (createSloMutation.isSuccess || createSloMutation.isError) {
+      createSloMutation.reset();
+    }
+  }, [sloForm.name, sloForm.grade, sloForm.subject, sloForm.chapter]);
+
+  // ═══ RENDER FUNCTIONS ═══
+
+  const renderDashboard = () => (
+    <>
+      <SectionHeader
+        title="CMS Management"
+        subtitle="Manage grades, subjects, chapters, and SLOs used by planner generation."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleRefreshCmsData}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/15 transition shadow-sm"
+            >
+              <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+            <SecondaryButton onClick={() => navigate('/admin/cms/classes/add')}>
+              <Plus size={16} /> Add Grade
+            </SecondaryButton>
+          </div>
+        }
+      />
+      {isDashboardLoading ? (
+        <>
+          <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {[...Array(4)].map((_, i) => (
+              <StatCardSkeleton key={i} />
+            ))}
+          </div>
+          <ChartSkeleton />
+        </>
+      ) : (
+        <>
+          <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Total Grades" value={classOptions.length} icon={<GraduationCap size={20} />} tone="bg-blue-100 text-blue-600" onClick={() => navigate('/admin/cms/classes')} />
+            <StatCard label="Total Subjects" value={subjects.length} icon={<BookOpen size={20} />} tone="bg-purple-100 text-purple-600" onClick={() => navigate('/admin/cms/subjects')} />
+            <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" onClick={() => navigate('/admin/cms/chapters')} />
+            <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" onClick={() => navigate('/admin/cms/slos')} />
+          </div>
+          
+          <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 p-6 shadow-soft">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Performance Trends</h2>
+                <span className="px-2.5 py-0.5 text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/20 dark:text-emerald-400 rounded-full border border-emerald-100 dark:border-emerald-500/30">
+                  Real Data
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Tabs */}
+                <div className="flex rounded-xl bg-slate-50 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800">
+                  {(['Grades', 'Subjects', 'Chapters', 'SLOs'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveChartTab(tab)}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        activeChartTab === tab
+                          ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Time Filter Select */}
+                <select
+                  value={timeFilter}
+                  onChange={(e) => setTimeFilter(e.target.value)}
+                  className="text-xs font-bold bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-400 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 outline-none cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  <option value="7days">Last 7 Days</option>
+                  <option value="30days">Last 30 Days</option>
+                  <option value="6months">Last 6 Months</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Chart */}
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorCurriculum" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} opacity={0.5} />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }} 
+                    dy={10} 
+                  />
+                  <YAxis 
+                    allowDecimals={false} 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }} 
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      borderRadius: '12px', 
+                      border: isDark ? '1px solid #334155' : '1px solid #E2E8F0', 
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', 
+                      backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                      color: isDark ? '#ffffff' : '#0f172a'
+                    }}
+                    labelStyle={{ fontWeight: 'bold', marginBottom: '4px', color: isDark ? '#94a3b8' : '#64748b' }}
+                    cursor={{ stroke: isDark ? '#475569' : '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="value" 
+                    name={activeChartTab}
+                    stroke={chartColor} 
+                    strokeWidth={3} 
+                    fillOpacity={1} 
+                    fill="url(#colorCurriculum)" 
+                    activeDot={{ r: 6, stroke: isDark ? '#0f172a' : '#ffffff', strokeWidth: 2 }} 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+
+  // ── GRADES (Classes) ──
+  const renderClasses = () => (
+    <>
+      <SectionHeader
+        title="All Grades"
+        subtitle="Grades used to organize the curriculum. Data from the backend API."
+        onBack={() => navigate('/admin/cms')}
+        action={<PrimaryButton onClick={() => navigate('/admin/cms/classes/add')}><Plus size={16} /> Add Grade</PrimaryButton>}
+      />
+      <SearchInput
+        value={classSearch}
+        onChange={setClassSearch}
+        placeholder="Search grades by name"
+        className="mb-5"
+      />
+      {gradesQuery.isLoading ? (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
+      ) : filteredClasses.length === 0 ? (
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No grades found.</div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {filteredClasses.map((grade) => (
+            <div 
+              key={grade.id} 
+              onClick={() => navigate(`/admin/cms/subjects?grade=${encodeURIComponent(grade.name)}`)}
+              className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-200 cursor-pointer transition"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-bold text-slate-900">{grade.name}</p>
+                  <p className="mt-1 text-sm text-slate-500">{grade.description || 'Curriculum grade'}</p>
+                </div>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-bold uppercase text-blue-600">
+                  Grade
+                </span>
+              </div>
+              <div className="mt-6 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                <IconButton title="Exam Types" tone="blue" onClick={() => setManagingExamTypesGrade(grade.name)}><ClipboardList size={15} /></IconButton>
+                <IconButton title="View subjects" tone="blue" onClick={() => navigate(`/admin/cms/subjects?grade=${encodeURIComponent(grade.name)}`)}><Eye size={15} /></IconButton>
+                <IconButton title="Edit" onClick={() => setEditingGrade(grade)}><Pencil size={15} /></IconButton>
+                <IconButton title="Delete" tone="red" onClick={() => setDeletingGrade(grade)}><Trash2 size={15} /></IconButton>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <ExamTypesModal
+        isOpen={!!managingExamTypesGrade}
+        onClose={() => setManagingExamTypesGrade(null)}
+        grade={managingExamTypesGrade || ''}
+      />
+    </>
+  );
+
+  const renderAddClass = () => (
+    <>
+      <SectionHeader 
+        title="Add Grade" 
+        subtitle="Create a new grade for curriculum organization." 
+        onBack={() => navigate('/admin/cms/classes')}
+      />
+      <form onSubmit={(e) => { 
+        e.preventDefault(); 
+        setGradeFormGeneralError('');
+        const errors = { name: '', description: '' };
+        if (!className.trim()) errors.name = 'Grade name is required.';
+        setGradeFormErrors(errors);
+        if (errors.name) return; 
+        createGradeMutation.mutate(); 
+      }}>
+        <FormCard
+          eyebrow="Grade Setup"
+          title="Grade Details"
+          subtitle="Create the grade used across CMS and planner setup."
+          icon={<GraduationCap size={22} />}
+          footer={
+            <>
+              <SecondaryButton onClick={() => navigate('/admin/cms/classes')}><X size={16} /> Cancel</SecondaryButton>
+              <PrimaryButton type="submit" disabled={createGradeMutation.isPending || createGradeMutation.isSuccess}>
+                {createGradeMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Grade
+              </PrimaryButton>
+            </>
+          }
+        >
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div>
+              <FieldLabel label="Grade Name" required>
+                <input 
+                  value={className} 
+                  onChange={(e) => {
+                    setClassName(e.target.value);
+                    if (e.target.value.trim()) setGradeFormErrors((prev) => ({ ...prev, name: '' }));
+                    setGradeFormGeneralError('');
+                  }} 
+                  placeholder="9, 10, CSS, MDCAT" 
+                  className={`${fieldClass} ${gradeFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                />
+              </FieldLabel>
+              {gradeFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{gradeFormErrors.name}</p>}
+            </div>
+            
+            <div className="lg:col-span-2">
+              <FieldLabel label="Description">
+                <textarea 
+                  value={classDescription} 
+                  onChange={(e) => {
+                    setClassDescription(e.target.value);
+                    if (e.target.value.trim()) setGradeFormErrors((prev) => ({ ...prev, description: '' }));
+                    setGradeFormGeneralError('');
+                  }} 
+                  placeholder="Optional description" 
+                  className={`${fieldClass} min-h-32 resize-y ${gradeFormErrors.description ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                />
+              </FieldLabel>
+              {gradeFormErrors.description && <p className="text-xs text-red-500 mt-1.5 ml-1">{gradeFormErrors.description}</p>}
+            </div>
+
+            {gradeFormGeneralError && (
+              <div className="lg:col-span-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                <span>{gradeFormGeneralError}</span>
+              </div>
+            )}
+          </div>
+        </FormCard>
+      </form>
+    </>
+  );
+
+  // ── SUBJECTS ──
+  const renderSubjects = () => (
+    <>
+      <SectionHeader
+        title={subjectGradeFilter ? `All Subjects of Grade ${subjectGradeFilter}` : 'All Subjects'}
+        subtitle="Subjects are grouped by grade and feed into planner creation."
+        onBack={() => navigate(searchParams.get('grade') ? '/admin/cms/classes' : '/admin/cms')}
+        action={
+          <PrimaryButton
+            onClick={() => navigate(subjectGradeFilter ? `/admin/cms/subjects/add?grade=${encodeURIComponent(subjectGradeFilter)}` : '/admin/cms/subjects/add')}
+          >
+            <Plus size={16} /> Add Subject
+          </PrimaryButton>
+        }
+      />
+      <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_220px]">
+        <SearchInput
+          value={subjectSearch}
+          onChange={setSubjectSearch}
+          placeholder="Search subjects by name, grade, description"
+        />
+        <select
+          value={subjectGradeFilter}
+          onChange={(e) => {
+            setSubjectGradeFilter(e.target.value);
+            setHasSelectedSubjectFilter(true);
+          }}
+          disabled={!!searchParams.get('grade')}
+          className={`rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${searchParams.get('grade') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+        >
+          <option value="">All Grades</option>
+          {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+        </select>
+      </div>
+      {subjectGradeFilter === '' && !hasSelectedSubjectFilter ? (
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm flex flex-col items-center justify-center py-20 px-6 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 mb-4">
+            <BookOpen size={32} className="text-blue-500" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">Select a Grade to View Subjects</h3>
+          <p className="text-sm text-slate-500 max-w-md">
+            Please select a grade from the dropdown filter above to view the subjects associated with it.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <table className="w-full min-w-[900px] text-left">
+            <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold">Subject Name</th>
+                <th className="px-6 py-4 text-sm font-bold">Grade</th>
+                <th className="px-6 py-4 text-sm font-bold">Description</th>
+                <th className="px-6 py-4 text-sm font-bold">Total Chapters</th>
+                <th className="px-6 py-4 text-sm font-bold">Total SLOs</th>
+                <th className="px-6 py-4 text-sm font-bold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {subjectsQuery.isLoading ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading subjects...</td></tr>
+              ) : filteredSubjects.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">No subjects found for this grade.</td></tr>
+              ) : (
+                filteredSubjects.map((subject) => {
+                  const counts = chapterCountsBySubject.get(getSubjectId(subject));
+                  return (
+                    <tr
+                      key={subject.id}
+                      className="hover:bg-blue-50/50 cursor-pointer transition"
+                      onClick={() => navigate(`/admin/cms/chapters?subject=${subject.id}`)}
+                    >
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900">{subject.name}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{subject.grade || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{subject.description || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-700">{counts?.chapters ?? (subject as any).total_chapters ?? (subject as any).chapters_count ?? 0}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-700">{counts?.slos ?? (subject as any).total_slos ?? (subject as any).slos_count ?? 0}</td>
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          <IconButton title="View chapters" tone="blue" onClick={() => navigate(`/admin/cms/chapters?subject=${subject.id}`)}><Eye size={15} /></IconButton>
+                          <IconButton title="Edit subject" onClick={() => setEditingSubject(subject)}><Pencil size={15} /></IconButton>
+                          <IconButton title="Delete subject" tone="red" onClick={() => setDeletingSubject(subject)}><Trash2 size={15} /></IconButton>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+
+  const renderAddSubject = () => (
+    <>
+      <SectionHeader 
+        title="Add Subject" 
+        subtitle="Create a subject under a grade." 
+        onBack={() => navigate(searchParams.get('grade') ? `/admin/cms/subjects?grade=${encodeURIComponent(searchParams.get('grade')!)}` : '/admin/cms/subjects')}
+      />
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSubjectFormGeneralError('');
+          const errors = { name: '', grade: '', description: '' };
+          if (!subjectForm.name.trim()) errors.name = 'Subject name is required.';
+          if (!subjectForm.grade.trim()) errors.grade = 'Grade is required.';
+          if (!subjectForm.description.trim()) errors.description = 'Description is required.';
+          setSubjectFormErrors(errors);
+          if (errors.name || errors.grade || errors.description) return;
+          createSubjectMutation.mutate();
+        }}
+      >
+        <FormCard
+          eyebrow="Subject Setup"
+          title="Subject Details"
+          subtitle="Attach a curriculum subject to a grade."
+          icon={<BookOpen size={22} />}
+          footer={
+            <>
+              <SecondaryButton onClick={() => navigate('/admin/cms/subjects')}><X size={16} /> Cancel</SecondaryButton>
+              <PrimaryButton type="submit" disabled={createSubjectMutation.isPending || createSubjectMutation.isSuccess}>
+                {createSubjectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Subject
+              </PrimaryButton>
+            </>
+          }
+        >
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div>
+              <FieldLabel label="Subject Name" required>
+                <input 
+                  value={subjectForm.name} 
+                  onChange={(e) => {
+                    setSubjectForm((prev) => ({ ...prev, name: e.target.value }));
+                    if (e.target.value.trim()) setSubjectFormErrors((prev) => ({ ...prev, name: '' }));
+                    setSubjectFormGeneralError('');
+                  }} 
+                  placeholder="Mathematics" 
+                  className={`${fieldClass} ${subjectFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                />
+              </FieldLabel>
+              {subjectFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{subjectFormErrors.name}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Grade" required>
+                <select 
+                  value={subjectForm.grade} 
+                  onChange={(e) => {
+                    setSubjectForm((prev) => ({ ...prev, grade: e.target.value }));
+                    if (e.target.value.trim()) setSubjectFormErrors((prev) => ({ ...prev, grade: '' }));
+                    setSubjectFormGeneralError('');
+                  }} 
+                  disabled={!!searchParams.get('grade')}
+                  className={`mt-2 ${selectClass} ${searchParams.get('grade') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${subjectFormErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Grade</option>
+                  {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                </select>
+              </FieldLabel>
+              {subjectFormErrors.grade && <p className="text-xs text-red-500 mt-1.5 ml-1">{subjectFormErrors.grade}</p>}
+            </div>
+            <FieldLabel label="Description" className="lg:col-span-2" required>
+              <textarea 
+                value={subjectForm.description} 
+                onChange={(e) => {
+                  setSubjectForm((prev) => ({ ...prev, description: e.target.value }));
+                  if (e.target.value.trim()) setSubjectFormErrors((prev) => ({ ...prev, description: '' }));
+                  setSubjectFormGeneralError('');
+                }} 
+                placeholder="Core mathematics curriculum for grade 10" 
+                className={`${fieldClass} min-h-32 resize-y ${subjectFormErrors.description ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+              />
+              {subjectFormErrors.description && <p className="text-xs text-red-500 mt-1.5 ml-1">{subjectFormErrors.description}</p>}
+            </FieldLabel>
+            {subjectFormGeneralError && (
+              <div className="lg:col-span-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                <span>{subjectFormGeneralError}</span>
+              </div>
+            )}
+          </div>
+        </FormCard>
+      </form>
+    </>
+  );
+
+  // ── CHAPTERS ──
+  const renderChapters = () => {
+    const visibleSubjects = subjectsByGrade(chapterGradeFilter);
+    const selectedSubject = subjects.find((item) => String(item.id) === chapterSubjectId);
+    const filteredChapters = activeChapters.filter((chapter) =>
+      matchesSearchQuery(chapterSearch, [
+        chapter.name,
+        selectedSubject?.name,
+        selectedSubject?.grade,
+        chapter.subject_name,
+        chapter.subject_grade,
+        getChapterSlos(chapter).length,
+      ])
+    );
+
+    return (
+      <>
+        <SectionHeader
+          title={selectedSubject ? `All Chapters of ${selectedSubject.name}` : 'All Chapters'}
+          subtitle="Select a grade and subject to view the related chapters."
+          onBack={() => navigate(chapterSubjectId && selectedSubject ? `/admin/cms/subjects?grade=${encodeURIComponent(selectedSubject.grade || '')}` : '/admin/cms')}
+          action={<PrimaryButton onClick={() => navigate(chapterSubjectId ? `/admin/cms/chapters/add?subject=${chapterSubjectId}` : '/admin/cms/chapters/add')}><Plus size={16} /> Add Chapter</PrimaryButton>}
+        />
+        <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[220px_280px_1fr]">
+          <select 
+            value={chapterGradeFilter} 
+            onChange={(e) => { setChapterGradeFilter(e.target.value); setChapterSubjectId(''); }} 
+            disabled={!!searchParams.get('subject')}
+            className={`rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+          >
+            <option value="">Select Grade</option>
+            {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+          </select>
+          <select 
+            value={chapterSubjectId} 
+            onChange={(e) => setChapterSubjectId(e.target.value)} 
+            disabled={!!searchParams.get('subject')}
+            className={`rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
+          >
+            <option value="">Select Subject</option>
+            {visibleSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+          </select>
+          <SearchInput value={chapterSearch} onChange={setChapterSearch} placeholder="Search chapters by name, subject, grade" />
+        </div>
+        {!chapterSubjectId ? (
+          <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">Select a grade and subject to view chapters.</div>
+        ) : activeChaptersQuery.isLoading ? (
+          <div className="rounded-2xl border bg-white p-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading chapters...</div>
+        ) : activeChapters.length === 0 ? (
+          <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No chapters found for {selectedSubject?.name || 'this subject'}.</div>
+        ) : filteredChapters.length === 0 ? (
+          <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No chapters match your search.</div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {filteredChapters.map((chapter) => (
+            <div
+              key={chapter.id}
+              onClick={() => navigate(`/admin/cms/slos?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}
+              className="cursor-pointer rounded-2xl border border-slate-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-bold text-slate-900">{chapter.name}</p>
+                  <p className="mt-1 text-xs text-slate-400">{selectedSubject?.name || chapter.subject_name || 'Subject'} / Grade {selectedSubject?.grade || chapter.subject_grade || 'N/A'}</p>
+                </div>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">{getChapterSlos(chapter).length} SLOs</span>
+              </div>
+              <div className="mt-5 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                <label className="cursor-pointer rounded-lg p-1.5 transition text-purple-600 hover:bg-purple-50 flex items-center justify-center" title="Bulk Upload Assessment Data">
+                  <input type="file" className="hidden" accept=".csv,.xlsx,.xls,.json" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      bulkUploadAssessmentMutation.mutate({
+                        file,
+                        chapterId: chapter.id,
+                        subjectId: getChapterSubjectId(chapter),
+                        grade: chapter.subject_grade || selectedSubject?.grade || '',
+                      });
+                    }
+                    e.target.value = '';
+                  }} />
+                  {bulkUploadAssessmentMutation.isPending && bulkUploadAssessmentMutation.variables?.chapterId === chapter.id ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Upload size={15} />
+                  )}
+                </label>
+                <IconButton title="Add SLO" tone="blue" onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}><Plus size={15} /></IconButton>
+                <IconButton title="Edit chapter" onClick={() => setEditingChapter(chapter)}><Pencil size={15} /></IconButton>
+                <IconButton title="Delete chapter" tone="red" onClick={() => setDeletingChapter(chapter)}><Trash2 size={15} /></IconButton>
+              </div>
+            </div>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const renderAddChapter = () => (
+    <>
+      <SectionHeader 
+        title="Add Chapter" 
+        subtitle="Create a chapter under a selected subject." 
+        onBack={() => navigate(searchParams.get('subject') ? `/admin/cms/chapters?subject=${searchParams.get('subject')}` : '/admin/cms/chapters')}
+      />
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          setChapterFormGeneralError('');
+          const errors = { grade: '', subject: '', name: '' };
+          if (!chapterForm.grade) errors.grade = 'Grade is required.';
+          if (!chapterForm.subject) errors.subject = 'Subject is required.';
+          if (!chapterForm.name.trim()) errors.name = 'Chapter name is required.';
+          setChapterFormErrors(errors);
+          if (errors.grade || errors.subject || errors.name) return;
+          createChapterMutation.mutate();
+        }}
+      >
+        <FormCard
+          eyebrow="Chapter Setup"
+          title="Chapter Details"
+          subtitle="Create a chapter inside a selected subject."
+          icon={<Layers3 size={22} />}
+          footer={
+            <>
+              <SecondaryButton onClick={() => navigate('/admin/cms/chapters')}><X size={16} /> Cancel</SecondaryButton>
+              <PrimaryButton type="submit" disabled={createChapterMutation.isPending || createChapterMutation.isSuccess}>
+                {createChapterMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Chapter
+              </PrimaryButton>
+            </>
+          }
+        >
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div>
+              <FieldLabel label="Grade" required>
+                <select 
+                  value={chapterForm.grade} 
+                  onChange={(e) => {
+                    setChapterForm({ grade: e.target.value, subject: '', name: chapterForm.name });
+                    setChapterFormErrors((prev) => ({ ...prev, grade: '', subject: '' }));
+                    setChapterFormGeneralError('');
+                  }} 
+                  disabled={!!searchParams.get('subject')}
+                  className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${chapterFormErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Grade</option>
+                  {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                </select>
+              </FieldLabel>
+              {chapterFormErrors.grade && <p className="text-xs text-red-500 mt-1.5 ml-1">{chapterFormErrors.grade}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Subject" required>
+                <select 
+                  value={chapterForm.subject} 
+                  onChange={(e) => {
+                    setChapterForm((prev) => ({ ...prev, subject: e.target.value }));
+                    if (e.target.value) setChapterFormErrors((prev) => ({ ...prev, subject: '' }));
+                    setChapterFormGeneralError('');
+                  }} 
+                  disabled={!!searchParams.get('subject')}
+                  className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${chapterFormErrors.subject ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Subject</option>
+                  {subjectsByGrade(chapterForm.grade).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+                </select>
+              </FieldLabel>
+              {chapterFormErrors.subject && <p className="text-xs text-red-500 mt-1.5 ml-1">{chapterFormErrors.subject}</p>}
+            </div>
+            <div className="lg:col-span-2">
+              <FieldLabel label="Chapter Name" required>
+                <input 
+                  value={chapterForm.name} 
+                  onChange={(e) => {
+                    setChapterForm((prev) => ({ ...prev, name: e.target.value }));
+                    if (e.target.value.trim()) setChapterFormErrors((prev) => ({ ...prev, name: '' }));
+                    setChapterFormGeneralError('');
+                  }} 
+                  placeholder="Algebra Basics" 
+                  className={`${fieldClass} ${chapterFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                />
+              </FieldLabel>
+              {chapterFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{chapterFormErrors.name}</p>}
+            </div>
+
+            {chapterFormGeneralError && (
+              <div className="lg:col-span-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                <span>{chapterFormGeneralError}</span>
+              </div>
+            )}
+          </div>
+        </FormCard>
+      </form>
+    </>
+  );
+
+  // ── SLOs ──
+  const handleExportSlos = () => {
+    if (!filteredSloRows || filteredSloRows.length === 0) return;
+    const headers = ['SLO', 'Chapter', 'Subject', 'Priority', 'Est. Time'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredSloRows.map((slo: any) => {
+        const title = `"${(getSloTitle(slo) || '').replace(/"/g, '""')}"`;
+        const chapter = `"${(slo.chapter_name || slo.chapter || 'N/A').replace(/"/g, '""')}"`;
+        const subject = `"${(slo.subject_name || 'N/A').replace(/"/g, '""')}"`;
+        const difficulty = `"${(slo.difficulty_frequency || slo.priority || 'N/A').replace(/"/g, '""')}"`;
+        const time = `"${getSloTime(slo) ? `${getSloTime(slo)}m` : 'N/A'}"`;
+        return [title, chapter, subject, difficulty, time].join(',');
+      })
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'filtered_slos.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const renderSlos = () => (
+    <>
+      <SectionHeader
+        title="All SLOs"
+        subtitle="SLOs are the objectives selected by the planner flow."
+        onBack={() => navigate(sloFilterSubjectId ? `/admin/cms/chapters?subject=${sloFilterSubjectId}` : '/admin/cms')}
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportSlos}
+              disabled={!hasSearchedSlos || filteredSloRows.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-green-300 bg-white px-4 py-2.5 text-sm font-bold text-green-600 shadow-sm transition hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download size={16} /> Export
+            </button>
+            <button
+              onClick={() => navigate('/admin/cms/slos/upload')}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 py-2.5 text-sm font-bold text-blue-600 shadow-sm transition hover:bg-blue-50"
+            >
+              <Upload size={16} /> Upload SLOs
+            </button>
+            <PrimaryButton onClick={() => {
+              const params = new URLSearchParams();
+              if (sloFilterSubjectId) params.append('subject', sloFilterSubjectId);
+              if (sloFilterChapterId) params.append('chapter', sloFilterChapterId);
+              const q = params.toString();
+              navigate(q ? `/admin/cms/slos/add?${q}` : '/admin/cms/slos/add');
+            }}><Plus size={16} /> Add SLO</PrimaryButton>
+          </div>
+        }
+      />
+      <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[160px_200px_200px_1fr_auto]">
+        <select
+          value={sloFilterGrade}
+          onChange={(e) => {
+            setSloFilterGrade(e.target.value);
+            setSloFilterSubjectId('');
+            setSloFilterChapterId('');
+            setHasSearchedSlos(false);
+          }}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+        >
+          <option value="">Select Grade</option>
+          {classOptions.map((item) => (
+            <option key={item.id} value={item.name}>{item.name}</option>
+          ))}
+        </select>
+        <select value={sloFilterSubjectId} onChange={(e) => { setSloFilterSubjectId(e.target.value); setSloFilterChapterId(''); setHasSearchedSlos(false); }} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100">
+          <option value="">Select Subject</option>
+          {(sloFilterGrade ? subjects.filter((s) => s.grade === sloFilterGrade) : subjects).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+        </select>
+        <select value={sloFilterChapterId} onChange={(e) => { setSloFilterChapterId(e.target.value); setHasSearchedSlos(false); }} disabled={!sloFilterSubjectId || activeChaptersQuery.isLoading} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400">
+          <option value="">Select Chapter</option>
+          {activeChapters.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.name}</option>)}
+        </select>
+        <SearchInput
+          value={sloSearch}
+          onChange={setSloSearch}
+          placeholder="Search SLOs..."
+        />
+        <PrimaryButton onClick={() => setHasSearchedSlos(true)} disabled={!sloFilterSubjectId || !sloFilterChapterId || activeChaptersQuery.isLoading}>
+          {activeChaptersQuery.isFetching && hasSearchedSlos ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Search
+        </PrimaryButton>
+      </div>
+      {!hasSearchedSlos ? (
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">Please select a grade, subject and chapter, then click Search to view SLOs.</div>
+      ) : activeChaptersQuery.isLoading || activeChaptersQuery.isFetching ? (
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500"><Loader2 className="mx-auto mb-2 animate-spin text-blue-600" /> Loading SLOs...</div>
+      ) : sloRows.length === 0 ? (
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No SLOs found for the selected chapter.</div>
+      ) : filteredSloRows.length === 0 ? (
+        <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">No SLOs match your search.</div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <table className="w-full min-w-[900px] text-left">
+            <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold text-left w-[40%]">SLO</th>
+                <th className="px-6 py-4 text-sm font-bold text-center whitespace-nowrap">Chapter</th>
+                <th className="px-6 py-4 text-sm font-bold text-center">Subject</th>
+                <th className="px-6 py-4 text-sm font-bold text-center">Priority</th>
+                <th className="px-6 py-4 text-sm font-bold text-center whitespace-nowrap">Est. Time</th>
+                <th className="px-6 py-4 text-sm font-bold text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredSloRows.map((slo, index) => (
+                <tr
+                  key={slo.id || `${slo.chapter_id}-${index}`}
+                  className="hover:bg-slate-50/70 cursor-pointer"
+                  onClick={() => setSelectedSloDetail(slo)}
+                >
+                  <td className="px-6 py-4 text-sm font-semibold text-slate-900 text-left">{getSloTitle(slo)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 text-center whitespace-nowrap">{slo.chapter_name || slo.chapter || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 text-center">{slo.subject_name || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 text-center">{slo.difficulty_frequency || slo.priority || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 text-center whitespace-nowrap">{getSloTime(slo) ? `${getSloTime(slo)}m` : 'N/A'}</td>
+                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1">
+                      <IconButton title="Edit SLO" onClick={() => setEditingSlo(slo)}><Pencil size={15} /></IconButton>
+                      <IconButton title="Delete SLO" tone="red" onClick={() => setDeletingSlo(slo)}><Trash2 size={15} /></IconButton>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+
+  const renderSloForm = (bulk = false) => (
+    <>
+      <SectionHeader
+        title={bulk ? 'Upload SLOs' : 'Add SLO'}
+        subtitle={bulk ? 'Upload a file or paste SLOs for the selected chapter.' : 'Create a single SLO under a selected chapter.'}
+        onBack={() => navigate(searchParams.get('chapter') ? `/admin/cms/slos?subject=${searchParams.get('subject')}&chapter=${searchParams.get('chapter')}` : '/admin/cms/slos')}
+      />
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSloFormGeneralError('');
+          if (bulk) {
+            if (!bulkFile && !bulkText.trim()) {
+              toast.error('Please upload a file or paste SLO lines.');
+              return;
+            }
+            if (!bulkFile && !sloForm.chapter) {
+              toast.error('Please select a chapter for text-based upload.');
+              return;
+            }
+            const errors = {
+              grade: '',
+              subject: '',
+              chapter: '',
+              difficulty_frequency: '',
+              name: '',
+              estimated_time: '',
+              google_drive_link: '',
+            };
+            if (!sloForm.grade) errors.grade = 'Grade is required.';
+            if (!sloForm.subject) errors.subject = 'Subject is required.';
+            if (!sloForm.chapter) errors.chapter = 'Chapter is required.';
+            if (!sloForm.difficulty_frequency) errors.difficulty_frequency = 'Priority is required.';
+            if (!sloForm.google_drive_link.trim()) errors.google_drive_link = 'Google Drive link is required.';
+            else if (!sloForm.google_drive_link.startsWith('http://') && !sloForm.google_drive_link.startsWith('https://')) {
+              errors.google_drive_link = 'Please enter a valid URL starting with http:// or https://';
+            }
+            setSloFormErrors(errors);
+            if (errors.grade || errors.subject || errors.chapter || errors.difficulty_frequency || errors.google_drive_link) return;
+            bulkUploadMutation.mutate();
+          } else {
+            const errors = {
+              grade: '',
+              subject: '',
+              chapter: '',
+              difficulty_frequency: '',
+              name: '',
+              estimated_time: '',
+              google_drive_link: '',
+            };
+            if (!sloForm.grade) errors.grade = 'Grade is required.';
+            if (!sloForm.subject) errors.subject = 'Subject is required.';
+            if (!sloForm.chapter) errors.chapter = 'Chapter is required.';
+            if (!sloForm.difficulty_frequency) errors.difficulty_frequency = 'Priority is required.';
+            if (!sloForm.name.trim()) errors.name = 'SLO is required.';
+            if (!sloForm.estimated_time.trim()) errors.estimated_time = 'Estimated time is required.';
+            else if (Number(sloForm.estimated_time) <= 0) errors.estimated_time = 'Please add some time.';
+
+            if (!sloForm.google_drive_link.trim()) errors.google_drive_link = 'Google Drive link is required.';
+            else if (!sloForm.google_drive_link.startsWith('http://') && !sloForm.google_drive_link.startsWith('https://')) {
+              errors.google_drive_link = 'Please enter a valid URL starting with http:// or https://';
+            }
+            setSloFormErrors(errors);
+            if (errors.grade || errors.subject || errors.chapter || errors.difficulty_frequency || errors.name || errors.estimated_time || errors.google_drive_link) return;
+            createSloMutation.mutate();
+          }
+        }}
+      >
+        <FormCard
+          eyebrow={bulk ? 'Bulk SLO Upload' : 'SLO Setup'}
+          title={bulk ? 'Upload Objectives' : 'SLO Details'}
+          subtitle={bulk ? 'Upload multiple objectives via file or text.' : 'Create one planner-ready objective under a chapter.'}
+          icon={bulk ? <Upload size={22} /> : <ListChecks size={22} />}
+          footer={
+            <>
+              <div className="text-xs font-medium text-slate-400">
+                {bulk ? (bulkFile ? `File: ${bulkFile.name}` : `${bulkText.split(/\r?\n/).filter((line) => line.trim()).length} lines ready`) : 'Single SLO entry'}
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <SecondaryButton onClick={() => navigate('/admin/cms/slos')}><X size={16} /> Cancel</SecondaryButton>
+                <PrimaryButton type="submit" disabled={createSloMutation.isPending || createSloMutation.isSuccess || bulkUploadMutation.isPending || bulkUploadMutation.isSuccess}>
+                  {(createSloMutation.isPending || bulkUploadMutation.isPending) ? <Loader2 size={16} className="animate-spin" /> : bulk ? <Upload size={16} /> : <Save size={16} />}
+                  {bulk ? 'Upload SLOs' : 'Save SLO'}
+                </PrimaryButton>
+              </div>
+            </>
+          }
+        >
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div>
+              <FieldLabel label="Grade" required>
+                <select 
+                  value={sloForm.grade} 
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, grade: e.target.value, subject: '', chapter: '' }));
+                    if (e.target.value) setSloFormErrors((prev) => ({ ...prev, grade: '', subject: '', chapter: '' }));
+                    setSloFormGeneralError('');
+                  }} 
+                  disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
+                  className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${sloFormErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Grade</option>
+                  {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                </select>
+              </FieldLabel>
+              {sloFormErrors.grade && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.grade}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Subject" required>
+                <select 
+                  value={sloForm.subject} 
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, subject: e.target.value, chapter: '' }));
+                    if (e.target.value) setSloFormErrors((prev) => ({ ...prev, subject: '', chapter: '' }));
+                    setSloFormGeneralError('');
+                  }} 
+                  disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
+                  className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${sloFormErrors.subject ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Subject</option>
+                  {selectedSloSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+                </select>
+              </FieldLabel>
+              {sloFormErrors.subject && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.subject}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Chapter" required>
+                <select 
+                  value={sloForm.chapter} 
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, chapter: e.target.value }));
+                    if (e.target.value) setSloFormErrors((prev) => ({ ...prev, chapter: '' }));
+                    setSloFormGeneralError('');
+                  }} 
+                  disabled={!!searchParams.get('chapter')}
+                  className={`mt-2 ${selectClass} ${searchParams.get('chapter') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${sloFormErrors.chapter ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Chapter</option>
+                  {activeChapters.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.name}</option>)}
+                </select>
+              </FieldLabel>
+              {sloFormErrors.chapter && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.chapter}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Priority" required>
+                <select 
+                  value={sloForm.difficulty_frequency} 
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, difficulty_frequency: e.target.value }));
+                    if (e.target.value) setSloFormErrors((prev) => ({ ...prev, difficulty_frequency: '' }));
+                    setSloFormGeneralError('');
+                  }} 
+                  className={`mt-2 ${selectClass} ${sloFormErrors.difficulty_frequency ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                >
+                  <option value="">Select Priority</option>
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HIGH">HIGH</option>
+                </select>
+              </FieldLabel>
+              {sloFormErrors.difficulty_frequency && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.difficulty_frequency}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Estimated Time (in minutes)" required>
+                <div className="relative mt-2">
+                  <Clock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input 
+                    type="number" 
+                    min="0" 
+                    value={sloForm.estimated_time} 
+                    onChange={(e) => {
+                      setSloForm((prev) => ({ ...prev, estimated_time: e.target.value }));
+                      if (e.target.value.trim() && Number(e.target.value) > 0) setSloFormErrors((prev) => ({ ...prev, estimated_time: '' }));
+                      setSloFormGeneralError('');
+                    }} 
+                    placeholder="e.g. 45" 
+                    className={`${fieldClass} mt-0 pl-11 ${sloFormErrors.estimated_time ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                  />
+                </div>
+              </FieldLabel>
+              {sloFormErrors.estimated_time && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.estimated_time}</p>}
+            </div>
+            <div>
+              <FieldLabel label="Google Drive Link" required>
+                <input
+                  type="url"
+                  value={sloForm.google_drive_link}
+                  onChange={(e) => {
+                    setSloForm((prev) => ({ ...prev, google_drive_link: e.target.value }));
+                    if (e.target.value.trim()) setSloFormErrors((prev) => ({ ...prev, google_drive_link: '' }));
+                    setSloFormGeneralError('');
+                  }}
+                  placeholder="https://drive.google.com/..."
+                  className={`${fieldClass} ${sloFormErrors.google_drive_link ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
+                />
+              </FieldLabel>
+              {sloFormErrors.google_drive_link && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.google_drive_link}</p>}
+            </div>
+            {bulk && (
+              <FieldLabel label="Upload File (.csv, .txt, .xlsx)">
+                <label className="mt-2 flex min-h-[50px] cursor-pointer items-center justify-center rounded-xl border border-dashed border-blue-200 bg-blue-50/50 px-4 py-3 text-sm font-semibold text-blue-600 transition hover:border-blue-300 hover:bg-blue-50">
+                  <input type="file" accept=".txt,.csv,.xlsx,.xls" onChange={handleBulkFile} className="hidden" />
+                  <span className="inline-flex items-center gap-2"><Upload size={16} /> {bulkFile ? bulkFile.name : 'Upload File'}</span>
+                </label>
+              </FieldLabel>
+            )}
+            <div className="lg:col-span-2">
+              <FieldLabel label={bulk ? 'SLO Lines (Preview / Manual Entry)' : 'SLO'} required={!bulk}>
+                {bulk ? (
+                  <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder="Student can solve simple linear equations." className={`${fieldClass} min-h-56 resize-y`} />
+                ) : (
+                  <textarea 
+                    value={sloForm.name} 
+                    onChange={(e) => {
+                      setSloForm((prev) => ({ ...prev, name: e.target.value }));
+                      if (e.target.value.trim()) setSloFormErrors((prev) => ({ ...prev, name: '' }));
+                      setSloFormGeneralError('');
+                    }} 
+                    placeholder="Student can solve simple linear equations." 
+                    className={`${fieldClass} min-h-36 resize-y ${sloFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                  />
+                )}
+              </FieldLabel>
+              {!bulk && sloFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{sloFormErrors.name}</p>}
+            </div>
+
+            {sloFormGeneralError && (
+              <div className="lg:col-span-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                <span>{sloFormGeneralError}</span>
+              </div>
+            )}
+          </div>
+        </FormCard>
+      </form>
+    </>
+  );
+
+  const renderContent = () => {
+    if (currentView === 'classes') return renderClasses();
+    if (currentView === 'add-class') return renderAddClass();
+    if (currentView === 'subjects') return renderSubjects();
+    if (currentView === 'add-subject') return renderAddSubject();
+    if (currentView === 'chapters') return renderChapters();
+    if (currentView === 'add-chapter') return renderAddChapter();
+    if (currentView === 'slos') return renderSlos();
+    if (currentView === 'add-slo') return renderSloForm(false);
+    if (currentView === 'upload-slo') return renderSloForm(true);
+    return renderDashboard();
+  };
+
+  const activePageMap: Record<CMSView, string> = {
+    dashboard: 'cms-dashboard',
+    classes: 'all-classes',
+    'add-class': 'all-classes',
+    subjects: 'all-subjects',
+    'add-subject': 'all-subjects',
+    chapters: 'all-chapters',
+    'add-chapter': 'all-chapters',
+    slos: 'all-slos',
+    'add-slo': 'all-slos',
+    'upload-slo': 'all-slos',
+  };
+
+  const getStepStatus = (stepNum: number, view: CMSView): 'completed' | 'current' | 'pending' => {
+    if (view === 'add-class') {
+      if (stepNum === 1) return 'current';
+      return 'pending';
+    }
+    if (view === 'classes') {
+      if (stepNum === 1) return 'completed';
+      return 'pending';
+    }
+    if (view === 'add-subject') {
+      if (stepNum === 1) return 'completed';
+      if (stepNum === 2) return 'current';
+      return 'pending';
+    }
+    if (view === 'subjects') {
+      if (stepNum <= 2) return 'completed';
+      return 'pending';
+    }
+    if (view === 'add-chapter') {
+      if (stepNum <= 2) return 'completed';
+      if (stepNum === 3) return 'current';
+      return 'pending';
+    }
+    if (view === 'chapters') {
+      if (stepNum <= 3) return 'completed';
+      return 'pending';
+    }
+    if (view === 'add-slo' || view === 'upload-slo') {
+      if (stepNum <= 3) return 'completed';
+      if (stepNum === 4) return 'current';
+      return 'pending';
+    }
+    if (view === 'slos') {
+      return 'completed';
+    }
+    return 'pending';
+  };
+
+  const isInFlow = currentView !== 'dashboard';
+
+  const flowSteps = [
+    { n: 1, title: 'Grade', sub: 'Setup curriculum grade' },
+    { n: 2, title: 'Subject', sub: 'Add subjects to grade' },
+    { n: 3, title: 'Chapter', sub: 'Add chapters to subject' },
+    { n: 4, title: 'SLOs', sub: 'Define learning outcomes' },
+  ];
+
+  return (
+    <DashboardLayout activePage={activePageMap[currentView]}>
+      {isInFlow && (
+        <div className="flex items-center justify-between mb-10 max-w-3xl mx-auto">
+          {flowSteps.map((s, i) => {
+            const status = getStepStatus(s.n, currentView);
+            const isCompleted = status === 'completed';
+            const isCurrent = status === 'current';
+            return (
+              <React.Fragment key={s.n}>
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                      isCompleted || isCurrent ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                    {isCompleted ? <Check size={16} /> : s.n}
+                  </div>
+                  <div className="hidden sm:block">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{s.title}</p>
+                    <p className="text-[10px] text-gray-400">{s.sub}</p>
+                  </div>
+                </div>
+                {i < flowSteps.length - 1 && (
+                  <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${isCompleted ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
+      {renderContent()}
+
+      {/* ── Modals ── */}
+      <AnimatePresence>
+        {/* Grade Edit */}
+        {editingGrade && (
+          <EditModal
+            title="Edit Grade"
+            fields={[
+              { label: 'Grade Name', name: 'name', value: editingGrade.name },
+              { label: 'Description', name: 'description', value: editingGrade.description || '', type: 'textarea' },
+            ]}
+            onClose={() => setEditingGrade(null)}
+            onSave={(values) => updateGradeMutation.mutate({ id: editingGrade.id, data: values })}
+            isSaving={updateGradeMutation.isPending}
+          />
+        )}
+        {/* Grade Delete */}
+        {deletingGrade && (
+          <DeleteModal
+            title="Delete Grade"
+            itemName={deletingGrade.name}
+            onClose={() => setDeletingGrade(null)}
+            onConfirm={() => deleteGradeMutation.mutate(deletingGrade.id)}
+            isDeleting={deleteGradeMutation.isPending}
+          />
+        )}
+        {/* Subject Edit */}
+        {editingSubject && (
+          <EditModal
+            title="Edit Subject"
+            fields={[
+              { label: 'Subject Name', name: 'name', value: editingSubject.name },
+              { label: 'Grade', name: 'grade', value: editingSubject.grade || '' },
+              { label: 'Description', name: 'description', value: editingSubject.description || '', type: 'textarea' },
+            ]}
+            onClose={() => setEditingSubject(null)}
+            onSave={(values) => updateSubjectMutation.mutate({ id: editingSubject.id, data: values })}
+            isSaving={updateSubjectMutation.isPending}
+          />
+        )}
+        {/* Subject Delete */}
+        {deletingSubject && (
+          <DeleteModal
+            title="Delete Subject"
+            itemName={deletingSubject.name}
+            onClose={() => setDeletingSubject(null)}
+            onConfirm={() => deleteSubjectMutation.mutate(deletingSubject.id)}
+            isDeleting={deleteSubjectMutation.isPending}
+          />
+        )}
+        {/* Chapter Edit */}
+        {editingChapter && (
+          <EditModal
+            title="Edit Chapter"
+            fields={[
+              { label: 'Chapter Name', name: 'name', value: editingChapter.name },
+            ]}
+            onClose={() => setEditingChapter(null)}
+            onSave={(values) => updateChapterMutation.mutate({ id: editingChapter.id, data: values })}
+            isSaving={updateChapterMutation.isPending}
+          />
+        )}
+        {/* Chapter Delete */}
+        {deletingChapter && (
+          <DeleteModal
+            title="Delete Chapter"
+            itemName={deletingChapter.name}
+            onClose={() => setDeletingChapter(null)}
+            onConfirm={() => deleteChapterMutation.mutate(deletingChapter.id)}
+            isDeleting={deleteChapterMutation.isPending}
+          />
+        )}
+        {/* SLO Edit */}
+        {editingSlo && (
+          <EditModal
+            title="Edit SLO"
+            fields={[
+              { label: 'SLO Name', name: 'name', value: getSloTitle(editingSlo) },
+              { label: 'Priority', name: 'difficulty_frequency', value: editingSlo.difficulty_frequency || 'MEDIUM', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH'] },
+              { label: 'Estimated Time (minutes)', name: 'estimated_time', value: String(getSloTime(editingSlo) || ''), type: 'number' },
+            ]}
+            onClose={() => setEditingSlo(null)}
+            onSave={(values) => updateSloMutation.mutate({ id: editingSlo.id, data: values })}
+            isSaving={updateSloMutation.isPending}
+          />
+        )}
+        {/* SLO Delete */}
+        {deletingSlo && (
+          <DeleteModal
+            title="Delete SLO"
+            itemName={getSloTitle(deletingSlo)}
+            onClose={() => setDeletingSlo(null)}
+            onConfirm={() => deleteSloMutation.mutate(deletingSlo.id)}
+            isDeleting={deleteSloMutation.isPending}
+          />
+        )}
+        {/* SLO Detail Drawer */}
+        {selectedSloDetail && (
+          <SloDetailDrawer
+            slo={selectedSloDetail}
+            onClose={() => setSelectedSloDetail(null)}
+          />
+        )}
+      </AnimatePresence>
+    </DashboardLayout>
+  );
+};
+
+export default CMSManagement;
