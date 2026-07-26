@@ -1,0 +1,934 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { studentService } from '../../api/services/studentService';
+import { useAuth } from '../../context/AuthContext';
+import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
+import api from '../../api/services/api';
+import { Student as StudentType, UpdateStudentPayload } from '../../types';
+import Modal from '../../components/Modal';
+import {
+  Plus,
+  Search,
+  Eye,
+  Trash2,
+  Pencil,
+  Mail,
+  Phone,
+  Users,
+  GraduationCap,
+  BookOpen,
+  Hash,
+  ChevronLeft,
+  AlertCircle,
+  Save,
+  Calendar,
+  MapPin,
+  User,
+  Clock,
+  FileText,
+  Loader2,
+  AlertTriangle,
+  Lock,
+  EyeOff,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import DashboardLayout from '../../components/DashboardLayout';
+
+const icons = ['🎓', '📚', '🌟', '🏆', '📖', '🎯'];
+const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
+
+const normalizeStudent = (raw: any): StudentType => {
+  if (!raw || typeof raw !== 'object') return raw;
+  const firstName = raw.first_name ?? raw.firstName ?? '';
+  const lastName = raw.last_name ?? raw.lastName ?? '';
+  const fullName = raw.full_name ?? raw.name ?? (firstName || lastName ? `${firstName} ${lastName}`.trim() : undefined) ?? raw.username ?? 'Unnamed';
+  return {
+    ...raw,
+    full_name: fullName,
+    first_name: firstName || undefined,
+    last_name: lastName || undefined,
+    email: raw.email ?? raw.school_email ?? raw.contact_email ?? undefined,
+    dob: raw.dob ?? raw.date_of_birth ?? raw.birth_date ?? raw.enrollment_date ?? undefined,
+    class_grade: raw.class_grade ?? raw.grade ?? raw.class ?? undefined,
+    section: raw.section ?? undefined,
+    guardian_name: raw.guardian_name ?? raw.parent_name ?? raw.guardian ?? undefined,
+    guardian_contact: raw.guardian_phone ?? raw.guardian_contact ?? raw.parent_contact ?? raw.phone ?? undefined,
+    guardian_phone: raw.guardian_phone ?? undefined,
+    student_id: raw.student_id ?? raw.roll_number ?? raw.id ?? undefined,
+    reg_id: raw.reg_id ?? raw.registration_id ?? undefined,
+    // Username: check direct field first, then nested user object
+    username: raw.username ?? raw.user?.username ?? undefined,
+  };
+};
+
+const StudentManagement: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, tenant } = useAuth();
+  const queryClient = useQueryClient();
+  const [students, setStudents] = useState<StudentType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState('All');
+  const [isForbidden, setIsForbidden] = useState(false);
+
+  // Edit modal state
+  const [editingStudent, setEditingStudent] = useState<StudentType | null>(null);
+  const [editForm, setEditForm] = useState<Partial<UpdateStudentPayload> & { academic_year?: string }>({});
+  const [editSaving, setEditSaving] = useState(false);
+
+  // View detail modal state
+  const [selectedStudent, setSelectedStudent] = useState<StudentType | null>(null);
+  const [detailTab, setDetailTab] = useState<'info' | 'plans' | 'security'>('info');
+
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const updatePasswordMutation = useMutation({
+    mutationFn: async (data: { password: string }) => {
+      const sUser: any = selectedStudent?.user;
+      const targetUserId = selectedStudent?.user_id || sUser?.id || (typeof sUser === 'number' ? sUser : null) || (typeof sUser === 'string' ? parseInt(sUser) : null) || selectedStudent?.id;
+      const response = await api.post('/api/auth/reset-password-by-role', {
+        user_id: targetUserId,
+        new_password: data.password,
+        role: 'STUDENT'
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Student password updated successfully! ✅');
+      setNewPassword('');
+      setConfirmPassword('');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error || 'Failed to update password.';
+      toast.error(msg);
+    },
+  });
+
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match.');
+      return;
+    }
+    updatePasswordMutation.mutate({ password: newPassword });
+  };
+
+  // Delete modal state
+  const [deletingStudent, setDeletingStudent] = useState<StudentType | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Fetch fresh student data when viewing details
+  const { data: freshStudentData, isLoading: studentDetailLoading } = useQuery({
+    queryKey: ['student-detail', selectedStudent?.id],
+    queryFn: () => studentService.getStudentById(selectedStudent!.id),
+    enabled: !!selectedStudent?.id,
+  });
+
+  // Fetch student's study plans when viewing details
+  const { data: studentPlans = [], isLoading: plansLoading } = useQuery({
+    queryKey: ['student-plans', selectedStudent?.id],
+    queryFn: () => studentService.getStudentPlans(selectedStudent!.id),
+    enabled: !!selectedStudent?.id && detailTab === 'plans',
+  });
+
+  const displayStudent = freshStudentData ? { ...selectedStudent, ...freshStudentData } as StudentType : selectedStudent;
+
+  const schoolId = tenant.schoolId || user?.school_id;
+  const tenantId = tenant.campusId || user?.campus_id;
+
+  // Determine correct route prefix for navigation
+  const routePrefix = tenantId ? `/campus/${tenantId}` : '/school';
+
+  const fetchStudents = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    setIsForbidden(false);
+
+    try {
+      if (!schoolId) {
+        setError('No school ID found in your session. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      const rawList = await studentService.getStudents();
+      setStudents(rawList.map(normalizeStudent));
+      setLoading(false);
+    } catch (err: any) {
+      if (err?.response?.status === 403) {
+        setIsForbidden(true);
+        setError('Access Denied: You do not have permission to view students for this school.');
+        toast.error('Permission Denied: You cannot access students from another school.', {
+          duration: 5000,
+          id: 'student-forbidden',
+        });
+      } else {
+        setError('Failed to load students. Please try again.');
+      }
+      setLoading(false);
+    }
+  }, [schoolId]);
+
+  const handleDelete = useCallback(async () => {
+    if (!deletingStudent) return;
+    setIsDeleting(true);
+    try {
+      await studentService.deleteStudent(deletingStudent.id);
+      toast.success('Student deleted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      setStudents((prev) => prev.filter((s) => s.id !== deletingStudent.id));
+      setDeletingStudent(null);
+    } catch (error: any) {
+      console.error('[Student Delete Error]:', error.response?.data || error.message || error);
+      toast.error(error.response?.data?.message || 'Failed to delete student. Please check permissions and try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deletingStudent, queryClient]);
+
+  const openEdit = useCallback((student: StudentType) => {
+    setEditingStudent(student);
+    let gradeVal = student.class_grade || student.grade || '';
+    if (gradeVal === '9') gradeVal = '9th';
+    if (gradeVal === '10') gradeVal = '10th';
+    if (gradeVal === '11') gradeVal = '11th';
+    if (gradeVal === '12') gradeVal = '12th';
+
+    setEditForm({
+      student_id: student.id,
+      reg_id: student.reg_id || student.registration_id || '',
+      registration_id: student.reg_id || student.registration_id || '',
+      first_name: student.first_name || '',
+      last_name: student.last_name || '',
+      grade: gradeVal,
+      section: student.section || '',
+      academic_year: student.academic_year || new Date().getFullYear().toString(),
+      roll_number: student.roll_number || student.student_id || '',
+      state: student.state || '',
+      guardian_name: student.guardian_name || student.parent_name || '',
+      guardian_phone: student.guardian_phone || student.guardian_contact || student.parent_contact || '',
+      guardian_email: student.guardian_email || student.email || '',
+    });
+  }, []);
+
+  const closeEdit = useCallback(() => {
+    setEditingStudent(null);
+    setEditForm({});
+    setEditSaving(false);
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingStudent) return;
+    setEditSaving(true);
+    try {
+      const editFormData = {
+        fullName: `${editForm.first_name || ''} ${editForm.last_name || ''}`.trim() || editingStudent.full_name || '',
+        full_name: `${editForm.first_name || ''} ${editForm.last_name || ''}`.trim() || editingStudent.full_name || '',
+        guardianName: editForm.guardian_name || editingStudent.guardian_name || '',
+        guardian_name: editForm.guardian_name || editingStudent.guardian_name || '',
+        email: editingStudent.email || editForm.guardian_email || '',
+        phoneNumber: editForm.guardian_phone || editingStudent.guardian_phone || editingStudent.guardian_contact || '',
+        phone_number: editForm.guardian_phone || editingStudent.guardian_phone || editingStudent.guardian_contact || '',
+        grade: editForm.grade || '',
+        section: editForm.section || '',
+        state: editForm.state || '',
+      };
+
+      const finalizedStudentPayload = {
+        full_name: editFormData.fullName || editFormData.full_name,
+        guardian_name: editFormData.guardianName || editFormData.guardian_name,
+        email: editFormData.email,
+        phone_number: editFormData.phoneNumber || editFormData.phone_number,
+        grade: editFormData.grade,     // Options are '9th', '10th', '11th', '12th' via dropdown
+        section: editFormData.section, // Options are 'A', 'B', 'C', 'D' via dropdown
+        state: editFormData.state      // Options are 'Punjab', 'Sindh', etc. via dropdown
+      };
+
+      await studentService.updateStudent(editingStudent.id, finalizedStudentPayload);
+      toast.success('Student updated successfully.');
+      
+      // Explicitly fire data invalidate command
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      
+      closeEdit();
+      fetchStudents();
+    } catch (error: any) {
+      console.error('[Student Update Error]:', error.response?.data || error.message || error);
+      toast.error(error.response?.data?.message || 'Failed to update student. Please check the validation details.');
+    } finally {
+      setEditSaving(false);
+    }
+  }, [editingStudent, editForm, fetchStudents, closeEdit, queryClient]);
+
+  useEffect(() => { fetchStudents(); }, [fetchStudents]);
+
+  const filtered = useMemo(() => {
+    if (filter === 'All') return students;
+    return students.filter((s) => s.class_grade === filter || s.class_grade?.includes(filter));
+  }, [students, filter]);
+
+  if (loading) {
+    return (
+      <DashboardLayout activePage="all-students">
+        <div className="flex h-[80vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+            <p className="text-sm text-gray-500 font-medium">Loading students…</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (isForbidden) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100">
+            <AlertCircle size={32} className="text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-sm text-gray-500 mb-6">{error}</p>
+          <button
+            onClick={() => navigate(routePrefix + '/dashboard')}
+            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <DashboardLayout activePage="all-students">
+      <div className="mb-6">
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="w-full sm:max-w-xs rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm"
+        >
+          <option value="All">All Students</option>
+          <option value="9">Grade 9</option>
+          <option value="10">Grade 10</option>
+          <option value="11">Grade 11</option>
+          <option value="12">Grade 12</option>
+        </select>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex items-center gap-2"
+        >
+          <AlertCircle size={18} />
+          {error}
+        </motion.div>
+      )}
+
+      {/* Grid */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+      >
+        {filtered.map((s, i) => (
+          <motion.div
+            key={s.id}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.03 }}
+            onClick={() => {
+              setDetailTab('info');
+              setSelectedStudent(s);
+            }}
+            className="cursor-pointer rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+          >
+            <div className="flex items-start gap-3 mb-3">
+              <div className={`flex h-11 w-11 shrink-0 overflow-hidden items-center justify-center rounded-xl text-xl ${!s.profile_image ? bgs[i % bgs.length] : 'bg-gray-100'}`}>
+                {s.profile_image ? (
+                  <img 
+                    src={`${s.profile_image}?v=1`} 
+                    alt={s.full_name} 
+                    className="h-full w-full object-cover" 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      (e.target as HTMLImageElement).parentElement!.innerHTML = `<span class="flex items-center justify-center w-full h-full ${bgs[i % bgs.length]}">${icons[i % icons.length]}</span>`;
+                    }}
+                  />
+                ) : (
+                  icons[i % icons.length]
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-gray-900 truncate">{s.full_name || 'Unnamed'}</h3>
+                <p className="text-xs text-gray-400 truncate">
+                  ID: {s.student_id || 'N/A'} · {s.class_grade || 'N/A'} {s.section ? `(${s.section})` : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 mb-2">
+              <Mail size={13} className="text-gray-400" />
+              <p className="text-xs text-gray-500 truncate">{s.email || 'N/A'}</p>
+            </div>
+
+            <div className="flex items-center gap-1.5 mb-2">
+              <Phone size={13} className="text-gray-400" />
+              <p className="text-xs text-gray-500 truncate">{s.guardian_contact || 'N/A'}</p>
+            </div>
+
+            <div className="flex items-center gap-1.5 mb-2">
+              <Users size={13} className="text-gray-400" />
+              <p className="text-xs text-gray-500 truncate">
+                {s.guardian_name || 'N/A'} {s.guardian_relation ? `· ${s.guardian_relation}` : ''}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-1.5 rounded-lg bg-blue-100 px-3 py-1.5">
+                <BookOpen size={12} className="text-blue-600" />
+                <span className="text-xs font-bold text-blue-700">{s.class_grade || 'N/A'}</span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5">
+                <Hash size={12} className="text-green-600" />
+                <span className="text-xs font-bold text-green-700">{s.section || 'N/A'}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDetailTab('info');
+                    setSelectedStudent(s);
+                  }}
+                  className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                  title="View"
+                >
+                  <Eye size={15} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeletingStudent(s);
+                  }}
+                  className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 size={15} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEdit(s);
+                  }}
+                  className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
+                  title="Edit"
+                >
+                  <Pencil size={15} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {filtered.length === 0 && !loading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center justify-center py-20 text-center"
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 mb-4">
+            <GraduationCap size={32} className="text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">No students found</h3>
+          <p className="text-sm text-gray-500 mb-6 max-w-xs">
+            {filter !== 'All'
+              ? 'No students match your filter. Try different grades.'
+              : 'There are no students enrolled yet. Add your first student to get started.'}
+          </p>
+
+        </motion.div>
+      )}
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={!!editingStudent}
+        onClose={closeEdit}
+        title={editingStudent ? `Edit: ${editingStudent.full_name || 'Student'}` : 'Edit Student'}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">First Name</label>
+              <input
+                type="text"
+                value={editForm.first_name || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="First name"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Last Name</label>
+              <input
+                type="text"
+                value={editForm.last_name || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="Last name"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Grade</label>
+              <select
+                value={editForm.grade || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, grade: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="" disabled>Select grade</option>
+                <option value="9th">9th</option>
+                <option value="10th">10th</option>
+                <option value="11th">11th</option>
+                <option value="12th">12th</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Section</label>
+              <select
+                value={editForm.section || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, section: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="" disabled>Select section</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Registration ID</label>
+            <input
+              type="text"
+              value={editForm.reg_id || editForm.registration_id || ''}
+              readOnly
+              disabled
+              className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-600 outline-none cursor-not-allowed"
+              placeholder="Registration ID"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">State</label>
+            <select
+              value={editForm.state || ''}
+              onChange={(e) => setEditForm((f) => ({ ...f, state: e.target.value }))}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="" disabled>Select state</option>
+              <option value="Balochistan">Balochistan</option>
+              <option value="Khyber Pakhtunkhwa (KPK)">Khyber Pakhtunkhwa (KPK)</option>
+              <option value="Punjab">Punjab</option>
+              <option value="Sindh">Sindh</option>
+              <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+              <option value="Azad Kashmir">Azad Kashmir</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Guardian Name</label>
+            <input
+              type="text"
+              value={editForm.guardian_name || ''}
+              onChange={(e) => setEditForm((f) => ({ ...f, guardian_name: e.target.value }))}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              placeholder="Parent / Guardian full name"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Guardian Phone</label>
+              <input
+                type="tel"
+                value={editForm.guardian_phone || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, guardian_phone: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="+92 300 1234567"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Guardian Email</label>
+              <input
+                type="email"
+                value={editForm.guardian_email || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, guardian_email: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="guardian@email.com"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              onClick={closeEdit}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={editSaving}
+              className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold text-white transition-all disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 100%)' }}
+            >
+              <Save size={14} />
+              {editSaving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Student Detail Modal */}
+      <Modal
+        isOpen={!!selectedStudent}
+        onClose={() => { setSelectedStudent(null); setDetailTab('info'); }}
+        title="Student Details"
+      >
+        {selectedStudent && (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-gradient-to-br from-blue-50/50 to-indigo-50/50 border border-slate-100">
+              {studentDetailLoading ? (
+                <div className="flex h-20 w-20 items-center justify-center"><Loader2 size={32} className="animate-spin text-blue-500" /></div>
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-3xl shadow-md mb-3 overflow-hidden">
+                  {displayStudent?.profile_image ? (
+                    <img src={`${displayStudent.profile_image}?v=1`} alt={displayStudent.full_name} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = ((displayStudent?.full_name || 'U')[0]).toUpperCase(); }} />
+                  ) : (
+                    ((displayStudent?.full_name || 'U')[0]).toUpperCase()
+                  )}
+                </div>
+              )}
+              <h3 className="text-xl font-bold text-slate-800">{displayStudent?.full_name || 'Unnamed'}</h3>
+              <p className="text-xs text-slate-400 mt-1">ID: {displayStudent?.student_id || displayStudent?.roll_number || 'N/A'}</p>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+              <button
+                onClick={() => setDetailTab('info')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${detailTab === 'info' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <User size={14} /> Info
+              </button>
+              <button
+                onClick={() => setDetailTab('plans')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${detailTab === 'plans' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <FileText size={14} /> Study Plans
+              </button>
+              <button
+                onClick={() => setDetailTab('security')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${detailTab === 'security' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Lock size={14} /> Security
+              </button>
+            </div>
+
+            {detailTab === 'info' && (
+              <div className="space-y-4">
+                {/* Academic Information */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Academic Details</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                        <GraduationCap size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400">Class / Grade</p>
+                        <p className="text-sm font-semibold text-slate-800">{displayStudent?.class_grade || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-600">
+                        <Hash size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400">Section</p>
+                        <p className="text-sm font-semibold text-slate-800">{displayStudent?.section || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
+                        <BookOpen size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400">Roll Number</p>
+                        <p className="text-sm font-semibold text-slate-800">{displayStudent?.roll_number || displayStudent?.student_id || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-pink-100 text-pink-600">
+                        <Clock size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400">Academic Year</p>
+                        <p className="text-sm font-semibold text-slate-800">{displayStudent?.academic_year || new Date().getFullYear().toString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Personal Information */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Personal Details</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <User size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Gender</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">{displayStudent?.gender || 'N/A'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Mail size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Email Address</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">{displayStudent?.email || 'N/A'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <User size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Username</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">
+                        {displayStudent?.username || (displayStudent as any)?.user?.username || 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Date of Birth</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">
+                        {displayStudent?.dob ? new Date(displayStudent.dob).toLocaleDateString('en-US', {
+                          year: 'numeric', month: 'long', day: 'numeric'
+                        }) : 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <MapPin size={16} className="text-slate-400" />
+                        <span className="text-xs font-medium text-slate-500">Province / State</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">{displayStudent?.state || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Guardian Information */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Guardian & Contact Details</h4>
+                  <div className="p-4 rounded-xl bg-blue-50/30 border border-blue-100/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users size={16} className="text-indigo-500" />
+                        <span className="text-xs font-semibold text-slate-500">Guardian Name</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{displayStudent?.guardian_name || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Phone size={16} className="text-indigo-500" />
+                        <span className="text-xs font-semibold text-slate-500">Guardian Contact</span>
+                      </div>
+                      <span className="text-sm font-bold text-indigo-600">{displayStudent?.guardian_contact || displayStudent?.guardian_phone || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Mail size={16} className="text-indigo-500" />
+                        <span className="text-xs font-semibold text-slate-500">Guardian Email</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{displayStudent?.guardian_email || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {detailTab === 'plans' && (
+              <div>
+                {plansLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 size={28} className="animate-spin text-blue-500 mr-2" />
+                    <span className="text-sm text-gray-500">Loading study plans...</span>
+                  </div>
+                ) : studentPlans.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 mb-3">
+                      <FileText size={24} className="text-gray-400" />
+                    </div>
+                    <h4 className="text-base font-semibold text-gray-900 mb-1">No Study Plans</h4>
+                    <p className="text-sm text-gray-500">This student has no active study plans yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {studentPlans.map((plan: any, idx: number) => (
+                      <div key={plan.id || idx} className="p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-sm transition-all">
+                        <div className="flex items-start justify-between mb-2">
+                          <h5 className="text-sm font-bold text-gray-900">{plan.title || plan.plan_name || 'Untitled Plan'}</h5>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${plan.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {plan.status || 'Active'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><GraduationCap size={11} /> Grade {plan.grade || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><Clock size={11} /> {plan.mode || 'PARALLEL'}</span>
+                          <span className="flex items-center gap-1"><Calendar size={11} /> {plan.start_date || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><Calendar size={11} /> {plan.end_date || 'N/A'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {detailTab === 'security' && (
+              <div className="p-4 rounded-xl border border-gray-100 bg-gray-50">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Reset Student Password</h4>
+                <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        placeholder="Enter new password"
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Confirm Password</label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm new password"
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={updatePasswordMutation.isPending}
+                    className="mt-2 flex items-center justify-center gap-2 w-full rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    {updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Close Button */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => { setSelectedStudent(null); setDetailTab('info'); }}
+                className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md hover:opacity-95"
+                style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 100%)' }}
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deletingStudent && (
+          <Modal
+            isOpen={!!deletingStudent}
+            onClose={() => setDeletingStudent(null)}
+            title="Delete Student"
+          >
+            <div className="flex flex-col items-center text-center py-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 mb-4">
+                <AlertTriangle size={28} className="text-red-500" />
+              </div>
+              <p className="text-sm text-gray-500 mb-1">Are you sure you want to delete</p>
+              <p className="text-sm font-bold text-gray-800 mb-4">"{deletingStudent.full_name || 'this student'}"?</p>
+              <p className="text-xs text-red-500 mb-6">This action cannot be undone.</p>
+              <div className="flex items-center gap-3 w-full">
+                <button 
+                  onClick={() => setDeletingStudent(null)} 
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeleting && <Loader2 size={14} className="animate-spin" />}
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
+    </DashboardLayout>
+  );
+};
+
+export default StudentManagement;
+

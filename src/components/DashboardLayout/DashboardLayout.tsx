@@ -1,0 +1,800 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { 
+  Search, 
+  Bell, 
+  Menu, 
+  X, 
+  Command, 
+  LayoutDashboard, 
+  School, 
+  Users, 
+  ClipboardList,
+  CalendarDays,
+  FileText,
+  Settings,
+  ArrowUpRight,
+  Sparkles,
+  Building2,
+  LogOut,
+  ChevronDown,
+  Shield,
+  User,
+  ChevronsLeft,
+  ChevronsRight,
+  Moon,
+  Sun,
+  UserCog,
+  Lock,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
+import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import { useIsFetching, useMutation, useQuery } from '@tanstack/react-query';
+import Sidebar from '../Sidebar';
+import SchoolAdminSidebar from '../SchoolAdminSidebar';
+import Modal from '../Modal';
+import { api } from '../../api/services/api';
+import { assessmentService } from '../../api/services/assessmentService';
+import CMSBackgroundPreloader from '../CMSBackgroundPreloader';
+
+interface DashboardLayoutProps {
+  children: React.ReactNode;
+  activePage?: string;
+}
+
+// Search items builder — paths depend on user role
+const buildSearchItems = (role: string | undefined, campusId?: string | null) => {
+  const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN';
+  const isSchoolAdmin = role === 'SCHOOL_ADMIN' || role === 'CAMPUS_ADMIN';
+  const isSchool = role === 'SCHOOL';
+
+  const dashPath = isAdmin
+    ? '/admin/dashboard'
+    : isSchoolAdmin
+    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/dashboard`
+    : isSchool
+    ? '/school/dashboard'
+    : '/admin/dashboard';
+
+  const plannersPath = isAdmin
+    ? '/admin/planners'
+    : isSchoolAdmin
+    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/planners`
+    : isSchool
+    ? '/school/planners'
+    : '/admin/planners';
+
+  const studentsPath = isSchoolAdmin
+    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/students`
+    : '/school/students';
+
+  const teachersPath = isSchoolAdmin
+    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/teachers`
+    : '/school/teachers';
+
+  const items = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, path: dashPath, roles: ['all'] },
+    { id: 'role-management', label: 'Role Management', icon: <UserCog size={16} />, path: '/admin/roles', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'schools', label: 'All Schools', icon: <School size={16} />, path: '/admin/schools', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'add-school', label: 'Add School', icon: <School size={16} />, path: '/admin/schools/add', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'planners', label: 'All Planners', icon: <CalendarDays size={16} />, path: plannersPath, roles: ['SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'create-planner', label: 'Create Planner', icon: <ClipboardList size={16} />, path: `${plannersPath}/create`, roles: ['SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'assessment-management', label: 'Assessment Management', icon: <ClipboardList size={16} />, path: '/admin/assessments', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'create-assessment-template', label: 'Create Template', icon: <ClipboardList size={16} />, path: '/admin/assessments/templates/create', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'all-assessment-templates', label: 'All Templates', icon: <ClipboardList size={16} />, path: '/admin/assessments/templates', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'cms-dashboard', label: 'CMS Dashboard', icon: <FileText size={16} />, path: '/admin/cms', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'cms-classes', label: 'All Classes', icon: <FileText size={16} />, path: '/admin/cms/classes', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'cms-subjects', label: 'All Subjects', icon: <FileText size={16} />, path: '/admin/cms/subjects', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'cms-chapters', label: 'All Chapters', icon: <FileText size={16} />, path: '/admin/cms/chapters', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'cms-slos', label: 'All SLOs', icon: <FileText size={16} />, path: '/admin/cms/slos', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { id: 'all-students', label: 'All Students', icon: <Users size={16} />, path: studentsPath, roles: ['SCHOOL', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'add-student', label: 'Add Student', icon: <Users size={16} />, path: `${studentsPath}/add`, roles: ['SCHOOL', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'all-teachers', label: 'All Teachers', icon: <Users size={16} />, path: teachersPath, roles: ['SCHOOL', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+    { id: 'add-teacher', label: 'Add Teacher', icon: <Users size={16} />, path: `${teachersPath}/add`, roles: ['SCHOOL', 'SCHOOL_ADMIN', 'CAMPUS_ADMIN'] },
+  ];
+
+  return items.filter(item =>
+    item.roles.includes('all') || item.roles.includes(role || '')
+  );
+};
+
+const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage }) => {
+  const { user, isSuperAdmin, tenant, logout } = useAuth();
+  const navigate = useNavigate();
+  const isFetching = useIsFetching();
+  const location = useLocation();
+  useEffect(() => { 
+    if (window.innerWidth < 1024) setSidebarCollapsed(true); 
+    
+    // Smooth scroll to top on route change
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (window.innerWidth < 1024) return true;
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+  
+  // Handle responsive sidebar collapse
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setSidebarCollapsed(true);
+      } else {
+        const saved = localStorage.getItem('sidebarCollapsed');
+        setSidebarCollapsed(saved !== null ? JSON.parse(saved) : false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  // Determine which sidebar to show based on route
+  const isSchoolAdminRoute = location.pathname.startsWith('/campus/');
+  const useSchoolAdminSidebar = isSchoolAdminRoute && !isSuperAdmin;
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const updatePasswordMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/api/curriculum/reset-academic-data', {
+        password: newPassword
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Password changed successfully! ✅');
+      setChangePasswordModalOpen(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.response?.data?.error || 'Failed to update password.';
+      toast.error(msg);
+    }
+  });
+
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match.');
+      return;
+    }
+    updatePasswordMutation.mutate();
+  };
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scrolled, setScrolled] = useState(false);
+  const commandInputRef = useRef<HTMLInputElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+
+  // The effective profile image to show (from user object if backend provides it)
+  const effectiveProfileImage = user?.profile_image || '';
+  
+  const rawSchoolIdForDisplay = tenant.schoolId || user?.school_id || '';
+  const schoolIdDisplayFallback =
+    rawSchoolIdForDisplay && /[A-Za-z]/.test(String(rawSchoolIdForDisplay))
+      ? String(rawSchoolIdForDisplay)
+      : '';
+  const schoolPortalName: string =
+    user?.role === 'SCHOOL'
+      ? String(tenant.schoolName ||
+        user?.school_name ||
+        (user as any)?.school?.school_name ||
+        (user as any)?.school?.name ||
+        localStorage.getItem('school_name') ||
+        schoolIdDisplayFallback ||
+        '')
+      : '';
+  const identityLabel = String(schoolPortalName || user?.username || user?.email || 'AK');
+
+  const initials = identityLabel
+    .split(/[@.\s]/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase())
+    .join('');
+
+  // Handle scroll effect for navbar
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Command+K shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandOpen(true);
+      }
+      if (e.key === 'Escape') {
+        setCommandOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Focus input when command palette opens
+  useEffect(() => {
+    if (commandOpen && commandInputRef.current) {
+      setTimeout(() => commandInputRef.current?.focus(), 100);
+    }
+  }, [commandOpen]);
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    toast.success('Logged out successfully. See you soon!', { duration: 3000 });
+    setTimeout(() => {
+      logout();
+      navigate('/login');
+    }, 1500);
+  }, [logout, navigate]);
+
+  const roleLabelMap: Record<string, string> = {
+    SUPER_ADMIN: 'Super Admin',
+    ADMIN: 'Admin',
+    SCHOOL_ADMIN: 'School Admin',
+    CAMPUS_ADMIN: 'Campus Admin',
+    SCHOOL: 'School',
+    TEACHER: 'Teacher',
+  };
+  const roleLabel = roleLabelMap[user?.role || ''] || 'Admin';
+  const profileTitle = schoolPortalName || user?.username || roleLabel;
+  const profileSubtitle = schoolPortalName || user?.email || 'admin@eduadmin.com';
+
+  const searchItems = buildSearchItems(
+    user?.role,
+    (tenant as any)?.campusId || localStorage.getItem('campus_id')
+  );
+
+  const filteredItems = searchItems
+    .filter(item => item.label.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const handleNavigate = useCallback((path: string) => {
+    setCommandOpen(false);
+    setSearchQuery('');
+    if (path !== '#') {
+      navigate(path);
+    }
+  }, [navigate]);
+
+  const showNotifications = user?.role === 'SCHOOL' || user?.role === 'TEACHER';
+
+  const { data: recentSubmissionsData } = useQuery({
+    queryKey: ['recent-submissions-notifications'],
+    queryFn: () => assessmentService.listSubmissions(1),
+    staleTime: 60000,
+    enabled: showNotifications,
+  });
+  const recentSubmissions = recentSubmissionsData?.results || [];
+
+  const { isDark, toggleTheme } = useTheme();
+
+  return (
+    <div className={`min-h-screen font-sans relative transition-colors duration-300 ${isDark ? 'bg-[#0a0f1e]' : 'bg-[#F1F3F4]'}`}>
+      {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && <CMSBackgroundPreloader />}
+      {/* Global Top-Bar Progress Loader for Background Fetching removed per user request */}
+
+      {/* Mobile overlay */}
+      <AnimatePresence>
+        {!sidebarCollapsed && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden" 
+            onClick={() => setSidebarCollapsed(true)} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Command Palette Modal */}
+      <AnimatePresence>
+        {commandOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-navy-900/60 backdrop-blur-sm"
+            onClick={() => setCommandOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-2xl mx-4 bg-white rounded-2xl shadow-soft-xl overflow-hidden border border-slate-200/60"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Search Input */}
+              <div className="flex items-center gap-3 px-4 py-4 border-b border-slate-100">
+                <Search size={20} className="text-slate-400" />
+                <input
+                  ref={commandInputRef}
+                  type="text"
+                  placeholder="Search commands..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 text-lg text-slate-700 placeholder:text-slate-400 outline-none bg-transparent"
+                />
+                <kbd className="px-2 py-1 text-xs font-medium text-slate-400 bg-slate-100 rounded border border-slate-200">
+                  ESC
+                </kbd>
+              </div>
+              
+              {/* Results */}
+              <div className="max-h-[400px] overflow-y-auto py-2">
+                {filteredItems.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-slate-400">
+                    <Sparkles size={32} className="mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No results found for "{searchQuery}"</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Quick Navigation
+                    </div>
+                    {filteredItems.map((item, index) => (
+                      <motion.button
+                        key={item.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        onClick={() => handleNavigate(item.path)}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 group-hover:bg-accent-blue/10 group-hover:text-accent-blue transition-colors">
+                            {item.icon}
+                          </div>
+                          <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-400">Jump to</span>
+                          <ArrowUpRight size={14} className="text-slate-400" />
+                        </div>
+                      </motion.button>
+                    ))}
+                  </>
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-400">
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1">
+                    <kbd className="px-1.5 py-0.5 bg-white rounded border border-slate-200">↑↓</kbd>
+                    <span>to navigate</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <kbd className="px-1.5 py-0.5 bg-white rounded border border-slate-200">↵</kbd>
+                    <span>to select</span>
+                  </span>
+                </div>
+                <span>Command Palette</span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar — always visible */}
+      <div
+        className={`fixed inset-y-4 left-4 z-40 transform transition-all duration-300 translate-x-0 ${
+          sidebarCollapsed ? 'w-[72px]' : 'w-[320px]'
+        }`}
+      >
+        {useSchoolAdminSidebar ? (
+          <SchoolAdminSidebar activePage={activePage} collapsed={sidebarCollapsed} />
+        ) : (
+          <Sidebar activePage={activePage} collapsed={sidebarCollapsed} />
+        )}
+      </div>
+
+      {/* Main content area */}
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-[104px]' : 'ml-[104px] lg:ml-[352px]'}`}>
+        {/* Top navigation bar with Glassmorphism */}
+        <motion.header 
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className={`sticky top-4 z-20 flex h-[68px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 rounded-[24px] mr-4 ml-4 lg:ml-0 bg-white text-slate-800 ${
+            scrolled ? 'shadow-lg border border-slate-200' : 'border border-transparent'
+          }`}
+        >
+          {/* Left — Mobile hamburger + Desktop collapse toggle */}
+          <div className="flex items-center gap-2">
+            {/* Toggle sidebar button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={() => setSidebarCollapsed((p:any) => !p)}
+              className="rounded-xl p-2.5 transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            >
+              {sidebarCollapsed ? <Menu size={20} className="lg:hidden" /> : <X size={20} className="lg:hidden" />}
+              {sidebarCollapsed ? <ChevronsRight size={18} className="hidden lg:block" /> : <ChevronsLeft size={18} className="hidden lg:block" />}
+            </motion.button>
+          </div>
+
+          {/* Command+K Search */}
+          <div className="hidden sm:flex flex-1 max-w-md mx-4">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setCommandOpen(true)}
+              className="relative w-full group"
+            >
+              <div className="relative flex items-center">
+                <Search size={16} className="absolute left-3.5 transition-colors group-hover:text-slate-900 text-slate-400" />
+                <div className="w-full rounded-xl border backdrop-blur-sm py-2.5 pl-10 pr-20 text-sm outline-none transition-all duration-200 text-left border-slate-200 bg-slate-50/50 text-slate-700 placeholder:text-slate-400 hover:bg-white hover:border-slate-300 shadow-inner">
+                  Search schools, teachers, quizzes...
+                </div>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded border text-slate-500 bg-slate-100 border-slate-200">
+                    <Command size={10} />
+                    <span>K</span>
+                  </kbd>
+                </div>
+              </div>
+            </motion.button>
+          </div>
+
+          {/* Right section — notifications + profile dropdown */}
+          <div className="flex items-center gap-2">
+
+            {/* Dark/Light Mode Toggle */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={toggleTheme}
+              title={'Switch to Light Mode'}
+              className="relative rounded-xl p-2.5 transition-all duration-300 text-slate-500 hover:bg-slate-100 hover:text-slate-900 border border-transparent"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {isDark ? (
+                  <motion.span
+                    key="sun"
+                    initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                    animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                    exit={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex"
+                  >
+                    <Sun size={18} />
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="moon"
+                    initial={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                    animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                    exit={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex"
+                  >
+                    <Moon size={18} />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+
+            {/* Bell */}
+            <div ref={notificationsRef} className="relative">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                type="button"
+                onClick={() => setNotificationsOpen(p => !p)}
+                className="relative rounded-xl p-2.5 transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              >
+                <Bell size={18} />
+                {showNotifications && recentSubmissions.length > 0 && (
+                  <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                    {recentSubmissions.length}
+                  </span>
+                )}
+              </motion.button>
+              
+              <AnimatePresence>
+                {notificationsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    className={`absolute right-0 top-[calc(100%+8px)] w-80 rounded-2xl overflow-hidden z-50 ${
+                      isDark
+                        ? 'bg-[#1a2035] shadow-[0_8px_40px_rgba(0,0,0,0.6)] border border-white/10'
+                        : 'bg-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-200/80'
+                    }`}
+                  >
+                    <div className={`px-4 py-3 border-b font-bold ${
+                      isDark ? 'border-white/10 text-slate-100 bg-white/5' : 'border-slate-100 text-slate-800 bg-slate-50'
+                    }`}>
+                      Notifications
+                    </div>
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {!showNotifications || recentSubmissions.length === 0 ? (
+                        <div className="px-4 py-8 text-center text-slate-500 text-sm">
+                          <Bell size={24} className="mx-auto mb-2 opacity-30" />
+                          No new notifications
+                        </div>
+                      ) : (
+                        recentSubmissions.slice(0, 5).map((sub: any) => (
+                          <button
+                            key={sub.id}
+                            onClick={() => {
+                              setNotificationsOpen(false);
+                              const basePath = user?.role === 'SCHOOL' ? '/school' : user?.role === 'TEACHER' ? '/teacher' : '/admin';
+                              navigate(`${basePath}/submissions?view=${sub.id}`);
+                            }}
+                            className={`w-full text-left px-4 py-3 border-b transition-colors group flex items-start gap-3 ${
+                              isDark ? 'border-white/5 hover:bg-white/5' : 'border-slate-50 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                              isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
+                            }`}>
+                              <FileText size={14} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-semibold truncate ${isDark ? 'text-slate-200 group-hover:text-white' : 'text-slate-800 group-hover:text-blue-600'}`}>
+                                New submission from #{sub.student}
+                              </p>
+                              <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                {sub.assessment_title}
+                              </p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    {showNotifications && recentSubmissions.length > 5 && (
+                      <button
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          const basePath = user?.role === 'SCHOOL' ? '/school' : user?.role === 'TEACHER' ? '/teacher' : '/admin';
+                          navigate(`${basePath}/submissions`);
+                        }}
+                        className={`w-full px-4 py-2 text-center text-xs font-semibold ${
+                          isDark ? 'text-blue-400 hover:bg-white/5 border-t border-white/10' : 'text-blue-600 hover:bg-slate-50 border-t border-slate-100'
+                        }`}
+                      >
+                        View all submissions
+                      </button>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Profile Dropdown */}
+            <div ref={profileRef} className="relative pl-2 border-l border-slate-200">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setProfileOpen(p => !p)}
+                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors cursor-pointer hover:bg-slate-100"
+              >
+                {/* Text (hidden on xs) */}
+                <div className="hidden sm:block text-right">
+                  <p className="text-sm font-semibold leading-tight text-slate-900">{roleLabel}</p>
+                  <p className="text-[11px] leading-tight text-slate-500">{profileSubtitle}</p>
+                </div>
+                {/* Avatar */}
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue border border-transparent overflow-hidden">
+                  {effectiveProfileImage ? (
+                    <img src={effectiveProfileImage} alt="Profile" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    initials || 'AK'
+                  )}
+                </div>
+                <ChevronDown
+                  size={14}
+                  className={`hidden sm:block transition-transform duration-200 text-slate-400 ${profileOpen ? 'rotate-180' : ''}`}
+                />
+              </motion.button>
+
+              {/* Dropdown Panel */}
+              <AnimatePresence>
+                {profileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    className={`absolute right-0 top-[calc(100%+8px)] w-72 rounded-2xl overflow-hidden z-50 ${
+                      isDark
+                        ? 'bg-[#1a2035] shadow-[0_8px_40px_rgba(0,0,0,0.6)] border border-white/10'
+                        : 'bg-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-200/80'
+                    }`}
+                  >
+                    {/* Header */}
+                    <div className={`px-4 pt-4 pb-3 border-b ${
+                      isDark
+                        ? 'bg-gradient-to-br from-accent-blue/10 to-accent-indigo/10 border-white/10'
+                        : 'bg-gradient-to-br from-accent-blue/5 to-accent-indigo/5 border-slate-100'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-sm font-bold text-white shadow-glow-blue overflow-hidden">
+                          {effectiveProfileImage ? (
+                            <img src={effectiveProfileImage} alt="Profile" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          ) : (
+                            initials || 'AK'
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-bold truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                            {profileTitle}
+                          </p>
+                          <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{user?.email || 'admin@eduadmin.com'}</p>
+                          <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent-blue/10 text-accent-blue">
+                            {isSuperAdmin ? <Shield size={9} /> : <User size={9} />}
+                            {roleLabel}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-1.5 border-b border-slate-100 dark:border-white/10">
+                      <button
+                        onClick={() => { setProfileOpen(false); setChangePasswordModalOpen(true); }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors group hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-700 dark:text-slate-300`}
+                      >
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50`}>
+                          <Lock size={15} />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-left">Change Password</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Update your account password</p>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Logout */}
+                    <div className="py-1.5">
+                      <button
+                        onClick={() => { setProfileOpen(false); handleLogout(); }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-rose-500 transition-colors group ${
+                          'hover:bg-rose-500/10'
+                        }`}
+                      >
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 transition-colors ${
+                          'bg-rose-500/10 group-hover:bg-rose-500/20'
+                        }`}>
+                          <LogOut size={15} />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-left">Sign out</p>
+                          <p className="text-[11px] text-rose-400">Log out of your account</p>
+                        </div>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </motion.header>
+
+        {/* Page content with animations */}
+        <motion.main 
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className={`p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-64px)] transition-colors duration-300 ${
+            isDark ? 'bg-[#0a0f1e]' : ''
+          }`}
+        >
+          <div className="mx-auto max-w-[1400px]">{children}</div>
+        </motion.main>
+      </div>
+
+      <Modal
+        isOpen={changePasswordModalOpen}
+        onClose={() => {
+          setChangePasswordModalOpen(false);
+          setNewPassword('');
+          setConfirmPassword('');
+        }}
+        title="Change Password"
+      >
+        <form onSubmit={handlePasswordChange} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">New Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 p-3 pr-10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                placeholder="Enter new password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Confirm New Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 p-3 pr-10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                placeholder="Confirm new password"
+                required
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={() => {
+                setChangePasswordModalOpen(false);
+                setNewPassword('');
+                setConfirmPassword('');
+              }}
+              className="rounded-xl px-5 py-2.5 font-medium text-gray-600 hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updatePasswordMutation.isPending}
+              className="rounded-xl bg-blue-600 px-5 py-2.5 font-medium text-white shadow-md transition hover:bg-blue-700 disabled:opacity-50"
+            >
+              {updatePasswordMutation.isPending ? 'Saving...' : 'Save Password'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
+export default DashboardLayout;
