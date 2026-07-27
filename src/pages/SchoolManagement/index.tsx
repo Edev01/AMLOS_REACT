@@ -13,6 +13,7 @@ import { CardSkeleton } from '../../components/Skeleton';
 const icons = ['🏫', '🎓', '🌿', '📚', '🏛️', '🎒'];
 const bgs = ['bg-blue-100', 'bg-green-100', 'bg-amber-100', 'bg-pink-100', 'bg-purple-100', 'bg-teal-100'];
 const SCHOOLS_PAGE_SIZE = 10;
+const MAX_SCHOOL_SEARCH_PAGES = 100;
 
 interface SchoolsPage {
   schools: SchoolType[];
@@ -20,6 +21,7 @@ interface SchoolsPage {
   isServerPaginated: boolean;
   nextPage?: number;
   totalCount?: number;
+  totalPages?: number;
 }
 
 const flattenObject = (obj: any, prefix = ''): Record<string, any> => {
@@ -84,35 +86,76 @@ const parseSchoolsResponse = (payload: any, currentPage: number) => {
 
   if (Array.isArray(payload)) {
     rawList = payload;
-  } else if (Array.isArray(payload?.results)) {
-    rawList = payload.results;
-    meta = payload;
+  } else if (Array.isArray(payload?.data?.data)) {
+    rawList = payload.data.data;
+    meta = payload.data;
   } else if (Array.isArray(payload?.data?.results)) {
     rawList = payload.data.results;
     meta = payload.data;
+  } else if (Array.isArray(payload?.data?.schools?.data)) {
+    rawList = payload.data.schools.data;
+    meta = payload.data.schools;
   } else if (Array.isArray(payload?.data?.schools)) {
     rawList = payload.data.schools;
     meta = payload.data;
+  } else if (Array.isArray(payload?.data?.items)) {
+    rawList = payload.data.items;
+    meta = payload.data;
+  } else if (Array.isArray(payload?.results)) {
+    rawList = payload.results;
+    meta = payload;
+  } else if (Array.isArray(payload?.schools?.data)) {
+    rawList = payload.schools.data;
+    meta = payload.schools;
   } else if (Array.isArray(payload?.schools)) {
     rawList = payload.schools;
+    meta = payload;
+  } else if (Array.isArray(payload?.items)) {
+    rawList = payload.items;
     meta = payload;
   } else if (Array.isArray(payload?.data)) {
     rawList = payload.data;
     meta = payload;
   }
 
+  const metaSource = {
+    ...(payload?.pagination || {}),
+    ...(payload?.meta || {}),
+    ...(meta?.pagination || {}),
+    ...(meta?.meta || {}),
+    ...(meta || {}),
+  };
   const hasPaginationMeta = Boolean(
     meta &&
-      ('next' in meta ||
-        'previous' in meta ||
-        'count' in meta ||
-        'total' in meta ||
-        'total_count' in meta ||
-        'total_pages' in meta ||
-        'last_page' in meta)
+      ('next' in metaSource ||
+        'previous' in metaSource ||
+        'count' in metaSource ||
+        'total' in metaSource ||
+        'total_count' in metaSource ||
+        'totalItems' in metaSource ||
+        'total_items' in metaSource ||
+        'total_pages' in metaSource ||
+        'totalPages' in metaSource ||
+        'last_page' in metaSource ||
+        'lastPage' in metaSource ||
+        'next_page' in metaSource ||
+        'nextPage' in metaSource ||
+        'next_page_url' in metaSource ||
+        'current_page' in metaSource ||
+        'currentPage' in metaSource ||
+        'page' in metaSource ||
+        'per_page' in metaSource ||
+        'page_size' in metaSource ||
+        'limit' in metaSource)
   );
   const isServerPaginated = hasPaginationMeta && rawList.length <= SCHOOLS_PAGE_SIZE;
-  const total = getNumber(meta?.count, meta?.total, meta?.total_count);
+  const total = getNumber(
+    metaSource.count,
+    metaSource.total,
+    metaSource.total_count,
+    metaSource.totalItems,
+    metaSource.total_items
+  );
 
   if (!isServerPaginated) {
     return {
@@ -124,15 +167,111 @@ const parseSchoolsResponse = (payload: any, currentPage: number) => {
     };
   }
 
-  const explicitNextPage = getNumber(meta.next_page, meta.nextPage);
-  const totalPages = getNumber(meta.total_pages, meta.last_page) || Math.ceil((total || 0) / SCHOOLS_PAGE_SIZE) || 1;
+  const perPage = getNumber(metaSource.per_page, metaSource.perPage, metaSource.page_size, metaSource.pageSize, metaSource.limit) || SCHOOLS_PAGE_SIZE;
+  const current = getNumber(metaSource.current_page, metaSource.currentPage, metaSource.page) || currentPage;
+  const explicitNextPage = getNumber(metaSource.next_page, metaSource.nextPage);
+  const totalPages =
+    getNumber(metaSource.total_pages, metaSource.totalPages, metaSource.last_page, metaSource.lastPage) ||
+    Math.ceil((total || 0) / perPage) ||
+    1;
   let nextPage = explicitNextPage;
 
-  if (!nextPage && meta.next) nextPage = currentPage + 1;
-  if (!nextPage && totalPages && currentPage < totalPages) nextPage = currentPage + 1;
-  if (!nextPage && (total || 0) && currentPage * SCHOOLS_PAGE_SIZE < (total || 0)) nextPage = currentPage + 1;
+  if (!nextPage && (metaSource.next || metaSource.next_page_url)) nextPage = current + 1;
+  if (!nextPage && totalPages && current < totalPages) nextPage = current + 1;
+  if (!nextPage && (total || 0) && current * perPage < (total || 0)) nextPage = current + 1;
 
   return { rawList, isServerPaginated: true, nextPage, totalCount: total, totalPages };
+};
+
+const fetchSchoolsPage = async (pageNumber: number, searchTerm = '') => {
+  const response = await api.get('/api/auth/schools', {
+    params: {
+      page: pageNumber,
+      page_size: SCHOOLS_PAGE_SIZE,
+      limit: SCHOOLS_PAGE_SIZE,
+      offset: (pageNumber - 1) * SCHOOLS_PAGE_SIZE,
+      search: searchTerm || undefined,
+      q: searchTerm || undefined,
+    },
+  });
+
+  return parseSchoolsResponse(response.data, pageNumber);
+};
+
+const fetchSchoolsForSearch = async (searchTerm: string) => {
+  const firstPage = await fetchSchoolsPage(1, searchTerm);
+  const allSchools: any[] = [];
+  const seenKeys = new Set<string>();
+
+  const addSchools = (items: any[]) => {
+    let added = 0;
+    items.forEach((item) => {
+      const key = String(
+        item?.id ??
+          item?.registration_number ??
+          item?.registration_id ??
+          item?.email ??
+          JSON.stringify(item)
+      );
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        allSchools.push(item);
+        added += 1;
+      }
+    });
+    return added;
+  };
+
+  addSchools(firstPage.rawList);
+
+  if (!firstPage.isServerPaginated && firstPage.rawList.length < SCHOOLS_PAGE_SIZE) {
+    return {
+      rawList: allSchools,
+      isServerPaginated: false,
+      nextPage: undefined,
+      totalCount: allSchools.length,
+      totalPages: Math.max(1, Math.ceil(allSchools.length / SCHOOLS_PAGE_SIZE)),
+    };
+  }
+
+  const visitedPages = new Set<number>([1]);
+  const hasKnownTotalPages = Boolean(firstPage.totalPages && firstPage.totalPages > 1);
+  const maxPages =
+    hasKnownTotalPages
+      ? firstPage.totalPages
+      : MAX_SCHOOL_SEARCH_PAGES;
+  let nextPage = firstPage.nextPage || (hasKnownTotalPages || firstPage.rawList.length >= SCHOOLS_PAGE_SIZE ? 2 : undefined);
+
+  while (
+    nextPage &&
+    nextPage <= maxPages &&
+    !visitedPages.has(nextPage) &&
+    visitedPages.size < MAX_SCHOOL_SEARCH_PAGES
+  ) {
+    const currentFetchedPage = nextPage;
+    visitedPages.add(currentFetchedPage);
+    const pageResult = await fetchSchoolsPage(currentFetchedPage, searchTerm);
+    const added = addSchools(pageResult.rawList);
+
+    if (added === 0 || pageResult.rawList.length === 0) break;
+
+    const shouldProbeNextPage = !hasKnownTotalPages && pageResult.rawList.length >= SCHOOLS_PAGE_SIZE;
+    nextPage =
+      pageResult.nextPage ||
+      (hasKnownTotalPages && currentFetchedPage < maxPages
+        ? currentFetchedPage + 1
+        : shouldProbeNextPage
+          ? currentFetchedPage + 1
+          : undefined);
+  }
+
+  return {
+    rawList: allSchools,
+    isServerPaginated: false,
+    nextPage: undefined,
+    totalCount: allSchools.length,
+    totalPages: Math.max(1, Math.ceil(allSchools.length / SCHOOLS_PAGE_SIZE)),
+  };
 };
 
 const getMockSchool = (user: any): SchoolType => ({
@@ -338,7 +477,7 @@ const SchoolManagement: React.FC = () => {
     isLoading,
     isFetching,
   } = useQuery<any>({
-    queryKey: ['schools', isSchoolRole, trimmedSearch, page],
+    queryKey: ['schools', isSchoolRole, trimmedSearch, trimmedSearch ? 'search-all' : page],
     queryFn: async () => {
       let isForbidden = false;
 
@@ -359,17 +498,9 @@ const SchoolManagement: React.FC = () => {
       }
 
       try {
-        const response = await api.get('/api/auth/schools', {
-          params: {
-            page,
-            page_size: SCHOOLS_PAGE_SIZE,
-            limit: SCHOOLS_PAGE_SIZE,
-            offset: (page - 1) * SCHOOLS_PAGE_SIZE,
-            search: trimmedSearch || undefined,
-            q: trimmedSearch || undefined,
-          },
-        });
-        const parsed = parseSchoolsResponse(response.data, page);
+        const parsed = trimmedSearch
+          ? await fetchSchoolsForSearch(trimmedSearch)
+          : await fetchSchoolsPage(page);
 
         return {
           schools: parsed.rawList.map(normalizeSchool),
@@ -432,28 +563,6 @@ const SchoolManagement: React.FC = () => {
   const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
   const fetchedSchoolIds = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    const schools = queryData?.schools || [];
-    if (!schools || schools.length === 0) return;
-    const toFetch = schools.filter((s: any) => s.id && !fetchedSchoolIds.current.has(String(s.id)));
-    if (toFetch.length === 0) return;
-
-    toFetch.forEach((s: any) => {
-      const sid = String(s.id);
-      fetchedSchoolIds.current.add(sid);
-      api.get(`/api/auth/schools/${sid}/students`)
-        .then((res) => {
-          const d = res.data;
-          const list = d?.data?.students ?? d?.students ?? d?.data ?? (Array.isArray(d) ? d : []);
-          const count = Array.isArray(list) ? list.length : 0;
-          setStudentCounts((prev) => ({ ...prev, [sid]: count }));
-        })
-        .catch(() => {
-          setStudentCounts((prev) => ({ ...prev, [sid]: 0 }));
-        });
-    });
-  }, [queryData?.schools]);
-
   const getStudentCount = useCallback((school: any): number => {
     const sid = String(school?.id ?? '');
     if (studentCounts[sid] !== undefined) return studentCounts[sid];
@@ -504,14 +613,53 @@ const SchoolManagement: React.FC = () => {
   const totalPages = queryData?.totalPages || 1;
   const loading = isLoading;
 
+  const normalizedSearch = trimmedSearch.toLowerCase();
+  const matchesSchoolSearch = (s: SchoolType) => {
+    if (!normalizedSearch) return true;
+    const school = s as any;
+    return [
+      school.school_name,
+      school.principal_name,
+      school.email,
+      school.registration_number,
+      school.registration_id,
+      school.address,
+      school.city,
+      school.state,
+      school.phone,
+      school.website,
+      school.id,
+    ].some((value) => String(value ?? '').toLowerCase().includes(normalizedSearch));
+  };
+
   const filtered = schools.filter((s: SchoolType) => {
-    const q = search.toLowerCase();
-    return !q || (s.school_name || '').toLowerCase().includes(q) || (s.principal_name || '').toLowerCase().includes(q) || String(s.id).includes(q);
+    return matchesSchoolSearch(s);
   });
   
   // If not server paginated, do client pagination
   const visibleSchools = isServerPaginated ? filtered : filtered.slice((page - 1) * SCHOOLS_PAGE_SIZE, page * SCHOOLS_PAGE_SIZE);
-  const actualTotalPages = isServerPaginated ? totalPages : Math.ceil(filtered.length / SCHOOLS_PAGE_SIZE);
+  const actualTotalPages = Math.max(1, isServerPaginated ? totalPages : Math.ceil(filtered.length / SCHOOLS_PAGE_SIZE));
+
+  useEffect(() => {
+    if (!visibleSchools || visibleSchools.length === 0) return;
+    const toFetch = visibleSchools.filter((s: any) => s.id && !fetchedSchoolIds.current.has(String(s.id)));
+    if (toFetch.length === 0) return;
+
+    toFetch.forEach((s: any) => {
+      const sid = String(s.id);
+      fetchedSchoolIds.current.add(sid);
+      api.get(`/api/auth/schools/${sid}/students`)
+        .then((res) => {
+          const d = res.data;
+          const list = d?.data?.students ?? d?.students ?? d?.data ?? (Array.isArray(d) ? d : []);
+          const count = Array.isArray(list) ? list.length : 0;
+          setStudentCounts((prev) => ({ ...prev, [sid]: count }));
+        })
+        .catch(() => {
+          setStudentCounts((prev) => ({ ...prev, [sid]: 0 }));
+        });
+    });
+  }, [visibleSchools]);
 
   return (
     <DashboardLayout activePage="all-schools">
@@ -559,7 +707,9 @@ const SchoolManagement: React.FC = () => {
           ))}
         </div>
       ) : filtered.length === 0 && !isForbidden ? (
-        <div className="rounded-2xl border bg-white p-12 text-center text-gray-500">No schools found.</div>
+        <div className="rounded-2xl border bg-white p-12 text-center text-gray-500">
+          {trimmedSearch ? `No schools found for "${trimmedSearch}".` : 'No schools found.'}
+        </div>
       ) : !isForbidden && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

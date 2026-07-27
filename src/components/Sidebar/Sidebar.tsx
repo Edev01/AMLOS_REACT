@@ -194,7 +194,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, collapsed = false }) => {
           icon: <CalendarDays size={18} />,
           children: [
             { id: 'create-planner', label: 'Add Planner', path: '/admin/planners/create' },
-            { id: 'all-planner', label: 'All Planner', path: '/admin/planners' },
+            { id: 'all-planner', label: 'All Planners', path: '/admin/planners' },
           ],
         },
         {

@@ -304,7 +304,7 @@ const DashboardOverview: React.FC = () => {
             </select>
           </div>
           <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%" className="focus:outline-none">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} className="focus:outline-none">
               <AreaChart data={schoolChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} style={{ outline: 'none' }}>
                 <defs>
                   <linearGradient id="colorSchools" x1="0" y1="0" x2="0" y2="1">
@@ -340,7 +340,7 @@ const DashboardOverview: React.FC = () => {
             </select>
           </div>
           <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%" className="focus:outline-none">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} className="focus:outline-none">
               <AreaChart data={plannerChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} style={{ outline: 'none' }}>
                 <defs>
                   <linearGradient id="colorPlanners" x1="0" y1="0" x2="0" y2="1">
@@ -376,7 +376,7 @@ const DashboardOverview: React.FC = () => {
             </select>
           </div>
           <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%" className="focus:outline-none">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} className="focus:outline-none">
               <AreaChart data={assessmentChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} style={{ outline: 'none' }}>
                 <defs>
                   <linearGradient id="colorAssessments" x1="0" y1="0" x2="0" y2="1">
