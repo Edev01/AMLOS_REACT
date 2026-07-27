@@ -142,7 +142,7 @@ const Login: React.FC = () => {
 
   const validateFields = () => {
     const nextErrors: { email?: string; password?: string } = {};
-    if (!email.trim()) nextErrors.email = 'Username or email is required.';
+    if (!email.trim()) nextErrors.email = 'Email is required.';
 
     if (!password) nextErrors.password = 'Password is required.';
 
@@ -155,7 +155,7 @@ const Login: React.FC = () => {
     setError('');
     setFieldErrors({});
     const nextErrors: { email?: string; password?: string } = {};
-    if (!email.trim()) nextErrors.email = 'Username or email is required.';
+    if (!email.trim()) nextErrors.email = 'Email is required.';
     if (!password) nextErrors.password = 'Password is required.';
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
@@ -174,12 +174,14 @@ const Login: React.FC = () => {
       const loginEndpoint = ENDPOINTS.LOGIN;
       const fullUrl = buildFullUrl(loginEndpoint);
       
-      console.log('[Login] Sending request:', { 
-        endpoint: loginEndpoint,
-        fullUrl: fullUrl,
-        method: 'POST',
-        payload: { email: emailValue, password: '***' } 
-      });
+      if (import.meta.env.DEV) {
+        console.log('[Login] Sending request:', {
+          endpoint: loginEndpoint,
+          fullUrl: fullUrl,
+          method: 'POST',
+          payload: { email: emailValue, password: '***' }
+        });
+      }
       
       // Use centralized axios instance
       const response = await axiosInstance.post<AuthResponse>(loginEndpoint, payload);
@@ -209,12 +211,14 @@ const Login: React.FC = () => {
       toast.success('Signed in successfully! Welcome back 👋');
       
       // Log for debugging
-      console.log('[Login] Auth Success:', {
-        role: receivedRole,
-        campusId,
-        campusName,
-        hasToken: !!responseData.tokens?.access,
-      });
+      if (import.meta.env.DEV) {
+        console.log('[Login] Auth Success:', {
+          role: receivedRole,
+          campusId,
+          campusName,
+          hasToken: !!responseData.tokens?.access,
+        });
+      }
       
       // ─── Imperative navigation — calculate dashboard path directly ───
       let dashboardPath: string;
@@ -231,28 +235,24 @@ const Login: React.FC = () => {
           : (ROLE_DASHBOARD_MAP[receivedRole] || '/admin/dashboard');
       }
       
-      console.log('[Login] Navigating to:', dashboardPath);
+      if (import.meta.env.DEV) {
+        console.log('[Login] Navigating to:', dashboardPath);
+      }
       navigate(dashboardPath, { replace: true });      
     } catch (err: unknown) {
-      console.error('[Login] Error:', err);
       if (axios.isAxiosError(err)) {
-        // FORCE LOG - Exact backend rejection reason
-        console.error('BACKEND REJECTED US BECAUSE:', err.response?.data);
-        
-        // Log full error details for debugging
-        console.error('[Login] Full Error:', {
-          status: err.response?.status,
-          statusText: err.response?.statusText,
-          data: err.response?.data,
-          requestConfig: {
-            url: err.config?.url,
-            baseURL: err.config?.baseURL,
-            method: err.config?.method,
-            fullPath: err.config?.baseURL && err.config?.url 
-              ? `${err.config.baseURL}${err.config.url}` 
-              : 'unknown',
-          }
-        });
+        if (import.meta.env.DEV) {
+          console.error('[Login] Request failed:', {
+            status: err.response?.status,
+            statusText: err.response?.statusText,
+            data: err.response?.data,
+            requestConfig: {
+              url: err.config?.url,
+              baseURL: err.config?.baseURL,
+              method: err.config?.method,
+            }
+          });
+        }
         
         // 400 = Bad Request (wrong payload format)
         // 401 = Unauthorized (wrong credentials)
@@ -409,7 +409,7 @@ const Login: React.FC = () => {
                   className={`auth-input ${submitted && fieldErrors.email ? 'border-red-400 focus:border-red-400' : ''}`}
                 />
                 <label htmlFor="email" className="auth-user-label bg-white">
-                  Email / Username
+                  Email
                 </label>
                 {submitted && fieldErrors.email && (
                   <p className="absolute -bottom-5 left-1 text-[11px] text-red-500">{fieldErrors.email}</p>

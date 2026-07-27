@@ -28,8 +28,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../api/services/api';
 import { userService } from '../../api/services/userService';
 import { useAuth } from '../../context/AuthContext';
-import { ISchoolData, CreateSchoolPayload } from '../../types';
-import { ENDPOINTS } from '../../config/api.config';
+import { ISchoolData } from '../../types';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { saveSchoolJoinDate } from '../../utils/schoolJoinDate';
@@ -80,6 +79,20 @@ const initialValues: FormValues = {
   address: '',
   establishedYear: '',
   registrationNumber: '',
+};
+
+const maskSensitiveFields = <T extends Record<string, unknown>>(data: T): T => {
+  if (!Object.prototype.hasOwnProperty.call(data, 'password')) return data;
+  return { ...data, password: data.password ? '***' : data.password };
+};
+
+const logAddSchoolDebug = (message: string, data?: unknown) => {
+  if (!import.meta.env.DEV) return;
+  if (data === undefined) {
+    console.log(message);
+    return;
+  }
+  console.log(message, data);
 };
 
 // ─── Field Config ────────────────────────────────────────────────────────────
@@ -196,7 +209,7 @@ const AddSchool: React.FC = () => {
     initialValues,
     validationSchema,
     onSubmit: async (values) => {
-      console.log('[AddSchool] 📝 Submitting ISchoolData:', values);
+      logAddSchoolDebug('[AddSchool] Submitting school form:', maskSensitiveFields(values as unknown as Record<string, unknown>));
 
       try {
         // ── Full 1:1 schema mapping — all 13 keys, strict types ──
@@ -233,9 +246,9 @@ const AddSchool: React.FC = () => {
           ...(profileImageUrl ? { profile_image: profileImageUrl } : {}),
         };
 
-        console.log('SENDING_TO_BACKEND:', payload);
+        logAddSchoolDebug('SENDING_TO_BACKEND:', maskSensitiveFields(payload as unknown as Record<string, unknown>));
         const response = await api.post('/api/auth/school/create', payload);
-        console.log('[AddSchool] ✅ Response:', response.status, response.data);
+        logAddSchoolDebug('[AddSchool] Response:', { status: response.status, data: response.data });
 
         // Parse API response: { data: { school: {...} }, created_at: "..." }
         const resSchool = response.data?.data?.school || response.data?.data || response.data || {};
@@ -250,19 +263,22 @@ const AddSchool: React.FC = () => {
 
         // Invalidate schools cache so the new school shows immediately
         await queryClient.invalidateQueries({ queryKey: ['schools'] });
-        navigate('/admin/schools');
+        navigate('/admin/schools', { replace: true });
 
       } catch (err: unknown) {
+        if (axios.isCancel(err) || (axios.isAxiosError(err) && err.code === 'ERR_CANCELED')) {
+          return;
+        }
+
         if (axios.isAxiosError(err)) {
           const status = err.response?.status;
           const data   = err.response?.data;
 
-          // ── Full diagnostic dump — read this to find the EXACT failing field ──
-          console.error(`[AddSchool] ❌ ${status} from /api/auth/school/create`);
-          console.error('URL    :', err.config?.baseURL, err.config?.url);
-          console.error('STATUS :', status);
-          console.error('DATA   :', JSON.stringify(data, null, 2));
-          console.dir(data);   // expandable object — check for errors / fields keys
+          if (import.meta.env.DEV) {
+            console.error(`[AddSchool] ${status || 'ERR'} from /api/auth/school/create`);
+            console.error('STATUS:', status);
+            console.error('DATA:', data);
+          }
 
           // Extract most-specific message from DRF / custom response
           const d = data as Record<string, unknown> | undefined;
@@ -275,11 +291,14 @@ const AddSchool: React.FC = () => {
               .filter(([k]) => k !== 'success' && k !== 'code' && k !== 'data')
               .map(([k, v]) => `${k}: ${Array.isArray(v) ? (v as string[]).join(', ') : String(v)}`)
               .join(' | ') ||
-            'School creation failed — see console for details.';
+            'School creation failed. Please check the details and try again.';
 
           toast.error(detail, { duration: 6000 });
         } else {
-          console.error('[AddSchool] ❌ Unexpected error:', err);
+          if (import.meta.env.DEV) {
+            console.error('[AddSchool] Unexpected error:', err);
+          }
+          toast.error('School creation failed. Please try again.');
         }
       }
     },

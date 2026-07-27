@@ -300,7 +300,7 @@ const SchoolDashboard: React.FC = () => {
             </select>
           </div>
           <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%" className="focus:outline-none">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} className="focus:outline-none">
               <AreaChart data={studentChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} style={{ outline: 'none' }}>
                 <defs>
                   <linearGradient id="colorStudents" x1="0" y1="0" x2="0" y2="1">
@@ -336,7 +336,7 @@ const SchoolDashboard: React.FC = () => {
             </select>
           </div>
           <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%" className="focus:outline-none">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} className="focus:outline-none">
               <AreaChart data={teacherChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} style={{ outline: 'none' }}>
                 <defs>
                   <linearGradient id="colorTeachers" x1="0" y1="0" x2="0" y2="1">
