@@ -648,6 +648,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
   const [chapterForm, setChapterForm] = useState({ grade: '', subject: '', name: '' });
   const [chapterFormErrors, setChapterFormErrors] = useState({ grade: '', subject: '', name: '' });
   const [chapterFormGeneralError, setChapterFormGeneralError] = useState('');
+  const [addChapterBulkFile, setAddChapterBulkFile] = useState<File | null>(null);
   const [sloForm, setSloForm] = useState({
     grade: '',
     subject: '',
@@ -1206,16 +1207,34 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   // ── Chapters ──
   const createChapterMutation = useMutation({
-    mutationFn: () => createChapter({
-      subject: Number(chapterForm.subject),
-      name: chapterForm.name.trim(),
-    }),
-    onSuccess: (data: any) => {
+    mutationFn: async () => {
+      const res = await createChapter({
+        subject: Number(chapterForm.subject),
+        name: chapterForm.name.trim(),
+      });
+      const newChapterId = res?.id || res?.data?.id || (res as any)?.chapter?.id || (res as any)?.chapter_id;
+      if (addChapterBulkFile) {
+        try {
+          await assessmentService.bulkUploadAssessment(addChapterBulkFile, {
+            chapter_id: newChapterId,
+            subject_id: chapterForm.subject,
+            grade: chapterForm.grade,
+          });
+          toast.success('Bulk upload file processed successfully.');
+        } catch (uploadErr: any) {
+          const data = uploadErr?.response?.data;
+          const msg = data?.message || data?.detail || data?.error || 'Failed to upload bulk assessment file.';
+          toast.error(msg);
+        }
+      }
+      return { res, newChapterId };
+    },
+    onSuccess: ({ newChapterId }) => {
       clearCMSCache();
       toast.success('Chapter created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
       
-      const newChapterId = data?.id || data?.data?.id || (data as any)?.chapter?.id || (data as any)?.chapter_id;
+      setAddChapterBulkFile(null);
       if (newChapterId) {
         navigate(`/admin/cms/slos/add?subject=${chapterForm.subject}&chapter=${newChapterId}`);
         setChapterForm({ grade: '', subject: '', name: '' });
@@ -1523,16 +1542,16 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const bulkUploadAssessmentMutation = useMutation({
     mutationFn: async ({ file, chapterId, subjectId, grade }: { file: File; chapterId: string | number; subjectId?: string | number; grade?: string }) => {
-      await bulkUploadSlos(grade || '', file, { chapter_id: chapterId, subject_id: subjectId });
+      await assessmentService.bulkUploadAssessment(file, { chapter_id: chapterId, subject_id: subjectId, grade });
     },
     onSuccess: () => {
       clearCMSCache();
       queryClient.invalidateQueries({ queryKey: ['cms'] });
-      toast.success('SLOs uploaded successfully for this chapter.');
+      toast.success('Assessment file uploaded successfully for this chapter.');
     },
     onError: (err: any) => {
       const data = err?.response?.data;
-      const msg = data?.message || data?.detail || data?.error || 'Failed to upload SLO file.';
+      const msg = data?.message || data?.detail || data?.error || 'Failed to upload assessment file.';
       toast.error(msg);
     },
   });
@@ -2218,6 +2237,39 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 />
               </FieldLabel>
               {chapterFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{chapterFormErrors.name}</p>}
+            </div>
+
+            <div className="lg:col-span-2">
+              <FieldLabel label="Bulk Upload Assessment File (Optional)">
+                <div className="mt-2 flex items-center gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition">
+                    <Upload size={16} className="text-purple-600 shrink-0" />
+                    <span className="truncate max-w-xs">{addChapterBulkFile ? addChapterBulkFile.name : 'Choose file to bulk upload...'}</span>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".csv,.xlsx,.xls,.json,.pdf,.docx" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setAddChapterBulkFile(file);
+                      }} 
+                    />
+                  </label>
+                  {addChapterBulkFile && (
+                    <button
+                      type="button"
+                      onClick={() => setAddChapterBulkFile(null)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                      title="Remove file"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1.5 text-xs text-slate-400">
+                  Optionally select an assessment bulk upload file (CSV, Excel, JSON). It will be sent via POST /api/assessments/bulk-upload upon saving.
+                </p>
+              </FieldLabel>
             </div>
 
             {chapterFormGeneralError && (

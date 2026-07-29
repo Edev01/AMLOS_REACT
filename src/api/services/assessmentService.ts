@@ -159,10 +159,31 @@ export const assessmentService = {
     return response.data;
   },
 
-  bulkUploadAssessment: async (formData: FormData) => {
+  bulkUploadAssessment: async (
+    payload: FormData | File,
+    opts?: { grade?: string; subject_id?: number | string; chapter_id?: number | string }
+  ) => {
+    let formData: FormData;
+    if (payload instanceof FormData) {
+      formData = payload;
+    } else {
+      formData = new FormData();
+      formData.append('uploaded_file', payload);
+      formData.append('file', payload);
+      if (opts?.grade) formData.append('grade', opts.grade);
+      if (opts?.subject_id != null) {
+        formData.append('subject_id', String(opts.subject_id));
+        formData.append('subject', String(opts.subject_id));
+      }
+      if (opts?.chapter_id != null) {
+        formData.append('chapter_id', String(opts.chapter_id));
+        formData.append('chapter', String(opts.chapter_id));
+      }
+    }
     const response = await api.post('/api/assessments/bulk-upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
   },
 };
+
