@@ -13,7 +13,7 @@ function App() {
       {/* Global Toast Notifications */}
       <Toaster
         position="top-right"
-        containerStyle={{ top: 72, right: 16 }}
+        containerStyle={{ top: 96, right: 28 }}
         toastOptions={{
           duration: 4000,
           style: {
