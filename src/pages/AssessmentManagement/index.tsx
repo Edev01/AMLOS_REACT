@@ -306,13 +306,17 @@ const fieldClass =
 const selectClass =
   'mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400';
 
-const FieldLabel: React.FC<{ label: string; children: React.ReactNode; className?: string }> = ({
+const FieldLabel: React.FC<{ label: React.ReactNode; children: React.ReactNode; className?: string; required?: boolean }> = ({
   label,
   children,
   className = '',
+  required,
 }) => (
   <label className={`block ${className}`}>
-    <span className="text-sm font-semibold text-gray-700">{label}</span>
+    <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">
+      {label}
+      {required && <span className="text-red-500 ml-1">*</span>}
+    </span>
     {children}
   </label>
 );
@@ -923,6 +927,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
 
   const [search, setSearch] = useState('');
   const [form, setForm] = useState<AssessmentFormState>(emptyForm);
+  const [templateErrors, setTemplateErrors] = useState<Record<string, string>>({});
   const [selectedTemplate, setSelectedTemplate] = useState<AssessmentTemplate | null>(null);
   const [loadedEditId, setLoadedEditId] = useState<string | null>(null);
   const [localTemplates, setLocalTemplates] = useState<AssessmentTemplate[]>(() =>
@@ -1217,47 +1222,69 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
 
   const updateForm = <K extends keyof AssessmentFormState>(key: K, value: AssessmentFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (templateErrors[key]) {
+      setTemplateErrors((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
   };
 
   const handleGradeChange = (grade: string) => {
     setForm((prev) => ({ ...prev, grade, subject: '', chapter_ids: [] }));
+    setTemplateErrors((prev) => {
+      const next = { ...prev };
+      delete next.grade;
+      delete next.subject;
+      delete next.chapter_ids;
+      return next;
+    });
   };
 
   const handleSubjectChange = (subject: string) => {
     setForm((prev) => ({ ...prev, subject, chapter_ids: [] }));
+    setTemplateErrors((prev) => {
+      const next = { ...prev };
+      delete next.subject;
+      delete next.chapter_ids;
+      return next;
+    });
   };
 
   const handleTypeChange = (type: AssessmentType) => {
     setForm((prev) => ({ ...prev, assessment_type: type, chapter_ids: type === 'CHAPTER_WISE' ? prev.chapter_ids : [] }));
+    setTemplateErrors((prev) => {
+      const next = { ...prev };
+      delete next.assessment_type;
+      delete next.chapter_ids;
+      return next;
+    });
   };
 
   const buildPayload = (): AssessmentTemplatePayload | null => {
+    const errors: Record<string, string> = {};
+
     if (!form.title.trim()) {
-      toast.error('Template name is required.');
-      return null;
+      errors.title = 'Template name is required.';
     }
     if (!form.grade) {
-      toast.error('Class is required.');
-      return null;
+      errors.grade = 'Class is required.';
     }
     if (!form.subject) {
-      toast.error('Subject is required.');
-      return null;
+      errors.subject = 'Subject is required.';
+    }
+    if (form.assessment_type === 'CHAPTER_WISE' && chapters.length > 0 && form.chapter_ids.length === 0) {
+      errors.chapter_ids = 'Select at least one chapter.';
     }
     if (totalQuestions <= 0) {
-      toast.error('At least one question is required.');
-      return null;
+      errors.total_questions = 'At least one question is required.';
     }
-    if (chapters.length > 0 && form.chapter_ids.length === 0) {
-      toast.error('Select at least one chapter.');
-      return null;
-    }
-    if (form.cognitive_levels.length === 0) {
-      toast.error('Select at least one cognitive level.');
-      return null;
-    }
-    if (form.categories.length === 0) {
-      toast.error('Select at least one question source.');
+
+    setTemplateErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      toast.error('Please fill all required fields.', { id: 'create-template-validation-error' });
       return null;
     }
 
@@ -1529,24 +1556,34 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-                <FieldLabel label="Template Name" className="lg:col-span-2">
+                <FieldLabel label="Template Name" className="lg:col-span-2" required>
                   <input
                     value={form.title}
                     onChange={(event) => updateForm('title', event.target.value)}
                     placeholder="Biology Chapter 1 Quiz"
-                    className={fieldClass}
+                    className={`${fieldClass} ${templateErrors.title ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:bg-red-950/20 dark:border-red-500/50' : ''}`}
                   />
+                  {templateErrors.title && <p className="text-xs text-red-500 mt-1.5 ml-1">{templateErrors.title}</p>}
                 </FieldLabel>
-                <FieldLabel label="Class / Grade">
-                  <select value={form.grade} onChange={(event) => handleGradeChange(event.target.value)} className={selectClass}>
+                <FieldLabel label="Class / Grade" required>
+                  <select
+                    value={form.grade}
+                    onChange={(event) => handleGradeChange(event.target.value)}
+                    className={`${selectClass} ${templateErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:bg-red-950/20 dark:border-red-500/50' : ''}`}
+                  >
                     <option value="">Select Class</option>
                     {classOptions.map((grade) => (
                       <option key={grade} value={grade}>{grade}</option>
                     ))}
                   </select>
+                  {templateErrors.grade && <p className="text-xs text-red-500 mt-1.5 ml-1">{templateErrors.grade}</p>}
                 </FieldLabel>
-                <FieldLabel label="Subject">
-                  <select value={form.subject} onChange={(event) => handleSubjectChange(event.target.value)} className={selectClass}>
+                <FieldLabel label="Subject" required>
+                  <select
+                    value={form.subject}
+                    onChange={(event) => handleSubjectChange(event.target.value)}
+                    className={`${selectClass} ${templateErrors.subject ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:bg-red-950/20 dark:border-red-500/50' : ''}`}
+                  >
                     <option value="">Select Subject</option>
                     {filteredSubjects.map((subject) => (
                       <option key={getEntityId(subject)} value={getEntityId(subject)}>
@@ -1554,8 +1591,9 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                       </option>
                     ))}
                   </select>
+                  {templateErrors.subject && <p className="text-xs text-red-500 mt-1.5 ml-1">{templateErrors.subject}</p>}
                 </FieldLabel>
-                <FieldLabel label="Assessment Type">
+                <FieldLabel label="Assessment Type" required>
                   <select
                     value={form.assessment_type}
                     onChange={(event) => handleTypeChange(event.target.value as AssessmentType)}
@@ -1576,7 +1614,9 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                 </div>
                 <div className="lg:col-span-2">
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-sm font-semibold text-gray-700">Chapters</p>
+                    <p className="text-sm font-semibold text-gray-700 dark:text-slate-200">
+                      Chapters {isChapterWise && <span className="text-red-500 ml-0.5">*</span>}
+                    </p>
                     {chaptersQuery.isFetching && (
                       <span className="inline-flex items-center gap-1 text-xs text-slate-400">
                         <Loader2 size={12} className="animate-spin" /> Loading
@@ -1612,9 +1652,12 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                       })
                     )}
                   </div>
+                  {templateErrors.chapter_ids && (
+                    <p className="text-xs text-red-500 mt-1.5 ml-1">{templateErrors.chapter_ids}</p>
+                  )}
                 </div>
                 <div className="lg:col-span-2">
-                  <p className="mb-3 text-sm font-semibold text-gray-700">Cognitive Levels</p>
+                  <p className="mb-3 text-sm font-semibold text-gray-700 dark:text-slate-200">Cognitive Levels</p>
                   <div className="flex flex-wrap gap-3 mb-4">
                     {COGNITIVE_LEVELS.map((level) => (
                       <label key={level} className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
@@ -1653,6 +1696,13 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                               [level]: { ...prev.cognitive_level_details[level], [field]: Number(val) || 0 },
                             },
                           }));
+                          if (templateErrors.total_questions) {
+                            setTemplateErrors(prev => {
+                              const next = { ...prev };
+                              delete next.total_questions;
+                              return next;
+                            });
+                          }
                         };
                         return (
                           <div key={level} className="rounded-xl border border-slate-200 bg-white p-4">
@@ -1684,7 +1734,7 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                   )}
                 </div>
                 <div className="lg:col-span-2">
-                  <p className="mb-3 text-sm font-semibold text-gray-700">Question Sources</p>
+                  <p className="mb-3 text-sm font-semibold text-gray-700 dark:text-slate-200">Question Sources</p>
                   <div className="flex flex-wrap gap-3">
                     {QUESTION_CATEGORIES.map((category) => (
                       <label key={category} className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">
@@ -1704,6 +1754,9 @@ const AssessmentManagement: React.FC<AssessmentManagementProps> = ({ view = 'das
                     <div>
                       <p className="text-sm font-bold text-slate-900">Total Questions</p>
                       <p className="text-xs text-slate-500">{totalQuestions} questions across all cognitive levels</p>
+                      {templateErrors.total_questions && (
+                        <p className="text-xs text-red-500 mt-1 font-semibold">{templateErrors.total_questions}</p>
+                      )}
                     </div>
                     <Shuffle size={20} className="text-blue-500" />
                   </div>
