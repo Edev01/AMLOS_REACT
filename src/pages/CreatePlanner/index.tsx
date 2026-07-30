@@ -814,12 +814,12 @@ const CreatePlanner: React.FC = () => {
                 <label className="mb-1.5 block text-sm font-medium text-transparent select-none">
                   Spacer
                 </label>
-                <div className="flex items-center justify-between w-full rounded-lg border border-gray-200 bg-white px-4 h-[42px]">
-                  <h3 className="text-sm text-gray-700">Weekends Off</h3>
+                <div className="flex items-center justify-between w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 h-[42px]">
+                  <h3 className="text-sm text-gray-700 dark:text-slate-200">Weekends Off</h3>
                   <button
                     type="button"
                     onClick={() => setFormField('weekends_off', !(form as any).weekends_off)}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${(form as any).weekends_off ? 'bg-blue-600' : 'bg-gray-200'
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${(form as any).weekends_off ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-700'
                       }`}
                   >
                     <span
@@ -830,27 +830,34 @@ const CreatePlanner: React.FC = () => {
                 </div>
               </div>
 
-              <div className="md:col-span-2">
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              <div className="md:col-span-2 lg:col-span-3">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-200">
                   Daily Study Time (min) <span className="text-red-500">*</span>
                 </label>
                 <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="30"
-                    max="480"
-                    step="15"
-                    value={form.study_time_daily}
-                    onChange={e => setFormField('study_time_daily', e.target.value)}
-                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="w-16 text-center rounded-lg border border-gray-200 bg-gray-50 py-1 px-2 text-sm font-semibold text-gray-700">
+                  <div className="relative flex-1 flex items-center">
+                    <input
+                      type="range"
+                      min="30"
+                      max="480"
+                      step="15"
+                      value={form.study_time_daily}
+                      onChange={e => setFormField('study_time_daily', e.target.value)}
+                      style={{
+                        background: isDark
+                          ? `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((Number(form.study_time_daily || 120) - 30) / (480 - 30)) * 100}%, #334155 ${((Number(form.study_time_daily || 120) - 30) / (480 - 30)) * 100}%, #334155 100%)`
+                          : `linear-gradient(to right, #2563eb 0%, #2563eb ${((Number(form.study_time_daily || 120) - 30) / (480 - 30)) * 100}%, #cbd5e1 ${((Number(form.study_time_daily || 120) - 30) / (480 - 30)) * 100}%, #cbd5e1 100%)`
+                      }}
+                      className="custom-range-slider w-full cursor-pointer"
+                    />
+                  </div>
+                  <div className="w-16 text-center rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/10 py-1.5 px-2 text-sm font-bold text-gray-800 dark:text-white shadow-sm">
                     {form.study_time_daily}
                   </div>
                 </div>
               </div>
               <div className="md:col-span-2 lg:col-span-3">
-                <label className="mb-3 block text-sm font-medium text-gray-700">
+                <label className="mb-3 block text-sm font-medium text-gray-700 dark:text-slate-200">
                   Study Mode <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -864,19 +871,19 @@ const CreatePlanner: React.FC = () => {
                         key={m.value}
                         type="button"
                         onClick={() => setFormField('mode', m.value)}
-                        className={`relative flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${isActive
-                          ? 'border-blue-500 bg-blue-50/60 shadow-sm'
-                          : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50'
+                        className={`relative flex items-start gap-3 p-4 rounded-xl border-2 bg-white dark:bg-white/5 text-left transition-all ${isActive
+                          ? 'border-blue-500 shadow-sm'
+                          : 'border-gray-200 dark:border-white/10 hover:border-blue-200 dark:hover:border-white/20'
                           }`}
                       >
-                        <div className={`mt-0.5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
+                        <div className="mt-0.5 text-gray-500 dark:text-slate-400">
                           {icon}
                         </div>
                         <div className="flex-1">
-                          <p className={`text-sm font-semibold ${isActive ? 'text-blue-900' : 'text-gray-800'}`}>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                             {m.label.split('(')[0].trim()}
                           </p>
-                          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                             {m.value === 'PARALLEL' && 'Mix subjects evenly every day. Best for consistency.'}
                             {m.value === 'SEQUENTIAL' && 'Finish whole subjects before moving to the next.'}
                             {m.value === 'CUSTOM' && 'Assign subjects to specific days of the week.'}
