@@ -82,6 +82,8 @@ const CreatePlanner: React.FC = () => {
     weekends_off: false,
   });
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
   // Subjects
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
@@ -95,14 +97,14 @@ const CreatePlanner: React.FC = () => {
 
   const currentExamTypes = React.useMemo(() => {
     if (!allExamTypesResponse || !form.grade) return [];
-    
+
     // API returns { success: true, data: [...] }
-    const list = Array.isArray(allExamTypesResponse) 
-      ? allExamTypesResponse 
+    const list = Array.isArray(allExamTypesResponse)
+      ? allExamTypesResponse
       : (allExamTypesResponse.data || []);
-      
+
     if (!Array.isArray(list)) return [];
-    
+
     // Filter by selected grade
     const filtered = list
       .filter((et: ExamType) => et.grade === form.grade)
@@ -407,6 +409,14 @@ const CreatePlanner: React.FC = () => {
   };
 
   const setFormField = (k: string, v: any) => {
+    if (fieldErrors[k]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[k];
+        return next;
+      });
+    }
+
     if (k === 'start_date' || k === 'end_date') {
       if (v && (form as any).weekends_off) {
         const day = new Date(v as string).getDay();
@@ -416,7 +426,7 @@ const CreatePlanner: React.FC = () => {
         }
       }
     }
-    
+
     if (k === 'weekends_off' && v === true) {
       if (form.start_date) {
         const sd = new Date(form.start_date).getDay();
@@ -433,12 +443,12 @@ const CreatePlanner: React.FC = () => {
         }
       }
     }
-    
+
     if (k === 'grade') {
       setForm(p => ({ ...p, grade: v, exam_type: '' }));
       return;
     }
-    
+
     setForm(p => ({ ...p, [k]: v }));
   };
 
@@ -553,7 +563,7 @@ const CreatePlanner: React.FC = () => {
       console.error('Server Error Detail:', err.response?.data);
       console.error('Server Error Status:', err.response?.status);
       console.error('Server Error Config:', err.config?.url, err.config?.method);
-      
+
       let serverMsg = '';
       const data = err.response?.data;
       if (data) {
@@ -587,7 +597,7 @@ const CreatePlanner: React.FC = () => {
           }
         }
       }
-      
+
       toast.error(serverMsg || 'Failed to create study plan. Please try again.', { duration: 6000 });
     } finally {
       setSubmitting(false);
@@ -595,49 +605,65 @@ const CreatePlanner: React.FC = () => {
   };
 
   // Safe field renderer
-  const field = (label: string, key: string, placeholder: string, type = 'text', required = true) => (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-gray-700">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <input
-        type={type}
-        value={(form as any)[key] || ''}
-        onChange={e => setFormField(key, e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
-      />
-    </div>
-  );
+  const field = (label: string, key: string, placeholder: string, type = 'text', required = true) => {
+    const hasErr = !!fieldErrors[key];
+    return (
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-200">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <input
+          type={type}
+          value={(form as any)[key] || ''}
+          onChange={e => setFormField(key, e.target.value)}
+          placeholder={placeholder}
+          className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-all duration-200 ${
+            hasErr
+              ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:bg-red-950/20 dark:border-red-500/50'
+              : 'border-gray-200 bg-white dark:border-white/10 dark:bg-white/5 dark:text-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100'
+          }`}
+        />
+        {hasErr && <p className="text-xs text-red-500 mt-1.5 ml-1">{fieldErrors[key]}</p>}
+      </div>
+    );
+  };
 
   // Safe navigation
   const nextStep = () => {
     if (step === 1) {
-      if (!form.plan_name || !form.grade || !form.start_date || !form.end_date) {
-        toast.error('Please fill all required fields');
+      const errors: Record<string, string> = {};
+      if (!form.plan_name?.trim()) errors.plan_name = 'Planner name is required.';
+      if (!form.grade) errors.grade = 'Grade is required.';
+      if (!form.start_date) errors.start_date = 'Start date is required.';
+      if (!form.end_date) errors.end_date = 'End date is required.';
+
+      setFieldErrors(errors);
+
+      if (Object.keys(errors).length > 0) {
+        toast.error('Please fill all required fields', { id: 'create-planner-step1-validation' });
         return;
       }
     }
     if (step === 2 && selectedSubjects.length === 0) {
-      toast.error('Please select at least one subject');
+      toast.error('Please select at least one subject', { id: 'create-planner-step2-error' });
       return;
     }
 
     if (step === 2 && form.mode === 'CUSTOM') {
       const hasAnyDay = Object.values(customPattern).some(arr => arr.length > 0);
       if (!hasAnyDay) {
-        toast.error('Please assign at least one subject to a day in the weekly schedule');
+        toast.error('Please assign at least one subject to a day in the weekly schedule', { id: 'create-planner-custom-pattern-error' });
         return;
       }
     }
     if (step === 3 && selectedSloIds.length === 0) {
-      toast.error('Please select at least one SLO');
+      toast.error('Please select at least one SLO', { id: 'create-planner-step3-error' });
       return;
     }
     if (step === 3) {
       const metrics = getSloMetrics();
       if (metrics && metrics.isExceeded) {
-        toast.error('Daily study time limit exceeded. Please adjust limit or duration.');
+        toast.error('Daily study time limit exceeded. Please adjust limit or duration.', { id: 'create-planner-limit-error' });
         return;
       }
     }
@@ -672,17 +698,18 @@ const CreatePlanner: React.FC = () => {
           {(steps || []).map((s, i) => (
             <React.Fragment key={s?.n || i}>
               <div className="flex items-center gap-3">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${step >= (s?.n || 0) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                    step >= (s?.n || 0) ? 'bg-blue-600 text-white' : 'bg-[#E5E7EB] text-slate-900 dark:bg-slate-700 dark:text-white'
                   }`}>
                   {step > (s?.n || 0) ? <Check size={16} /> : (s?.n || i + 1)}
                 </div>
                 <div className="hidden sm:block">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{s?.title || ''}</p>
-                  <p className="text-[10px] text-gray-400">{s?.sub || ''}</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{s?.title || ''}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-400">{s?.sub || ''}</p>
                 </div>
               </div>
               {i < (steps?.length || 0) - 1 && (
-                <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${step > (s?.n || 0) ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${step > (s?.n || 0) ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-700'}`} />
               )}
             </React.Fragment>
           ))}
@@ -695,28 +722,33 @@ const CreatePlanner: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {field('Planner Name', 'plan_name', 'Jee Main 2024 Preparation')}
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-200">
                   Grade <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={form.grade || ''}
                   onChange={e => setFormField('grade', e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-all duration-200 ${
+                    fieldErrors.grade
+                      ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:bg-red-950/20 dark:border-red-500/50'
+                      : 'border-gray-200 bg-white dark:border-white/10 dark:bg-white/5 dark:text-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100'
+                  }`}
                 >
                   <option value="">Select Grade</option>
                   {(gradeOptions || []).map(g => (
                     <option key={g?.value || ''} value={g?.value || ''}>{g?.label || ''}</option>
                   ))}
                 </select>
+                {fieldErrors.grade && <p className="text-xs text-red-500 mt-1.5 ml-1">{fieldErrors.grade}</p>}
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-200">
                   Exam Type
                 </label>
                 <select
                   value={form.exam_type}
                   onChange={e => setFormField('exam_type', e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5 dark:text-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="">Select Exam Type</option>
                   {(currentExamTypes || []).map(et => (
@@ -726,7 +758,7 @@ const CreatePlanner: React.FC = () => {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-200">
                   Start Date <span className="text-red-500">*</span>
                 </label>
                 <div className="relative flex w-full">
@@ -738,16 +770,21 @@ const CreatePlanner: React.FC = () => {
                       setFormField('start_date', localDate);
                     }}
                     filterDate={(form as any).weekends_off ? (date: Date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-all duration-200 ${
+                      fieldErrors.start_date
+                        ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:bg-red-950/20 dark:border-red-500/50'
+                        : 'border-gray-200 bg-white dark:border-white/10 dark:bg-white/5 dark:text-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100'
+                    }`}
                     placeholderText="Select start date"
                     dateFormat="yyyy-MM-dd"
                   />
                   <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
                 </div>
+                {fieldErrors.start_date && <p className="text-xs text-red-500 mt-1.5 ml-1">{fieldErrors.start_date}</p>}
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-200">
                   End Date <span className="text-red-500">*</span>
                 </label>
                 <div className="relative flex w-full">
@@ -760,12 +797,17 @@ const CreatePlanner: React.FC = () => {
                     }}
                     filterDate={(form as any).weekends_off ? (date: Date) => date.getDay() !== 0 && date.getDay() !== 6 : undefined}
                     minDate={form.start_date ? new Date(form.start_date) : undefined}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-all duration-200 ${
+                      fieldErrors.end_date
+                        ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:bg-red-950/20 dark:border-red-500/50'
+                        : 'border-gray-200 bg-white dark:border-white/10 dark:bg-white/5 dark:text-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100'
+                    }`}
                     placeholderText="Select end date"
                     dateFormat="yyyy-MM-dd"
                   />
                   <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
                 </div>
+                {fieldErrors.end_date && <p className="text-xs text-red-500 mt-1.5 ml-1">{fieldErrors.end_date}</p>}
               </div>
 
               <div>
@@ -777,14 +819,12 @@ const CreatePlanner: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setFormField('weekends_off', !(form as any).weekends_off)}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                      (form as any).weekends_off ? 'bg-blue-600' : 'bg-gray-200'
-                    }`}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${(form as any).weekends_off ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
                   >
                     <span
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        (form as any).weekends_off ? 'translate-x-4' : 'translate-x-0'
-                      }`}
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${(form as any).weekends_off ? 'translate-x-4' : 'translate-x-0'
+                        }`}
                     />
                   </button>
                 </div>
@@ -867,9 +907,9 @@ const CreatePlanner: React.FC = () => {
             <div className='flex justify-between' >
               <div className="left">
                 <h2 className="text-lg font-bold text-gray-900 mb-2">Select Subjects</h2>
-            <p className="text-sm text-gray-500 mb-6">
-              Grade {selectedGradeLabel || 'selected'} — Selected: {selectedSubjects?.length || 0} subjects
-            </p>
+                <p className="text-sm text-gray-500 mb-6">
+                  Grade {selectedGradeLabel || 'selected'} — Selected: {selectedSubjects?.length || 0} subjects
+                </p>
               </div>
               <div className="right flex items-start">
                 {filteredSubjects.length > 0 && !subjectsLoading && (
@@ -1035,212 +1075,212 @@ const CreatePlanner: React.FC = () => {
         {step === 3 && (() => {
           const metrics = getSloMetrics();
           return (
-          <div className="animate-fadeIn">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Select Chapters & SLOs</h2>
-                <p className="text-sm text-gray-500">
-                  Selected: {selectedSloIds?.length || 0} SLOs
-                </p>
-              </div>
-              {selectedSubjects.length > 1 && (() => {
-                const allSloIds = selectedSubjects.flatMap(id => 
-                  (chaptersBySubject[id] || []).flatMap(ch => (ch.slos || []).map(slo => slo.id))
-                );
-                const isAllGlobalSelected = allSloIds.length > 0 && allSloIds.every(id => selectedSloIds.includes(id));
-                return (
-                  <label className="flex items-center gap-2 text-sm text-blue-600 cursor-pointer hover:text-blue-700 select-none bg-blue-50/50 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={isAllGlobalSelected}
-                      onChange={() => toggleSelectAllSlos(allSloIds)}
-                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                    />
-                    <span className="font-medium">
-                      {isAllGlobalSelected ? 'Deselect All' : 'Select All'}
-                    </span>
-                  </label>
-                );
-              })()}
-            </div>
-
-            {metrics && metrics.isExceeded && (
-              <div className="mb-6 p-5 border border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/10 rounded-2xl flex flex-col md:flex-row items-start gap-4">
-                <div className="p-2 rounded-xl bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 shrink-0">
-                  <SlidersHorizontal size={24} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-bold text-red-800 dark:text-red-400">Daily Study Time Limit Exceeded</h3>
-                  <p className="text-xs text-red-700 dark:text-red-300 mt-1 leading-relaxed">
-                    The selected SLOs require an estimated <strong>{metrics.totalHours.toFixed(1)} hours</strong> of study.
-                    Over the plan duration of <strong>{metrics.days} days</strong>, this requires <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>.
-                    However, your defined limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.study_time_daily} minutes).
+            <div className="animate-fadeIn">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 mb-2">Select Chapters & SLOs</h2>
+                  <p className="text-sm text-gray-500">
+                    Selected: {selectedSloIds?.length || 0} SLOs
                   </p>
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
-                    <div>
-                      <label className="block text-[11px] font-bold text-red-800 dark:text-red-400 uppercase tracking-wide mb-1">
-                        Increase Daily Limit (minutes)
-                      </label>
+                </div>
+                {selectedSubjects.length > 1 && (() => {
+                  const allSloIds = selectedSubjects.flatMap(id =>
+                    (chaptersBySubject[id] || []).flatMap(ch => (ch.slos || []).map(slo => slo.id))
+                  );
+                  const isAllGlobalSelected = allSloIds.length > 0 && allSloIds.every(id => selectedSloIds.includes(id));
+                  return (
+                    <label className="flex items-center gap-2 text-sm text-blue-600 cursor-pointer hover:text-blue-700 select-none bg-blue-50/50 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors">
                       <input
-                        type="number"
-                        value={form.study_time_daily}
-                        onChange={e => setFormField('study_time_daily', e.target.value)}
-                        placeholder="e.g. 384"
-                        className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
+                        type="checkbox"
+                        checked={isAllGlobalSelected}
+                        onChange={() => toggleSelectAllSlos(allSloIds)}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
                       />
-                      <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
-                        Suggested: Set to at least <strong>{metrics.suggestedMaxMinutes} min</strong>
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-red-800 dark:text-red-400 uppercase tracking-wide mb-1">
-                        Extend End Date
-                      </label>
-                      <input
-                        type="date"
-                        value={form.end_date}
-                        onChange={e => setFormField('end_date', e.target.value)}
-                        className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
-                      />
-                      <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
-                        Suggested: Set to <strong>{metrics.suggestedEndDateString}</strong> or later
-                      </p>
+                      <span className="font-medium">
+                        {isAllGlobalSelected ? 'Deselect All' : 'Select All'}
+                      </span>
+                    </label>
+                  );
+                })()}
+              </div>
+
+              {metrics && metrics.isExceeded && (
+                <div className="mb-6 p-5 border border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/10 rounded-2xl flex flex-col md:flex-row items-start gap-4">
+                  <div className="p-2 rounded-xl bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 shrink-0">
+                    <SlidersHorizontal size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-bold text-red-800 dark:text-red-400">Daily Study Time Limit Exceeded</h3>
+                    <p className="text-xs text-red-700 dark:text-red-300 mt-1 leading-relaxed">
+                      The selected SLOs require an estimated <strong>{metrics.totalHours.toFixed(1)} hours</strong> of study.
+                      Over the plan duration of <strong>{metrics.days} days</strong>, this requires <strong>{metrics.requiredHoursPerDay.toFixed(2)} hours/day</strong>.
+                      However, your defined limit is <strong>{metrics.limitHoursPerDay.toFixed(2)} hours/day</strong> ({form.study_time_daily} minutes).
+                    </p>
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+                      <div>
+                        <label className="block text-[11px] font-bold text-red-800 dark:text-red-400 uppercase tracking-wide mb-1">
+                          Increase Daily Limit (minutes)
+                        </label>
+                        <input
+                          type="number"
+                          value={form.study_time_daily}
+                          onChange={e => setFormField('study_time_daily', e.target.value)}
+                          placeholder="e.g. 384"
+                          className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
+                        />
+                        <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                          Suggested: Set to at least <strong>{metrics.suggestedMaxMinutes} min</strong>
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-red-800 dark:text-red-400 uppercase tracking-wide mb-1">
+                          Extend End Date
+                        </label>
+                        <input
+                          type="date"
+                          value={form.end_date}
+                          onChange={e => setFormField('end_date', e.target.value)}
+                          className="w-full rounded-lg border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#1a2035] px-3 py-1.5 text-xs text-gray-900 dark:text-slate-100 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-500/20"
+                        />
+                        <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                          Suggested: Set to <strong>{metrics.suggestedEndDateString}</strong> or later
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {step3Loading && (
-              <div className="flex items-center justify-center h-32 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 mb-6">
-                <Loader2 className="animate-spin text-blue-500 mr-2" size={24} />
-                <span className="text-sm text-gray-500">Loading chapters & SLOs...</span>
-              </div>
-            )}
-            {/* Chapters list per subject */}
-            <div className="space-y-4">
-              {(selectedSubjects || []).map(subjectId => {
-                const subject = (allSubjects || []).find((s: Subject) => s?.id === subjectId);
-                const chapters = chaptersBySubject[subjectId] || [];
-                const isSubjectExpanded = expandedSubjects.has(subjectId);
-                const isChaptersLoading = chaptersLoading[subjectId];
+              {step3Loading && (
+                <div className="flex items-center justify-center h-32 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 mb-6">
+                  <Loader2 className="animate-spin text-blue-500 mr-2" size={24} />
+                  <span className="text-sm text-gray-500">Loading chapters & SLOs...</span>
+                </div>
+              )}
+              {/* Chapters list per subject */}
+              <div className="space-y-4">
+                {(selectedSubjects || []).map(subjectId => {
+                  const subject = (allSubjects || []).find((s: Subject) => s?.id === subjectId);
+                  const chapters = chaptersBySubject[subjectId] || [];
+                  const isSubjectExpanded = expandedSubjects.has(subjectId);
+                  const isChaptersLoading = chaptersLoading[subjectId];
 
-                if (!subject) return null;
+                  if (!subject) return null;
 
-                const subjectSlos = chapters.flatMap((ch: Chapter) => ch.slos || []);
-                const totalSubjectSlos = subjectSlos.length;
-                const selectedSubjectSlos = subjectSlos.filter((s: SLO) => selectedSloIds.includes(s.id)).length;
-                const subjectSloIds = subjectSlos.map((s: SLO) => s.id);
+                  const subjectSlos = chapters.flatMap((ch: Chapter) => ch.slos || []);
+                  const totalSubjectSlos = subjectSlos.length;
+                  const selectedSubjectSlos = subjectSlos.filter((s: SLO) => selectedSloIds.includes(s.id)).length;
+                  const subjectSloIds = subjectSlos.map((s: SLO) => s.id);
 
-                return (
-                  <div key={subjectId} className="border border-gray-200 rounded-xl overflow-hidden">
-                    <div
-                      onClick={() => toggleSubjectExpand(subjectId)}
-                      className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer select-none"
-                    >
-                      <div className="flex items-center gap-3">
-                        {!isChaptersLoading && totalSubjectSlos > 0 && (
-                          <div className="flex items-center" onClick={e => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={subjectSloIds.every(id => selectedSloIds.includes(id))}
-                              onChange={() => toggleSelectAllSlos(subjectSloIds)}
-                              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                              title="Select/Deselect all SLOs for this subject"
-                            />
-                          </div>
-                        )}
-                        {getSubjectIcon(subject.name || '')}
-                        <span className="font-semibold text-gray-900 dark:text-slate-100">{subject.name || ''}</span>
-                        <span className="text-xs text-gray-500">
-                          {isChaptersLoading ? 'Loading...' : `(${chapters?.length || 0} chapters${totalSubjectSlos > 0 ? `, ${selectedSubjectSlos}/${totalSubjectSlos} SLOs selected` : ''})`}
-                        </span>
-                      </div>
-                      {isChaptersLoading ? (
-                        <Loader2 size={16} className="animate-spin text-blue-500" />
-                      ) : (
-                        <ChevronDown
-                          size={16}
-                          className={`text-gray-400 transition-transform ${isSubjectExpanded ? 'rotate-180' : ''}`}
-                        />
-                      )}
-                    </div>
-
-                    {isSubjectExpanded && (
-                      <div className="p-4 bg-white space-y-3">
-                        {(chapters || []).length === 0 ? (
-                          <p className="text-sm text-gray-400">No chapters available for this subject</p>
+                  return (
+                    <div key={subjectId} className="border border-gray-200 rounded-xl overflow-hidden">
+                      <div
+                        onClick={() => toggleSubjectExpand(subjectId)}
+                        className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-3">
+                          {!isChaptersLoading && totalSubjectSlos > 0 && (
+                            <div className="flex items-center" onClick={e => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={subjectSloIds.every(id => selectedSloIds.includes(id))}
+                                onChange={() => toggleSelectAllSlos(subjectSloIds)}
+                                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                title="Select/Deselect all SLOs for this subject"
+                              />
+                            </div>
+                          )}
+                          {getSubjectIcon(subject.name || '')}
+                          <span className="font-semibold text-gray-900 dark:text-slate-100">{subject.name || ''}</span>
+                          <span className="text-xs text-gray-500">
+                            {isChaptersLoading ? 'Loading...' : `(${chapters?.length || 0} chapters${totalSubjectSlos > 0 ? `, ${selectedSubjectSlos}/${totalSubjectSlos} SLOs selected` : ''})`}
+                          </span>
+                        </div>
+                        {isChaptersLoading ? (
+                          <Loader2 size={16} className="animate-spin text-blue-500" />
                         ) : (
-                          chapters.map((chapter: Chapter) => {
-                            const isChapterExpanded = expandedChapters.has(chapter.id);
-                            const chapterSlos = chapter.slos || [];
-                            const sloCount = chapterSlos.length;
-                            const selectedCount = chapterSlos.filter((s: SLO) => selectedSloIds.includes(s.id)).length;
+                          <ChevronDown
+                            size={16}
+                            className={`text-gray-400 transition-transform ${isSubjectExpanded ? 'rotate-180' : ''}`}
+                          />
+                        )}
+                      </div>
 
-                            return (
-                              <div key={chapter.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                <div
-                                  onClick={() => toggleChapterExpand(chapter.id)}
-                                  className="w-full flex items-center justify-between p-3 bg-gray-50/80 hover:bg-gray-100 transition-colors cursor-pointer select-none"
-                                >
-                                  <div className="flex items-center gap-3">
+                      {isSubjectExpanded && (
+                        <div className="p-4 bg-white space-y-3">
+                          {(chapters || []).length === 0 ? (
+                            <p className="text-sm text-gray-400">No chapters available for this subject</p>
+                          ) : (
+                            chapters.map((chapter: Chapter) => {
+                              const isChapterExpanded = expandedChapters.has(chapter.id);
+                              const chapterSlos = chapter.slos || [];
+                              const sloCount = chapterSlos.length;
+                              const selectedCount = chapterSlos.filter((s: SLO) => selectedSloIds.includes(s.id)).length;
+
+                              return (
+                                <div key={chapter.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                  <div
+                                    onClick={() => toggleChapterExpand(chapter.id)}
+                                    className="w-full flex items-center justify-between p-3 bg-gray-50/80 hover:bg-gray-100 transition-colors cursor-pointer select-none"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      {sloCount > 0 && (
+                                        <div className="flex items-center" onClick={e => e.stopPropagation()}>
+                                          <input
+                                            type="checkbox"
+                                            checked={chapterSlos.every((s: SLO) => selectedSloIds.includes(s.id))}
+                                            onChange={() => toggleSelectAllSlos(chapterSlos.map((s: SLO) => s.id))}
+                                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                            title="Select/Deselect all SLOs for this chapter"
+                                          />
+                                        </div>
+                                      )}
+                                      <span className="text-sm font-medium text-gray-800">{chapter.name || ''}</span>
+                                      <span className="text-xs text-gray-500">
+                                        {sloCount === 0 ? 'No SLOs' : `${selectedCount}/${sloCount} SLO${sloCount > 1 ? 's' : ''} selected`}
+                                      </span>
+                                    </div>
                                     {sloCount > 0 && (
-                                      <div className="flex items-center" onClick={e => e.stopPropagation()}>
-                                        <input
-                                          type="checkbox"
-                                          checked={chapterSlos.every((s: SLO) => selectedSloIds.includes(s.id))}
-                                          onChange={() => toggleSelectAllSlos(chapterSlos.map((s: SLO) => s.id))}
-                                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                                          title="Select/Deselect all SLOs for this chapter"
-                                        />
-                                      </div>
+                                      <ChevronDown
+                                        size={16}
+                                        className={`text-gray-400 transition-transform ${isChapterExpanded ? 'rotate-180' : ''}`}
+                                      />
                                     )}
-                                    <span className="text-sm font-medium text-gray-800">{chapter.name || ''}</span>
-                                    <span className="text-xs text-gray-500">
-                                      {sloCount === 0 ? 'No SLOs' : `${selectedCount}/${sloCount} SLO${sloCount > 1 ? 's' : ''} selected`}
-                                    </span>
                                   </div>
-                                  {sloCount > 0 && (
-                                    <ChevronDown
-                                      size={16}
-                                      className={`text-gray-400 transition-transform ${isChapterExpanded ? 'rotate-180' : ''}`}
-                                    />
+
+                                  {isChapterExpanded && sloCount > 0 && (
+                                    <div className="p-3 bg-white space-y-2">
+                                      {chapterSlos.map((slo: SLO) => (
+                                        <div
+                                          key={slo.id}
+                                          className={`flex items-center gap-3 p-2 rounded-md border transition-all ${selectedSloIds.includes(slo.id)
+                                            ? 'border-blue-500 bg-blue-50'
+                                            : 'border-gray-100'
+                                            }`}
+                                        >
+                                          <span className="text-sm text-gray-700">{slo.slo_text || slo.name || ''}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {isChapterExpanded && sloCount === 0 && (
+                                    <div className="p-3 bg-amber-50 text-xs text-amber-700">
+                                      No SLOs available for this chapter.
+                                    </div>
                                   )}
                                 </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
 
-                                {isChapterExpanded && sloCount > 0 && (
-                                  <div className="p-3 bg-white space-y-2">
-                                    {chapterSlos.map((slo: SLO) => (
-                                      <div
-                                        key={slo.id}
-                                        className={`flex items-center gap-3 p-2 rounded-md border transition-all ${selectedSloIds.includes(slo.id)
-                                          ? 'border-blue-500 bg-blue-50'
-                                          : 'border-gray-100'
-                                          }`}
-                                      >
-                                        <span className="text-sm text-gray-700">{slo.slo_text || slo.name || ''}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {isChapterExpanded && sloCount === 0 && (
-                                  <div className="p-3 bg-amber-50 text-xs text-amber-700">
-                                    No SLOs available for this chapter.
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
             </div>
-
-          </div>
           );
         })()}
 
@@ -1417,8 +1457,8 @@ const CreatePlanner: React.FC = () => {
                       const sloName = sloObj ? (sloObj.name || sloObj.slo_text || `SLO #${sloId}`) : `SLO #${sloId}`;
 
                       return (
-                        <span 
-                          key={sloId} 
+                        <span
+                          key={sloId}
                           title={sloObj ? `${subjectName}: ${sloName}` : ''}
                           className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-md cursor-help flex items-center gap-1"
                         >
