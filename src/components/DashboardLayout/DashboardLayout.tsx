@@ -460,12 +460,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               className="relative w-full group"
             >
               <div className="relative flex items-center">
-                <Search size={16} className="absolute left-3.5 transition-colors group-hover:text-slate-900 text-slate-400" />
-                <div className="w-full rounded-xl border backdrop-blur-sm py-2.5 pl-10 pr-20 text-sm outline-none transition-all duration-200 text-left border-slate-200 bg-slate-50/50 text-slate-700 placeholder:text-slate-400 hover:bg-white hover:border-slate-300 shadow-inner">
+                <Search size={18} className="absolute left-4 transition-colors group-hover:text-slate-900 dark:group-hover:text-white text-slate-400 z-10" />
+                <div className="w-full rounded-full border backdrop-blur-sm py-2.5 pl-11 pr-20 text-sm outline-none transition-all duration-200 text-left border-slate-200 bg-slate-50/60 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 placeholder:text-slate-400 hover:bg-white hover:border-slate-300 dark:hover:bg-white/10 shadow-sm">
                   Search schools, teachers, quizzes...
                 </div>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded border text-slate-500 bg-slate-100 border-slate-200">
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <kbd className="hidden sm:flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-semibold rounded-full border text-slate-400 bg-slate-100 border-slate-200 dark:bg-white/10 dark:border-white/10 dark:text-slate-400">
                     <Command size={10} />
                     <span>K</span>
                   </kbd>
