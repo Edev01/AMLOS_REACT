@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { 
-  Search, 
-  Bell, 
-  Menu, 
-  X, 
-  Command, 
-  LayoutDashboard, 
-  School, 
-  Users, 
+import {
+  Search,
+  Bell,
+  Menu,
+  X,
+  Command,
+  LayoutDashboard,
+  School,
+  Users,
   ClipboardList,
   CalendarDays,
   FileText,
@@ -55,18 +55,18 @@ const buildSearchItems = (role: string | undefined, campusId?: string | null) =>
   const dashPath = isAdmin
     ? '/admin/dashboard'
     : isSchoolAdmin
-    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/dashboard`
-    : isSchool
-    ? '/school/dashboard'
-    : '/admin/dashboard';
+      ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/dashboard`
+      : isSchool
+        ? '/school/dashboard'
+        : '/admin/dashboard';
 
   const plannersPath = isAdmin
     ? '/admin/planners'
     : isSchoolAdmin
-    ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/planners`
-    : isSchool
-    ? '/school/planners'
-    : '/admin/planners';
+      ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/planners`
+      : isSchool
+        ? '/school/planners'
+        : '/admin/planners';
 
   const studentsPath = isSchoolAdmin
     ? `/campus/${campusId || localStorage.getItem('campus_id') || 'unknown'}/students`
@@ -107,9 +107,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   const navigate = useNavigate();
   const isFetching = useIsFetching();
   const location = useLocation();
-  useEffect(() => { 
-    if (window.innerWidth < 1024) setSidebarCollapsed(true); 
-    
+  useEffect(() => {
+    if (window.innerWidth < 1024) setSidebarCollapsed(true);
+
     // Smooth scroll to top on route change
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
@@ -122,7 +122,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
   }, [sidebarCollapsed]);
-  
+
   // Handle responsive sidebar collapse
   useEffect(() => {
     const handleResize = () => {
@@ -136,7 +136,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  
+
   // Determine which sidebar to show based on route
   const isSchoolAdminRoute = location.pathname.startsWith('/campus/');
   const useSchoolAdminSidebar = isSchoolAdminRoute && !isSuperAdmin;
@@ -188,7 +188,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
 
   // The effective profile image to show (from user object if backend provides it)
   const effectiveProfileImage = user?.profile_image || '';
-  
+
   const rawSchoolIdForDisplay = tenant.schoolId || user?.school_id || '';
   const schoolIdDisplayFallback =
     rawSchoolIdForDisplay && /[A-Za-z]/.test(String(rawSchoolIdForDisplay))
@@ -314,12 +314,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
       {/* Mobile overlay */}
       <AnimatePresence>
         {!sidebarCollapsed && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden" 
-            onClick={() => setSidebarCollapsed(true)} 
+            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden"
+            onClick={() => setSidebarCollapsed(true)}
           />
         )}
       </AnimatePresence>
@@ -357,7 +357,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                   ESC
                 </kbd>
               </div>
-              
+
               {/* Results */}
               <div className="max-h-[400px] overflow-y-auto py-2">
                 {filteredItems.length === 0 ? (
@@ -394,7 +394,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                   </>
                 )}
               </div>
-              
+
               {/* Footer */}
               <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-400">
                 <div className="flex items-center gap-4">
@@ -416,9 +416,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
 
       {/* Sidebar — always visible */}
       <div
-        className={`fixed inset-y-4 left-4 z-40 transform transition-all duration-300 translate-x-0 ${
-          sidebarCollapsed ? 'w-[72px]' : 'w-[320px]'
-        }`}
+        className={`fixed inset-y-4 left-4 z-40 transform transition-all duration-300 translate-x-0 ${sidebarCollapsed ? 'w-[72px]' : 'w-[320px]'
+          }`}
       >
         {useSchoolAdminSidebar ? (
           <SchoolAdminSidebar activePage={activePage} collapsed={sidebarCollapsed} />
@@ -430,13 +429,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
       {/* Main content area */}
       <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-[104px]' : 'ml-[104px] lg:ml-[352px]'}`}>
         {/* Top navigation bar with Glassmorphism */}
-        <motion.header 
+        <motion.header
           initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className={`sticky top-4 z-20 flex h-[68px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 rounded-[24px] mr-4 ml-4 lg:ml-0 bg-white text-slate-800 ${
-            scrolled ? 'shadow-lg border border-slate-200' : 'border border-transparent'
-          }`}
+          className={`sticky top-4 z-20 flex h-[68px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 rounded-[24px] mr-4 ml-4 lg:ml-0 bg-white text-slate-800 ${scrolled ? 'shadow-lg border border-slate-200' : 'border border-transparent'
+            }`}
         >
           {/* Left — Mobile hamburger + Desktop collapse toggle */}
           <div className="flex items-center gap-2">
@@ -445,7 +443,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               type="button"
-              onClick={() => setSidebarCollapsed((p:any) => !p)}
+              onClick={() => setSidebarCollapsed((p: any) => !p)}
               className="rounded-xl p-2.5 transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             >
               {sidebarCollapsed ? <Menu size={20} className="lg:hidden" /> : <X size={20} className="lg:hidden" />}
@@ -485,8 +483,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
               whileTap={{ scale: 0.95 }}
               type="button"
               onClick={toggleTheme}
-              title={'Switch to Light Mode'}
-              className="relative rounded-xl p-2.5 transition-all duration-300 text-slate-500 hover:bg-slate-100 hover:text-slate-900 border border-transparent"
+              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              className="relative rounded-xl p-2.5 transition-all duration-300 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white border border-transparent"
             >
               <AnimatePresence mode="wait" initial={false}>
                 {isDark ? (
@@ -498,7 +496,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                     transition={{ duration: 0.2 }}
                     className="flex"
                   >
-                    <Sun size={18} />
+                    <Sun size={22} />
                   </motion.span>
                 ) : (
                   <motion.span
@@ -509,7 +507,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                     transition={{ duration: 0.2 }}
                     className="flex"
                   >
-                    <Moon size={18} />
+                    <Moon size={22} />
                   </motion.span>
                 )}
               </AnimatePresence>
@@ -522,16 +520,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                 whileTap={{ scale: 0.95 }}
                 type="button"
                 onClick={() => setNotificationsOpen(p => !p)}
-                className="relative rounded-xl p-2.5 transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                className="relative rounded-xl p-2.5 transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
               >
-                <Bell size={18} />
+                <Bell size={22} />
                 {showNotifications && recentSubmissions.length > 0 && (
                   <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
                     {recentSubmissions.length}
                   </span>
                 )}
               </motion.button>
-              
+
               <AnimatePresence>
                 {notificationsOpen && (
                   <motion.div
@@ -539,15 +537,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ duration: 0.18, ease: 'easeOut' }}
-                    className={`absolute right-0 top-[calc(100%+8px)] w-80 rounded-2xl overflow-hidden z-50 ${
-                      isDark
+                    className={`absolute right-0 top-[calc(100%+8px)] w-80 rounded-2xl overflow-hidden z-50 ${isDark
                         ? 'bg-[#1a2035] shadow-[0_8px_40px_rgba(0,0,0,0.6)] border border-white/10'
                         : 'bg-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-200/80'
-                    }`}
+                      }`}
                   >
-                    <div className={`px-4 py-3 border-b font-bold ${
-                      isDark ? 'border-white/10 text-slate-100 bg-white/5' : 'border-slate-100 text-slate-800 bg-slate-50'
-                    }`}>
+                    <div className={`px-4 py-3 border-b font-bold ${isDark ? 'border-white/10 text-slate-100 bg-white/5' : 'border-slate-100 text-slate-800 bg-slate-50'
+                      }`}>
                       Notifications
                     </div>
                     <div className="max-h-[320px] overflow-y-auto">
@@ -565,13 +561,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                               const basePath = user?.role === 'SCHOOL' ? '/school' : user?.role === 'TEACHER' ? '/teacher' : '/admin';
                               navigate(`${basePath}/submissions?view=${sub.id}`);
                             }}
-                            className={`w-full text-left px-4 py-3 border-b transition-colors group flex items-start gap-3 ${
-                              isDark ? 'border-white/5 hover:bg-white/5' : 'border-slate-50 hover:bg-slate-50'
-                            }`}
+                            className={`w-full text-left px-4 py-3 border-b transition-colors group flex items-start gap-3 ${isDark ? 'border-white/5 hover:bg-white/5' : 'border-slate-50 hover:bg-slate-50'
+                              }`}
                           >
-                            <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                              isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
-                            }`}>
+                            <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
+                              }`}>
                               <FileText size={14} />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -593,9 +587,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                           const basePath = user?.role === 'SCHOOL' ? '/school' : user?.role === 'TEACHER' ? '/teacher' : '/admin';
                           navigate(`${basePath}/submissions`);
                         }}
-                        className={`w-full px-4 py-2 text-center text-xs font-semibold ${
-                          isDark ? 'text-blue-400 hover:bg-white/5 border-t border-white/10' : 'text-blue-600 hover:bg-slate-50 border-t border-slate-100'
-                        }`}
+                        className={`w-full px-4 py-2 text-center text-xs font-semibold ${isDark ? 'text-blue-400 hover:bg-white/5 border-t border-white/10' : 'text-blue-600 hover:bg-slate-50 border-t border-slate-100'
+                          }`}
                       >
                         View all submissions
                       </button>
@@ -606,30 +599,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
             </div>
 
             {/* Profile Dropdown */}
-            <div ref={profileRef} className="relative pl-2 border-l border-slate-200">
+            <div ref={profileRef} className="relative pl-2 border-l border-slate-200 dark:border-white/10">
               <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setProfileOpen(p => !p)}
-                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors cursor-pointer hover:bg-slate-100"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-sm ring-2 ring-offset-2 ring-blue-500/20 hover:ring-blue-500/40 transition-all cursor-pointer overflow-hidden shrink-0"
+                title="User Profile Menu"
               >
-                {/* Text (hidden on xs) */}
-                <div className="hidden sm:block text-right">
-                  <p className="text-sm font-semibold leading-tight text-slate-900">{roleLabel}</p>
-                  <p className="text-[11px] leading-tight text-slate-500">{profileSubtitle}</p>
-                </div>
-                {/* Avatar */}
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-xs font-bold text-white shadow-glow-blue border border-transparent overflow-hidden">
-                  {effectiveProfileImage ? (
-                    <img src={effectiveProfileImage} alt="Profile" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  ) : (
-                    initials || 'AK'
-                  )}
-                </div>
-                <ChevronDown
-                  size={14}
-                  className={`hidden sm:block transition-transform duration-200 text-slate-400 ${profileOpen ? 'rotate-180' : ''}`}
-                />
+                {effectiveProfileImage ? (
+                  <img src={effectiveProfileImage} alt="Profile" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                ) : (
+                  initials || 'AK'
+                )}
               </motion.button>
 
               {/* Dropdown Panel */}
@@ -640,46 +622,34 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ duration: 0.18, ease: 'easeOut' }}
-                    className={`absolute right-0 top-[calc(100%+8px)] w-72 rounded-2xl overflow-hidden z-50 ${
-                      isDark
+                    className={`absolute right-0 top-[calc(100%+8px)] w-72 rounded-2xl overflow-hidden z-50 ${isDark
                         ? 'bg-[#1a2035] shadow-[0_8px_40px_rgba(0,0,0,0.6)] border border-white/10'
                         : 'bg-white shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-200/80'
-                    }`}
+                      }`}
                   >
                     {/* Header */}
-                    <div className={`px-4 pt-4 pb-3 border-b ${
-                      isDark
+                    <div className={`px-4 py-3.5 border-b ${isDark
                         ? 'bg-gradient-to-br from-accent-blue/10 to-accent-indigo/10 border-white/10'
                         : 'bg-gradient-to-br from-accent-blue/5 to-accent-indigo/5 border-slate-100'
-                    }`}>
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-indigo text-sm font-bold text-white shadow-glow-blue overflow-hidden">
-                          {effectiveProfileImage ? (
-                            <img src={effectiveProfileImage} alt="Profile" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                          ) : (
-                            initials || 'AK'
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-bold truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                            {profileTitle}
-                          </p>
-                          <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{user?.email || 'admin@eduadmin.com'}</p>
-                          <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent-blue/10 text-accent-blue">
-                            {isSuperAdmin ? <Shield size={9} /> : <User size={9} />}
-                            {roleLabel}
-                          </span>
-                        </div>
+                      }`}>
+                      <div>
+                        <p className={`text-sm font-bold truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                          Admin panel
+                        </p>
+                        <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {user?.email || 'sameer456@gmail.com'}
+                        </p>
                       </div>
                     </div>
 
                     {/* Menu Items */}
                     <div className="py-1.5 border-b border-slate-100 dark:border-white/10">
+                      {/* Change Password */}
                       <button
                         onClick={() => { setProfileOpen(false); setChangePasswordModalOpen(true); }}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors group hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-700 dark:text-slate-300`}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors group hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-700 dark:text-slate-300"
                       >
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50`}>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50">
                           <Lock size={15} />
                         </div>
                         <div>
@@ -689,22 +659,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
                       </button>
                     </div>
 
-                    {/* Logout */}
+                    {/* Logout / Sign out */}
                     <div className="py-1.5">
                       <button
                         onClick={() => { setProfileOpen(false); handleLogout(); }}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-rose-500 transition-colors group ${
-                          'hover:bg-rose-500/10'
-                        }`}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors group hover:bg-rose-50 dark:hover:bg-rose-500/15 text-rose-600 dark:text-rose-400"
                       >
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 transition-colors ${
-                          'bg-rose-500/10 group-hover:bg-rose-500/20'
-                        }`}>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 group-hover:bg-rose-200 dark:group-hover:bg-rose-500/30">
                           <LogOut size={15} />
                         </div>
                         <div>
-                          <p className="font-semibold text-left">Sign out</p>
-                          <p className="text-[11px] text-rose-400">Log out of your account</p>
+                          <p className="font-semibold text-left text-rose-600 dark:text-rose-400 group-hover:text-rose-700 dark:group-hover:text-rose-300">Sign out</p>
+                          <p className="text-[11px] text-rose-500/80 dark:text-rose-300/70">Log out of your account</p>
                         </div>
                       </button>
                     </div>
@@ -716,13 +682,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activePage 
         </motion.header>
 
         {/* Page content with animations */}
-        <motion.main 
+        <motion.main
           initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
-          className={`p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-64px)] transition-colors duration-300 ${
-            isDark ? 'bg-[#0a0f1e]' : ''
-          }`}
+          className={`p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-64px)] transition-colors duration-300 ${isDark ? 'bg-[#0a0f1e]' : ''
+            }`}
         >
           <div className="mx-auto max-w-[1400px]">{children}</div>
         </motion.main>
