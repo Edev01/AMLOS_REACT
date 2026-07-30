@@ -2746,17 +2746,17 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
               <React.Fragment key={s.n}>
                 <div className="flex items-center gap-3">
                   <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
-                      isCompleted || isCurrent ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                      isCompleted || isCurrent ? 'bg-blue-600 text-white' : 'bg-[#E5E7EB] text-slate-700 dark:bg-slate-700 dark:text-white'
                     }`}>
                     {isCompleted ? <Check size={16} /> : s.n}
                   </div>
                   <div className="hidden sm:block">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{s.title}</p>
-                    <p className="text-[10px] text-gray-400">{s.sub}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{s.title}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-400">{s.sub}</p>
                   </div>
                 </div>
                 {i < flowSteps.length - 1 && (
-                  <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${isCompleted ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                  <div className={`hidden sm:block flex-1 h-0.5 mx-3 transition-colors ${isCompleted ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-700'}`} />
                 )}
               </React.Fragment>
             );
