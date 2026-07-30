@@ -108,7 +108,7 @@ const getSloTime = (slo: CMSSlo) =>
 const generateTrendData = (items: any[], filter: string) => {
   const now = new Date();
   const data: any[] = [];
-  
+
   let daysLimit = 30;
   let interval = 1;
   let dateFormatOptions: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
@@ -147,10 +147,10 @@ const generateTrendData = (items: any[], filter: string) => {
       const dateVal = item.created_at || item.createdAt || item.created;
       if (!dateVal) return;
       const itemDate = new Date(dateVal);
-      
+
       let minDiff = Infinity;
       let closestBucket: any = null;
-      
+
       data.forEach(bucket => {
         const diff = Math.abs(bucket.date.getTime() - itemDate.getTime());
         if (diff < minDiff) {
@@ -190,7 +190,7 @@ const generateTrendData = (items: any[], filter: string) => {
       if (remaining > 0) {
         data[numBuckets - 1].value += remaining;
       }
-      
+
       let sum = 0;
       data.forEach(bucket => {
         sum += bucket.value;
@@ -535,11 +535,10 @@ const SloDetailDrawer: React.FC<SloDetailDrawerProps> = ({ slo, onClose }) => {
               <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-800">
                 <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 mb-1">Priority</p>
                 <div>
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                    priority === 'HIGH' ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400' :
-                    priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' :
-                    'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
-                  }`}>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${priority === 'HIGH' ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400' :
+                      priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' :
+                        'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
+                    }`}>
                     {priority}
                   </span>
                 </div>
@@ -611,7 +610,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     sessionStorage.removeItem('cms_grades');
     sessionStorage.removeItem('cms_subjects');
     sessionStorage.removeItem('cms_all_chapters');
-    
+
     try {
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['cms', 'grades'] }),
@@ -705,7 +704,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
-  
+
   const subjects: Subject[] = useMemo(() => {
     const rawSubjects = subjectsQuery.data ?? [];
     const activeGradeNames = new Set(grades.map((g) => g.name.toLowerCase()));
@@ -733,7 +732,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         description: 'Selected from URL',
       });
     }
-    
+
     return Array.from(merged.values());
   }, [grades, searchParams]);
 
@@ -995,9 +994,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
           if (data.description) errors.description = Array.isArray(data.description) ? data.description[0] : data.description;
           if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
-          
+
           const generalErr = data.error || data.message || data.detail;
-          
+
           if (errors.name || errors.description) {
             setGradeFormErrors(errors);
             return;
@@ -1137,9 +1136,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           if (data.grade) errors.grade = Array.isArray(data.grade) ? data.grade[0] : data.grade;
           if (data.description) errors.description = Array.isArray(data.description) ? data.description[0] : data.description;
           if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
-          
+
           const generalErr = data.error || data.message || data.detail;
-          
+
           if (errors.name || errors.grade || errors.description) {
             setSubjectFormErrors(errors);
             return;
@@ -1233,7 +1232,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       clearCMSCache();
       toast.success('Chapter created successfully.');
       queryClient.invalidateQueries({ queryKey: ['cms'] });
-      
+
       setAddChapterBulkFile(null);
       if (newChapterId) {
         navigate(`/admin/cms/slos/add?subject=${chapterForm.subject}&chapter=${newChapterId}`);
@@ -1269,9 +1268,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           if (data.subject) errors.subject = Array.isArray(data.subject) ? data.subject[0] : data.subject;
           if (data.name) errors.name = Array.isArray(data.name) ? data.name[0] : data.name;
           if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
-          
+
           const generalErr = data.error || data.message || data.detail;
-          
+
           if (errors.grade || errors.subject || errors.name) {
             setChapterFormErrors(errors);
             return;
@@ -1404,9 +1403,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           if (data.estimated_time) errors.estimated_time = Array.isArray(data.estimated_time) ? data.estimated_time[0] : data.estimated_time;
           if (data.google_drive_link) errors.google_drive_link = Array.isArray(data.google_drive_link) ? data.google_drive_link[0] : data.google_drive_link;
           if (data.non_field_errors) errors.name = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
-          
+
           const generalErr = data.error || data.message || data.detail;
-          
+
           if (errors.grade || errors.subject || errors.chapter || errors.difficulty_frequency || errors.name || errors.estimated_time || errors.google_drive_link) {
             setSloFormErrors(errors);
             return;
@@ -1638,7 +1637,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             <StatCard label="Total Chapters" value={allChapters.length} icon={<Layers3 size={20} />} tone="bg-emerald-100 text-emerald-600" onClick={() => navigate('/admin/cms/chapters')} />
             <StatCard label="Total SLOs" value={sloRows.length} icon={<ListChecks size={20} />} tone="bg-amber-100 text-amber-600" onClick={() => navigate('/admin/cms/slos')} />
           </div>
-          
+
           <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 p-6 shadow-soft">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -1655,11 +1654,10 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                     <button
                       key={tab}
                       onClick={() => setActiveChartTab(tab)}
-                      className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                        activeChartTab === tab
+                      className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${activeChartTab === tab
                           ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
                           : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                      }`}
+                        }`}
                     >
                       {tab}
                     </button>
@@ -1685,44 +1683,44 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCurriculum" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
+                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} opacity={0.5} />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }} 
-                    dy={10} 
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }}
+                    dy={10}
                   />
-                  <YAxis 
-                    allowDecimals={false} 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }} 
+                  <YAxis
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }}
                   />
-                  <RechartsTooltip 
-                    contentStyle={{ 
-                      borderRadius: '12px', 
-                      border: isDark ? '1px solid #334155' : '1px solid #E2E8F0', 
-                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', 
+                  <RechartsTooltip
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: isDark ? '1px solid #334155' : '1px solid #E2E8F0',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
                       backgroundColor: isDark ? '#1e293b' : '#ffffff',
                       color: isDark ? '#ffffff' : '#0f172a'
                     }}
                     labelStyle={{ fontWeight: 'bold', marginBottom: '4px', color: isDark ? '#94a3b8' : '#64748b' }}
                     cursor={{ stroke: isDark ? '#475569' : '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
+                  <Area
+                    type="monotone"
+                    dataKey="value"
                     name={activeChartTab}
-                    stroke={chartColor} 
-                    strokeWidth={3} 
-                    fillOpacity={1} 
-                    fill="url(#colorCurriculum)" 
-                    activeDot={{ r: 6, stroke: isDark ? '#0f172a' : '#ffffff', strokeWidth: 2 }} 
+                    stroke={chartColor}
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorCurriculum)"
+                    activeDot={{ r: 6, stroke: isDark ? '#0f172a' : '#ffffff', strokeWidth: 2 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -1759,8 +1757,8 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filteredClasses.map((grade) => (
-            <div 
-              key={grade.id} 
+            <div
+              key={grade.id}
               onClick={() => navigate(`/admin/cms/subjects?grade=${encodeURIComponent(grade.name)}`)}
               className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-200 cursor-pointer transition"
             >
@@ -1793,19 +1791,19 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const renderAddClass = () => (
     <>
-      <SectionHeader 
-        title="Add Grade" 
-        subtitle="Create a new grade for curriculum organization." 
+      <SectionHeader
+        title="Add Grade"
+        subtitle="Create a new grade for curriculum organization."
         onBack={() => navigate('/admin/cms/classes')}
       />
-      <form onSubmit={(e) => { 
-        e.preventDefault(); 
+      <form onSubmit={(e) => {
+        e.preventDefault();
         setGradeFormGeneralError('');
         const errors = { name: '', description: '' };
         if (!className.trim()) errors.name = 'Grade name is required.';
         setGradeFormErrors(errors);
-        if (errors.name) return; 
-        createGradeMutation.mutate(); 
+        if (errors.name) return;
+        createGradeMutation.mutate();
       }}>
         <FormCard
           eyebrow="Grade Setup"
@@ -1824,31 +1822,31 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <div>
               <FieldLabel label="Grade Name" required>
-                <input 
-                  value={className} 
+                <input
+                  value={className}
                   onChange={(e) => {
                     setClassName(e.target.value);
                     if (e.target.value.trim()) setGradeFormErrors((prev) => ({ ...prev, name: '' }));
                     setGradeFormGeneralError('');
-                  }} 
-                  placeholder="9, 10, CSS, MDCAT" 
-                  className={`${fieldClass} ${gradeFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                  }}
+                  placeholder="9, 10, CSS, MDCAT"
+                  className={`${fieldClass} ${gradeFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 />
               </FieldLabel>
               {gradeFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{gradeFormErrors.name}</p>}
             </div>
-            
+
             <div className="lg:col-span-2">
               <FieldLabel label="Description">
-                <textarea 
-                  value={classDescription} 
+                <textarea
+                  value={classDescription}
                   onChange={(e) => {
                     setClassDescription(e.target.value);
                     if (e.target.value.trim()) setGradeFormErrors((prev) => ({ ...prev, description: '' }));
                     setGradeFormGeneralError('');
-                  }} 
-                  placeholder="Optional description" 
-                  className={`${fieldClass} min-h-32 resize-y ${gradeFormErrors.description ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                  }}
+                  placeholder="Optional description"
+                  className={`${fieldClass} min-h-32 resize-y ${gradeFormErrors.description ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 />
               </FieldLabel>
               {gradeFormErrors.description && <p className="text-xs text-red-500 mt-1.5 ml-1">{gradeFormErrors.description}</p>}
@@ -1962,9 +1960,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const renderAddSubject = () => (
     <>
-      <SectionHeader 
-        title="Add Subject" 
-        subtitle="Create a subject under a grade." 
+      <SectionHeader
+        title="Add Subject"
+        subtitle="Create a subject under a grade."
         onBack={() => navigate(searchParams.get('grade') ? `/admin/cms/subjects?grade=${encodeURIComponent(searchParams.get('grade')!)}` : '/admin/cms/subjects')}
       />
       <form
@@ -1997,28 +1995,28 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <div>
               <FieldLabel label="Subject Name" required>
-                <input 
-                  value={subjectForm.name} 
+                <input
+                  value={subjectForm.name}
                   onChange={(e) => {
                     setSubjectForm((prev) => ({ ...prev, name: e.target.value }));
                     if (e.target.value.trim()) setSubjectFormErrors((prev) => ({ ...prev, name: '' }));
                     setSubjectFormGeneralError('');
-                  }} 
-                  placeholder="Mathematics" 
-                  className={`${fieldClass} ${subjectFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                  }}
+                  placeholder="Mathematics"
+                  className={`${fieldClass} ${subjectFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 />
               </FieldLabel>
               {subjectFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{subjectFormErrors.name}</p>}
             </div>
             <div>
               <FieldLabel label="Grade" required>
-                <select 
-                  value={subjectForm.grade} 
+                <select
+                  value={subjectForm.grade}
                   onChange={(e) => {
                     setSubjectForm((prev) => ({ ...prev, grade: e.target.value }));
                     if (e.target.value.trim()) setSubjectFormErrors((prev) => ({ ...prev, grade: '' }));
                     setSubjectFormGeneralError('');
-                  }} 
+                  }}
                   disabled={!!searchParams.get('grade')}
                   className={`mt-2 ${selectClass} ${searchParams.get('grade') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${subjectFormErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 >
@@ -2029,15 +2027,15 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
               {subjectFormErrors.grade && <p className="text-xs text-red-500 mt-1.5 ml-1">{subjectFormErrors.grade}</p>}
             </div>
             <FieldLabel label="Description" className="lg:col-span-2" required>
-              <textarea 
-                value={subjectForm.description} 
+              <textarea
+                value={subjectForm.description}
                 onChange={(e) => {
                   setSubjectForm((prev) => ({ ...prev, description: e.target.value }));
                   if (e.target.value.trim()) setSubjectFormErrors((prev) => ({ ...prev, description: '' }));
                   setSubjectFormGeneralError('');
-                }} 
-                placeholder="Core mathematics curriculum for grade 10" 
-                className={`${fieldClass} min-h-32 resize-y ${subjectFormErrors.description ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                }}
+                placeholder="Core mathematics curriculum for grade 10"
+                className={`${fieldClass} min-h-32 resize-y ${subjectFormErrors.description ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
               />
               {subjectFormErrors.description && <p className="text-xs text-red-500 mt-1.5 ml-1">{subjectFormErrors.description}</p>}
             </FieldLabel>
@@ -2077,18 +2075,18 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           action={<PrimaryButton onClick={() => navigate(chapterSubjectId ? `/admin/cms/chapters/add?subject=${chapterSubjectId}` : '/admin/cms/chapters/add')}><Plus size={16} /> Add Chapter</PrimaryButton>}
         />
         <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[220px_280px_1fr]">
-          <select 
-            value={chapterGradeFilter} 
-            onChange={(e) => { setChapterGradeFilter(e.target.value); setChapterSubjectId(''); }} 
+          <select
+            value={chapterGradeFilter}
+            onChange={(e) => { setChapterGradeFilter(e.target.value); setChapterSubjectId(''); }}
             disabled={!!searchParams.get('subject')}
             className={`rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
           >
             <option value="">Select Grade</option>
             {classOptions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
           </select>
-          <select 
-            value={chapterSubjectId} 
-            onChange={(e) => setChapterSubjectId(e.target.value)} 
+          <select
+            value={chapterSubjectId}
+            onChange={(e) => setChapterSubjectId(e.target.value)}
             disabled={!!searchParams.get('subject')}
             className={`rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''}`}
           >
@@ -2108,43 +2106,43 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {filteredChapters.map((chapter) => (
-            <div
-              key={chapter.id}
-              onClick={() => navigate(`/admin/cms/slos?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}
-              className="cursor-pointer rounded-2xl border border-slate-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-base font-bold text-slate-900">{chapter.name}</p>
-                  <p className="mt-1 text-xs text-slate-400">{selectedSubject?.name || chapter.subject_name || 'Subject'} / Grade {selectedSubject?.grade || chapter.subject_grade || 'N/A'}</p>
+              <div
+                key={chapter.id}
+                onClick={() => navigate(`/admin/cms/slos?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}
+                className="cursor-pointer rounded-2xl border border-slate-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-bold text-slate-900">{chapter.name}</p>
+                    <p className="mt-1 text-xs text-slate-400">{selectedSubject?.name || chapter.subject_name || 'Subject'} / Grade {selectedSubject?.grade || chapter.subject_grade || 'N/A'}</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">{getChapterSlos(chapter).length} SLOs</span>
                 </div>
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">{getChapterSlos(chapter).length} SLOs</span>
+                <div className="mt-5 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                  <label className="cursor-pointer rounded-lg p-1.5 transition text-purple-600 hover:bg-purple-50 flex items-center justify-center" title="Bulk Upload Assessment Data">
+                    <input type="file" className="hidden" accept=".csv,.xlsx,.xls,.json" onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        bulkUploadAssessmentMutation.mutate({
+                          file,
+                          chapterId: chapter.id,
+                          subjectId: getChapterSubjectId(chapter),
+                          grade: chapter.subject_grade || selectedSubject?.grade || '',
+                        });
+                      }
+                      e.target.value = '';
+                    }} />
+                    {bulkUploadAssessmentMutation.isPending && bulkUploadAssessmentMutation.variables?.chapterId === chapter.id ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Upload size={15} />
+                    )}
+                  </label>
+                  <IconButton title="Add SLO" tone="blue" onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}><Plus size={15} /></IconButton>
+                  <IconButton title="Edit chapter" onClick={() => setEditingChapter(chapter)}><Pencil size={15} /></IconButton>
+                  <IconButton title="Delete chapter" tone="red" onClick={() => setDeletingChapter(chapter)}><Trash2 size={15} /></IconButton>
+                </div>
               </div>
-              <div className="mt-5 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                <label className="cursor-pointer rounded-lg p-1.5 transition text-purple-600 hover:bg-purple-50 flex items-center justify-center" title="Bulk Upload Assessment Data">
-                  <input type="file" className="hidden" accept=".csv,.xlsx,.xls,.json" onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      bulkUploadAssessmentMutation.mutate({
-                        file,
-                        chapterId: chapter.id,
-                        subjectId: getChapterSubjectId(chapter),
-                        grade: chapter.subject_grade || selectedSubject?.grade || '',
-                      });
-                    }
-                    e.target.value = '';
-                  }} />
-                  {bulkUploadAssessmentMutation.isPending && bulkUploadAssessmentMutation.variables?.chapterId === chapter.id ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
-                    <Upload size={15} />
-                  )}
-                </label>
-                <IconButton title="Add SLO" tone="blue" onClick={() => navigate(`/admin/cms/slos/add?subject=${getChapterSubjectId(chapter)}&chapter=${chapter.id}`)}><Plus size={15} /></IconButton>
-                <IconButton title="Edit chapter" onClick={() => setEditingChapter(chapter)}><Pencil size={15} /></IconButton>
-                <IconButton title="Delete chapter" tone="red" onClick={() => setDeletingChapter(chapter)}><Trash2 size={15} /></IconButton>
-              </div>
-            </div>
             ))}
           </div>
         )}
@@ -2154,9 +2152,9 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
 
   const renderAddChapter = () => (
     <>
-      <SectionHeader 
-        title="Add Chapter" 
-        subtitle="Create a chapter under a selected subject." 
+      <SectionHeader
+        title="Add Chapter"
+        subtitle="Create a chapter under a selected subject."
         onBack={() => navigate(searchParams.get('subject') ? `/admin/cms/chapters?subject=${searchParams.get('subject')}` : '/admin/cms/chapters')}
       />
       <form
@@ -2189,13 +2187,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <div>
               <FieldLabel label="Grade" required>
-                <select 
-                  value={chapterForm.grade} 
+                <select
+                  value={chapterForm.grade}
                   onChange={(e) => {
                     setChapterForm({ grade: e.target.value, subject: '', name: chapterForm.name });
                     setChapterFormErrors((prev) => ({ ...prev, grade: '', subject: '' }));
                     setChapterFormGeneralError('');
-                  }} 
+                  }}
                   disabled={!!searchParams.get('subject')}
                   className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${chapterFormErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 >
@@ -2207,13 +2205,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             </div>
             <div>
               <FieldLabel label="Subject" required>
-                <select 
-                  value={chapterForm.subject} 
+                <select
+                  value={chapterForm.subject}
                   onChange={(e) => {
                     setChapterForm((prev) => ({ ...prev, subject: e.target.value }));
                     if (e.target.value) setChapterFormErrors((prev) => ({ ...prev, subject: '' }));
                     setChapterFormGeneralError('');
-                  }} 
+                  }}
                   disabled={!!searchParams.get('subject')}
                   className={`mt-2 ${selectClass} ${searchParams.get('subject') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${chapterFormErrors.subject ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 >
@@ -2225,15 +2223,15 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             </div>
             <div className="lg:col-span-2">
               <FieldLabel label="Chapter Name" required>
-                <input 
-                  value={chapterForm.name} 
+                <input
+                  value={chapterForm.name}
                   onChange={(e) => {
                     setChapterForm((prev) => ({ ...prev, name: e.target.value }));
                     if (e.target.value.trim()) setChapterFormErrors((prev) => ({ ...prev, name: '' }));
                     setChapterFormGeneralError('');
-                  }} 
-                  placeholder="Algebra Basics" 
-                  className={`${fieldClass} ${chapterFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                  }}
+                  placeholder="Algebra Basics"
+                  className={`${fieldClass} ${chapterFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 />
               </FieldLabel>
               {chapterFormErrors.name && <p className="text-xs text-red-500 mt-1.5 ml-1">{chapterFormErrors.name}</p>}
@@ -2245,14 +2243,14 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                   <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition">
                     <Upload size={16} className="text-purple-600 shrink-0" />
                     <span className="truncate max-w-xs">{addChapterBulkFile ? addChapterBulkFile.name : 'Choose file to bulk upload...'}</span>
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      accept=".csv,.xlsx,.xls,.json,.pdf,.docx" 
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".csv,.xlsx,.xls,.json,.pdf,.docx"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) setAddChapterBulkFile(file);
-                      }} 
+                      }}
                     />
                   </label>
                   {addChapterBulkFile && (
@@ -2514,13 +2512,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <div>
               <FieldLabel label="Grade" required>
-                <select 
-                  value={sloForm.grade} 
+                <select
+                  value={sloForm.grade}
                   onChange={(e) => {
                     setSloForm((prev) => ({ ...prev, grade: e.target.value, subject: '', chapter: '' }));
                     if (e.target.value) setSloFormErrors((prev) => ({ ...prev, grade: '', subject: '', chapter: '' }));
                     setSloFormGeneralError('');
-                  }} 
+                  }}
                   disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
                   className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${sloFormErrors.grade ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 >
@@ -2532,13 +2530,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             </div>
             <div>
               <FieldLabel label="Subject" required>
-                <select 
-                  value={sloForm.subject} 
+                <select
+                  value={sloForm.subject}
                   onChange={(e) => {
                     setSloForm((prev) => ({ ...prev, subject: e.target.value, chapter: '' }));
                     if (e.target.value) setSloFormErrors((prev) => ({ ...prev, subject: '', chapter: '' }));
                     setSloFormGeneralError('');
-                  }} 
+                  }}
                   disabled={!!(searchParams.get('chapter') || searchParams.get('subject'))}
                   className={`mt-2 ${selectClass} ${(searchParams.get('chapter') || searchParams.get('subject')) ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${sloFormErrors.subject ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 >
@@ -2550,13 +2548,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             </div>
             <div>
               <FieldLabel label="Chapter" required>
-                <select 
-                  value={sloForm.chapter} 
+                <select
+                  value={sloForm.chapter}
                   onChange={(e) => {
                     setSloForm((prev) => ({ ...prev, chapter: e.target.value }));
                     if (e.target.value) setSloFormErrors((prev) => ({ ...prev, chapter: '' }));
                     setSloFormGeneralError('');
-                  }} 
+                  }}
                   disabled={!!searchParams.get('chapter')}
                   className={`mt-2 ${selectClass} ${searchParams.get('chapter') ? 'cursor-not-allowed opacity-60 appearance-none' : ''} ${sloFormErrors.chapter ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 >
@@ -2568,13 +2566,13 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             </div>
             <div>
               <FieldLabel label="Priority" required>
-                <select 
-                  value={sloForm.difficulty_frequency} 
+                <select
+                  value={sloForm.difficulty_frequency}
                   onChange={(e) => {
                     setSloForm((prev) => ({ ...prev, difficulty_frequency: e.target.value }));
                     if (e.target.value) setSloFormErrors((prev) => ({ ...prev, difficulty_frequency: '' }));
                     setSloFormGeneralError('');
-                  }} 
+                  }}
                   className={`mt-2 ${selectClass} ${sloFormErrors.difficulty_frequency ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                 >
                   <option value="">Select Priority</option>
@@ -2589,17 +2587,17 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
               <FieldLabel label="Estimated Time (in minutes)" required>
                 <div className="relative mt-2">
                   <Clock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input 
-                    type="number" 
-                    min="0" 
-                    value={sloForm.estimated_time} 
+                  <input
+                    type="number"
+                    min="0"
+                    value={sloForm.estimated_time}
                     onChange={(e) => {
                       setSloForm((prev) => ({ ...prev, estimated_time: e.target.value }));
                       if (e.target.value.trim() && Number(e.target.value) > 0) setSloFormErrors((prev) => ({ ...prev, estimated_time: '' }));
                       setSloFormGeneralError('');
-                    }} 
-                    placeholder="e.g. 45" 
-                    className={`${fieldClass} mt-0 pl-11 ${sloFormErrors.estimated_time ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                    }}
+                    placeholder="e.g. 45"
+                    className={`${fieldClass} mt-0 pl-11 ${sloFormErrors.estimated_time ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                   />
                 </div>
               </FieldLabel>
@@ -2634,15 +2632,15 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
                 {bulk ? (
                   <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder="Student can solve simple linear equations." className={`${fieldClass} min-h-56 resize-y`} />
                 ) : (
-                  <textarea 
-                    value={sloForm.name} 
+                  <textarea
+                    value={sloForm.name}
                     onChange={(e) => {
                       setSloForm((prev) => ({ ...prev, name: e.target.value }));
                       if (e.target.value.trim()) setSloFormErrors((prev) => ({ ...prev, name: '' }));
                       setSloFormGeneralError('');
-                    }} 
-                    placeholder="Student can solve simple linear equations." 
-                    className={`${fieldClass} min-h-36 resize-y ${sloFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`} 
+                    }}
+                    placeholder="Student can solve simple linear equations."
+                    className={`${fieldClass} min-h-36 resize-y ${sloFormErrors.name ? 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100' : ''}`}
                   />
                 )}
               </FieldLabel>
@@ -2745,8 +2743,7 @@ const CMSManagement: React.FC<CMSManagementProps> = ({ view = 'dashboard' }) => 
             return (
               <React.Fragment key={s.n}>
                 <div className="flex items-center gap-3">
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
-                      isCompleted || isCurrent ? 'bg-blue-600 text-white' : 'bg-[#E5E7EB] text-slate-700 dark:bg-slate-700 dark:text-white'
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${isCompleted || isCurrent ? 'bg-blue-600 text-white' : 'bg-[#E5E7EB] text-slate-900 dark:bg-slate-700 dark:text-white'
                     }`}>
                     {isCompleted ? <Check size={16} /> : s.n}
                   </div>
